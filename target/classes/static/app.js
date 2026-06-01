@@ -954,6 +954,12 @@ function showAuth() {
   const appView = el("app-view");
   if (authView) authView.classList.remove("hidden");
   if (appView) appView.classList.add("hidden");
+  
+  // Limpiar campos de login
+  const loginEmail = el("login-email");
+  const loginPassword = el("login-password");
+  if (loginEmail) loginEmail.value = "";
+  if (loginPassword) loginPassword.value = "";
 }
 
 function showApp() {
@@ -997,7 +1003,8 @@ function wireAuth() {
     try {
       setLoading(true);
       await signIn(email, password);
-      await bootApp();
+      // Después del login exitoso, recargar la app
+      await init();
     } catch (err) {
       if (errorEl) {
         errorEl.textContent = err.message || "Credenciales incorrectas";
@@ -1102,22 +1109,32 @@ async function init() {
   wireAuth();
   
   const token = localStorage.getItem("fin_token");
-  const refreshToken = localStorage.getItem("fin_refresh");
   
   if (token) {
     try {
       setLoading(true);
-      // Verificar si el token es válido antes de bootear
-      const isValid = await verifyToken();
-      if (isValid) {
-        await bootApp();
-      } else {
-        // Token inválido, hacer logout
-        logout();
+      // Intentar obtener el usuario para verificar si el token es válido
+      const user = await api.get("/me");
+      state.user = user;
+      showApp();
+      wireNav();
+      wireTxForm();
+      wireAccForm();
+      wireRecurringForm();
+      wireDebtForm();
+      wireCategoryForm();
+      wireProfileForm();
+      navigateTo("dashboard");
+      
+      if ("serviceWorker" in navigator) {
+        navigator.serviceWorker.register("./sw.js").catch(() => {});
       }
     } catch (error) {
-      console.error("Token verification error:", error);
-      logout();
+      console.error("Token inválido o expirado:", error);
+      // Si hay error, limpiar token y mostrar login
+      localStorage.removeItem("fin_token");
+      localStorage.removeItem("fin_refresh");
+      showAuth();
     } finally {
       setLoading(false);
     }

@@ -20,8 +20,8 @@ public class SecurityConfig {
                 .csrf(AbstractHttpConfigurer::disable)
                 .authorizeHttpRequests(auth -> auth
                         // Permitir acceso público a la raíz y archivos estáticos
-                        .requestMatchers("/", "/index.html", "/styles.css", "/app.js", 
-                                         "/manifest.json", "/sw.js", "/icon.svg").permitAll()
+                		.requestMatchers("/", "/index.html", "/styles.css", "/app.js", 
+                                "/manifest.json", "/sw.js", "/icon.svg", "/static/**").permitAll()
                         // Endpoints de autenticación públicos
                         .requestMatchers("/auth/**", "/actuator/health", "/health").permitAll()
                         // Todo lo demás requiere autenticación
