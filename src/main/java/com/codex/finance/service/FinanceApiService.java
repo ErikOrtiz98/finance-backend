@@ -19,6 +19,7 @@ import com.codex.finance.repository.InstallmentRepository;
 import java.math.BigDecimal;
 import java.time.Instant;
 import java.time.LocalDate;
+import java.time.ZoneId;
 import java.util.*;
 import java.util.stream.Collectors;
 
@@ -611,8 +612,8 @@ public class FinanceApiService {
 	        uuid, debtUuid, request.number(), request.amount(), 
 	        request.dueDate(), request.paid() != null ? request.paid() : false
 	    );
-	    
-	    // Obtener el installment recién creado
+
+	    // Obtener el installment recién creado (el último por número)
 	    List<Object[]> installments = installmentRepo.listInstallmentsByDebt(uuid, debtUuid);
 	    Object[] lastInstallment = installments.isEmpty() ? null : installments.get(installments.size() - 1);
 	    return mapper.mapToInstallmentResponse(lastInstallment);
@@ -775,31 +776,47 @@ public class FinanceApiService {
 	// ==================== REPORTS ====================
 	@Transactional(readOnly = true)
 	public List<ContractDtos.MonthlyReportResponse> getMonthlyReports(String userId, int year) {
-		UUID uuid = UUID.fromString(userId);
-		LocalDate startDate = LocalDate.of(year, 1, 1);
-		List<Object[]> rows = movementRepo.getMonthlyReport(uuid, startDate);
-		List<ContractDtos.MonthlyReportResponse> reports = new ArrayList<>();
+	    UUID uuid = UUID.fromString(userId);
+	    LocalDate startDate = LocalDate.of(year, 1, 1);
+	    List<Object[]> rows = movementRepo.getMonthlyReport(uuid, startDate);
+	    List<ContractDtos.MonthlyReportResponse> reports = new ArrayList<>();
 
-		for (Object[] row : rows) {
-			LocalDate month = (LocalDate) row[0];
-			BigDecimal income = mapper.toBigDecimal(row[1]);
-			BigDecimal expenses = mapper.toBigDecimal(row[2]);
-			BigDecimal savings = income.subtract(expenses);
+	    for (Object[] row : rows) {
+	        // La columna 0 puede ser LocalDate, Instant, o java.sql.Timestamp
+	        Object monthObj = row[0];
+	        LocalDate month;
+	        
+	        if (monthObj instanceof LocalDate) {
+	            month = (LocalDate) monthObj;
+	        } else if (monthObj instanceof java.sql.Date) {
+	            month = ((java.sql.Date) monthObj).toLocalDate();
+	        } else if (monthObj instanceof java.sql.Timestamp) {
+	            month = ((java.sql.Timestamp) monthObj).toLocalDateTime().toLocalDate();
+	        } else if (monthObj instanceof Instant) {
+	            month = ((Instant) monthObj).atZone(ZoneId.systemDefault()).toLocalDate();
+	        } else {
+	            // Si todo falla, usar el primer día del mes actual
+	            month = LocalDate.now().withDayOfMonth(1);
+	        }
+	        
+	        BigDecimal income = mapper.toBigDecimal(row[1]);
+	        BigDecimal expenses = mapper.toBigDecimal(row[2]);
+	        BigDecimal savings = income.subtract(expenses);
 
-			// Obtener top categorías de gastos para este mes
-			LocalDate monthStart = month.withDayOfMonth(1);
-			LocalDate monthEnd = month.withDayOfMonth(month.lengthOfMonth());
-			List<ContractDtos.CategoryStatResponse> topExpenses = 
-					categoryStats(userId, "monthly", monthStart, monthEnd, null).stream()
-					.limit(3)
-					.collect(Collectors.toList());
+	        // Obtener top categorías de gastos para este mes
+	        LocalDate monthStart = month.withDayOfMonth(1);
+	        LocalDate monthEnd = month.withDayOfMonth(month.lengthOfMonth());
+	        List<ContractDtos.CategoryStatResponse> topExpenses = 
+	                categoryStats(userId, "monthly", monthStart, monthEnd, null).stream()
+	                .limit(3)
+	                .collect(Collectors.toList());
 
-			reports.add(new ContractDtos.MonthlyReportResponse(
-					month.toString(),
-					income, expenses, savings,
-					topExpenses
-					));
-		}
-		return reports;
+	        reports.add(new ContractDtos.MonthlyReportResponse(
+	                month.toString(),
+	                income, expenses, savings,
+	                topExpenses
+	                ));
+	    }
+	    return reports;
 	}
 }

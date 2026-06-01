@@ -50,14 +50,13 @@ public interface InstallmentRepository extends JpaRepository<Installment, UUID> 
     
     @Modifying
     @Query(value = "INSERT INTO installments (id, debt_id, user_id, number, amount, due_date, paid, created_at, updated_at, row_version) " +
-           "VALUES (gen_random_uuid(), :debtId, :userId, :number, :amount, :dueDate, :paid, NOW(), NOW(), 1) " +
-           "RETURNING id", nativeQuery = true)
+           "VALUES (gen_random_uuid(), :debtId, :userId, :number, :amount, :dueDate, :paid, NOW(), NOW(), 1)", nativeQuery = true)
     void createInstallment(@Param("userId") UUID userId, 
-                          @Param("debtId") UUID debtId,
-                          @Param("number") Integer number,
-                          @Param("amount") BigDecimal amount,
-                          @Param("dueDate") LocalDate dueDate,
-                          @Param("paid") Boolean paid);
+                           @Param("debtId") UUID debtId,
+                           @Param("number") Integer number,
+                           @Param("amount") BigDecimal amount,
+                           @Param("dueDate") LocalDate dueDate,
+                           @Param("paid") Boolean paid);
     
     @Modifying
     @Query(value = "UPDATE installments SET " +

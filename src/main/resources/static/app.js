@@ -2071,6 +2071,10 @@ document.addEventListener("click", async (e) => {
       const inst = state.installments.find(i => i.id == id);
       if (inst) buildEditInstallmentModal(inst);
     }
+	if (action === "add-progress-goal") {
+	  const goal = state.goals.find(g => g.id == id);
+	  if (goal) buildAddProgressModal(goal);
+	}
   } catch (err) {
     showToast(err.message, "error");
   }
@@ -2112,7 +2116,74 @@ function renderGoals() {
     </div>
   `).join("");
 }
+function renderGoals() {
+  const c = el("goals-list");
+  if (!c) return;
+  const cur = state.user?.currency || "MXN";
+  if (!state.goals || state.goals.length === 0) {
+    c.innerHTML = `<div class="empty-state"><div class="empty-state-icon">🎯</div>Sin metas registradas</div>`;
+    return;
+  }
+  c.innerHTML = state.goals.map(goal => {
+    const progressPercent = goal.progressPercentage || 0;
+    const remaining = goal.targetAmount - goal.currentProgress;
+    return `
+      <div class="goal-card">
+        <div class="goal-name">${goal.name}</div>
+        <div class="goal-amount">${fmt(goal.currentProgress, cur)} / ${fmt(goal.targetAmount, cur)}</div>
+        <div class="goal-progress-bar"><div class="goal-progress-fill" style="width:${progressPercent}%"></div></div>
+        <div class="goal-date">
+          ${goal.targetDate ? `Meta: ${new Date(goal.targetDate).toLocaleDateString()}` : 'Sin fecha límite'}
+          ${remaining > 0 ? `<span style="color:var(--text-muted)"> · Faltan: ${fmt(remaining, cur)}</span>` : ''}
+        </div>
+        <div><span class="goal-status status-${goal.status === 'active' ? 'active' : 'paused'}">${goal.status === 'active' ? 'Activa' : 'Pausada'}</span></div>
+        <div class="account-actions" style="margin-top:1rem; gap:0.5rem; flex-wrap:wrap">
+          <button class="btn-success-sm" data-action="add-progress-goal" data-id="${goal.id}">+ Agregar progreso</button>
+          <button class="btn-edit-sm" data-action="edit-goal" data-id="${goal.id}">Editar</button>
+          <button class="btn-danger-sm" data-action="del-goal" data-id="${goal.id}">Eliminar</button>
+        </div>
+      </div>
+    `;
+  }).join("");
+}
 
+function buildAddProgressModal(goal) {
+  const cur = state.user?.currency || "MXN";
+  openModal(`Agregar progreso a "${goal.name}"`, `
+    <div class="form-grid">
+      <div class="field-group field-full">
+        <label class="field-label">Monto a agregar</label>
+        <input id="progress-amount" class="field-input" type="number" step="0.01" placeholder="0.00" />
+        <small class="text-muted" style="margin-top:0.5rem">Progreso actual: ${fmt(goal.currentProgress, cur)}<br>
+        Meta: ${fmt(goal.targetAmount, cur)}</small>
+      </div>
+    </div>
+  `, async () => {
+    const amount = Number(el("progress-amount")?.value || 0);
+    if (amount <= 0) {
+      showToast("Ingresa un monto válido", "error");
+      return;
+    }
+    
+    const newProgress = goal.currentProgress + amount;
+    if (newProgress > goal.targetAmount) {
+      showToast(`El progreso no puede exceder la meta de ${fmt(goal.targetAmount, cur)}`, "error");
+      return;
+    }
+    
+    await api.patch(`/financial-goals/${goal.id}`, {
+      name: goal.name,
+      targetAmount: goal.targetAmount,
+      currentProgress: newProgress,
+      targetDate: goal.targetDate,
+      status: newProgress >= goal.targetAmount ? "achieved" : goal.status
+    });
+    
+    showToast(`¡Progreso actualizado! Ahora tienes ${fmt(newProgress, cur)}`, "success");
+    closeModal();
+    await loadGoals();
+  });
+}
 // ─── BUDGETS ────────────────────────────────────────────────
 async function loadBudgets() {
   setLoading(true);
