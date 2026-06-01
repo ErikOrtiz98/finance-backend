@@ -633,16 +633,47 @@ public class FinanceApiService {
 	}
 
 	public ContractDtos.InstallmentResponse markInstallmentAsPaid(String userId, String id) {
-		UUID uuid = UUID.fromString(userId);
-		UUID installmentUuid = UUID.fromString(id);
+	    UUID uuid = UUID.fromString(userId);
+	    UUID installmentUuid = UUID.fromString(id);
 
-		int updated = installmentRepo.markAsPaid(uuid, installmentUuid);
-		if (updated == 0) {
-			throw new ApiException(HttpStatus.NOT_FOUND, "installment not found or already paid");
-		}
+	    // Obtener la installment antes de pagarla
+	    Object[] installmentRow = installmentRepo.getInstallmentById(uuid, installmentUuid);
+	    if (installmentRow == null) {
+	        throw new ApiException(HttpStatus.NOT_FOUND, "installment not found");
+	    }
+	    
+	    Object[] unwrapped = mapper.unwrap(installmentRow);
+	    UUID debtId = UUID.fromString(mapper.toString(unwrapped[1])); // debt_id
+	    BigDecimal amount = mapper.toBigDecimal(unwrapped[3]); // amount
+	    
+	    int updated = installmentRepo.markAsPaid(uuid, installmentUuid);
+	    if (updated == 0) {
+	        throw new ApiException(HttpStatus.NOT_FOUND, "installment not found or already paid");
+	    }
 
-		Object[] row = installmentRepo.getInstallmentById(uuid, installmentUuid);
-		return mapper.mapToInstallmentResponse(row);
+	    // Actualizar el saldo restante de la deuda
+	    Object[] debtRow = debtRepo.getDebtById(uuid, debtId);
+	    if (debtRow != null) {
+	        Object[] unwrappedDebt = mapper.unwrap(debtRow);
+	        BigDecimal currentRemaining = mapper.toBigDecimal(unwrappedDebt[3]); // remaining_balance o principalBalance
+	        BigDecimal newRemaining = currentRemaining.subtract(amount);
+	        if (newRemaining.compareTo(BigDecimal.ZERO) < 0) {
+	            newRemaining = BigDecimal.ZERO;
+	        }
+	        
+	        // Actualizar la deuda
+	        debtRepo.updateDebt(debtId, uuid, 
+	            mapper.toString(unwrappedDebt[2]), // name
+	            newRemaining, // principalBalance
+	            mapper.toBigDecimal(unwrappedDebt[4]), // installment
+	            mapper.toString(unwrappedDebt[5]), // frequency
+	            mapper.toString(unwrappedDebt[6]), // nextDueDate
+	            mapper.toString(unwrappedDebt[7])  // notes
+	        );
+	    }
+
+	    Object[] row = installmentRepo.getInstallmentById(uuid, installmentUuid);
+	    return mapper.mapToInstallmentResponse(row);
 	}
 
 	public void deleteInstallment(String userId, String id) {

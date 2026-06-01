@@ -2054,13 +2054,17 @@ document.addEventListener("click", async (e) => {
       showToast("Presupuesto eliminado", "success");
       await loadBudgets();
     }
-    if (action === "pay-inst") {
-      if (!confirm("¿Marcar esta partialidad como pagada?")) return;
-      await api.post(`/installments/${id}/pay`, {});
-      showToast("Partialidad marcada como pagada", "success");
-      await loadInstallments();
-      await loadDebts();
-    }
+	if (action === "pay-inst") {
+	  if (!confirm("¿Marcar esta partialidad como pagada?")) return;
+	  try {
+	    await api.post(`/installments/${id}/pay`, {});
+	    showToast("Partialidad marcada como pagada", "success");
+	    await loadInstallments();
+	    await loadDebts();  // ← Recargar deudas para mostrar nuevo saldo
+	  } catch (err) {
+	    showToast(err.message, "error");
+	  }
+	}
     if (action === "del-inst") {
       if (!confirm("¿Eliminar esta partialidad?")) return;
       await api.delete(`/installments/${id}`);
@@ -2102,46 +2106,24 @@ function renderGoals() {
     c.innerHTML = `<div class="empty-state"><div class="empty-state-icon">🎯</div>Sin metas registradas</div>`;
     return;
   }
-  c.innerHTML = state.goals.map(goal => `
-    <div class="goal-card">
-      <div class="goal-name">${goal.name}</div>
-      <div class="goal-amount">${fmt(goal.currentProgress, cur)} / ${fmt(goal.targetAmount, cur)}</div>
-      <div class="goal-progress-bar"><div class="goal-progress-fill" style="width:${goal.progressPercentage}%"></div></div>
-      <div class="goal-date">${goal.targetDate ? `Meta: ${new Date(goal.targetDate).toLocaleDateString()}` : 'Sin fecha límite'}</div>
-      <div><span class="goal-status status-${goal.status === 'active' ? 'active' : 'paused'}">${goal.status === 'active' ? 'Activa' : 'Pausada'}</span></div>
-      <div class="account-actions" style="margin-top:1rem">
-        <button class="btn-edit-sm" data-action="edit-goal" data-id="${goal.id}">Editar</button>
-        <button class="btn-danger-sm" data-action="del-goal" data-id="${goal.id}">Eliminar</button>
-      </div>
-    </div>
-  `).join("");
-}
-function renderGoals() {
-  const c = el("goals-list");
-  if (!c) return;
-  const cur = state.user?.currency || "MXN";
-  if (!state.goals || state.goals.length === 0) {
-    c.innerHTML = `<div class="empty-state"><div class="empty-state-icon">🎯</div>Sin metas registradas</div>`;
-    return;
-  }
   c.innerHTML = state.goals.map(goal => {
     const progressPercent = goal.progressPercentage || 0;
-    const remaining = goal.targetAmount - goal.currentProgress;
+    const isAchieved = goal.status === 'achieved' || goal.currentProgress >= goal.targetAmount;
     return `
       <div class="goal-card">
         <div class="goal-name">${goal.name}</div>
         <div class="goal-amount">${fmt(goal.currentProgress, cur)} / ${fmt(goal.targetAmount, cur)}</div>
-        <div class="goal-progress-bar"><div class="goal-progress-fill" style="width:${progressPercent}%"></div></div>
+        <div class="goal-progress-bar"><div class="goal-progress-fill" style="width:${Math.min(progressPercent, 100)}%"></div></div>
         <div class="goal-date">
           ${goal.targetDate ? `Meta: ${new Date(goal.targetDate).toLocaleDateString()}` : 'Sin fecha límite'}
-          ${remaining > 0 ? `<span style="color:var(--text-muted)"> · Faltan: ${fmt(remaining, cur)}</span>` : ''}
         </div>
         <div><span class="goal-status status-${goal.status === 'active' ? 'active' : 'paused'}">${goal.status === 'active' ? 'Activa' : 'Pausada'}</span></div>
         <div class="account-actions" style="margin-top:1rem; gap:0.5rem; flex-wrap:wrap">
-          <button class="btn-success-sm" data-action="add-progress-goal" data-id="${goal.id}">+ Agregar progreso</button>
+          ${!isAchieved && goal.status === 'active' ? `<button class="btn-success-sm" data-action="add-progress-goal" data-id="${goal.id}">+ Agregar progreso</button>` : ''}
           <button class="btn-edit-sm" data-action="edit-goal" data-id="${goal.id}">Editar</button>
           <button class="btn-danger-sm" data-action="del-goal" data-id="${goal.id}">Eliminar</button>
         </div>
+        ${isAchieved ? '<div style="margin-top:0.5rem;color:var(--green);font-size:0.8rem">🎉 Meta alcanzada</div>' : ''}
       </div>
     `;
   }).join("");
@@ -2406,6 +2388,32 @@ function syncCreditOnlyFields(scope, type) {
   });
 }
 
+// ─── PWA INSTALL ─────────────────────────────────────────────
+let deferredPrompt;
+
+window.addEventListener('beforeinstallprompt', (e) => {
+  e.preventDefault();
+  deferredPrompt = e;
+  showInstallButton();
+});
+
+function showInstallButton() {
+  const installBtn = document.getElementById('btn-install-app');
+  if (installBtn) {
+    installBtn.classList.remove('hidden');
+    installBtn.addEventListener('click', async () => {
+      if (deferredPrompt) {
+        deferredPrompt.prompt();
+        const { outcome } = await deferredPrompt.userChoice;
+        if (outcome === 'accepted') {
+          console.log('Usuario aceptó instalar la app');
+        }
+        deferredPrompt = null;
+        installBtn.classList.add('hidden');
+      }
+    });
+  }
+}
 // ─── INIT ──────────────────────────────────────────────────
 async function init() {
   wireAuth();

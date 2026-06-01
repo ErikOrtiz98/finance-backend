@@ -5,3 +5,4 @@ coverage/
 .git/
 .next/
 .cache/
+target/
