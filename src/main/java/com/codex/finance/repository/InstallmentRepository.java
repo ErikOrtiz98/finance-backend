@@ -5,13 +5,16 @@ import java.time.LocalDate;
 import java.util.List;
 import java.util.UUID;
 
+import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
+import com.codex.finance.entity.Installment;
+
 @Repository
-public interface InstallmentRepository {
+public interface InstallmentRepository extends JpaRepository<Installment, UUID> {
     
     @Query(value = "SELECT i.id, i.debt_id, i.number, i.amount, i.due_date, i.paid, i.paid_at, " +
            "i.payment_movement_id, i.created_at, i.updated_at, i.deleted_at, " +

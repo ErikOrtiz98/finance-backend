@@ -15,8 +15,11 @@ C:\Users\eriki\Documents\Codex\2026-05-31\files-mentioned-by-the-user-texto\outp
 C:\Users\eriki\Documents\Codex\2026-05-31\files-mentioned-by-the-user-texto\outputs\java-contract-backend\src\main\java\com\codex\finance\FinanceApplication.java
 C:\Users\eriki\Documents\Codex\2026-05-31\files-mentioned-by-the-user-texto\outputs\java-contract-backend\src\main\java\com\codex\finance\mapper\FinanceMapper.java
 C:\Users\eriki\Documents\Codex\2026-05-31\files-mentioned-by-the-user-texto\outputs\java-contract-backend\src\main\java\com\codex\finance\repository\AccountRepository.java
+C:\Users\eriki\Documents\Codex\2026-05-31\files-mentioned-by-the-user-texto\outputs\java-contract-backend\src\main\java\com\codex\finance\repository\BudgetRepository.java
 C:\Users\eriki\Documents\Codex\2026-05-31\files-mentioned-by-the-user-texto\outputs\java-contract-backend\src\main\java\com\codex\finance\repository\CategoryRepository.java
 C:\Users\eriki\Documents\Codex\2026-05-31\files-mentioned-by-the-user-texto\outputs\java-contract-backend\src\main\java\com\codex\finance\repository\DebtRepository.java
+C:\Users\eriki\Documents\Codex\2026-05-31\files-mentioned-by-the-user-texto\outputs\java-contract-backend\src\main\java\com\codex\finance\repository\FinancialGoalRepository.java
+C:\Users\eriki\Documents\Codex\2026-05-31\files-mentioned-by-the-user-texto\outputs\java-contract-backend\src\main\java\com\codex\finance\repository\InstallmentRepository.java
 C:\Users\eriki\Documents\Codex\2026-05-31\files-mentioned-by-the-user-texto\outputs\java-contract-backend\src\main\java\com\codex\finance\repository\MovementRepository.java
 C:\Users\eriki\Documents\Codex\2026-05-31\files-mentioned-by-the-user-texto\outputs\java-contract-backend\src\main\java\com\codex\finance\repository\ProfileRepository.java
 C:\Users\eriki\Documents\Codex\2026-05-31\files-mentioned-by-the-user-texto\outputs\java-contract-backend\src\main\java\com\codex\finance\repository\ScheduledPaymentRepository.java
