@@ -2,7 +2,7 @@ server:
   port: 8080
 
 spring:
-  datasource:
+  datasource:   
     url: ${SPRING_DATASOURCE_URL}
     username: ${SPRING_DATASOURCE_USERNAME}
     password: ${SPRING_DATASOURCE_PASSWORD}
@@ -25,7 +25,8 @@ spring:
         format_sql: true
   logging:
     level:
-      org.springframework.security: TRACE
+      org.springframework.web.reactive.function.client: DEBUG
+      reactor.netty.http.client: DEBUG
 
 app:
   url: https://kqzjbstrhutdgrqcqfow.supabase.co

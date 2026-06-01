@@ -25,45 +25,94 @@ public class SupabaseAuthClient {
         this.properties = properties;
     }
 
+//    public AuthResponse signUp(SignUpRequest request) {
+//        JsonNode payload = webClient.post()
+//                .uri(properties.url() + "/auth/v1/signup")
+//                .header("apikey", properties.anonKey())
+//                .header("Authorization", "Bearer " + properties.anonKey())
+//                .contentType(MediaType.APPLICATION_JSON)
+//                .bodyValue(java.util.Map.of(
+//                        "email", request.email(),
+//                        "password", request.password(),
+//                        "data", java.util.Map.of("display_name", request.displayName())
+//                ))
+//                .retrieve()
+//                .bodyToMono(JsonNode.class)
+//                .block();
+//        return toAuthResponse(payload);
+//    }
     public AuthResponse signUp(SignUpRequest request) {
-        JsonNode payload = webClient.post()
-                .uri(properties.url() + "/auth/v1/signup")
-                .header("apikey", properties.anonKey())
-                .header("Authorization", "Bearer " + properties.anonKey()) // <--- AGREGADO
-                .contentType(MediaType.APPLICATION_JSON)
-                .bodyValue(java.util.Map.of(
-                        "email", request.email(),
-                        "password", request.password(),
-                        "data", java.util.Map.of("display_name", request.displayName())
-                ))
-                .retrieve()
-                .bodyToMono(JsonNode.class)
-                .block();
-        return toAuthResponse(payload);
+        try {
+            JsonNode payload = webClient.post()
+                    .uri(properties.url() + "/auth/v1/signup")
+                    .header("apikey", properties.anonKey())
+                    .header("Authorization", "Bearer " + properties.anonKey())
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .bodyValue(java.util.Map.of(
+                            "email", request.email(),
+                            "password", request.password(),
+                            "data", java.util.Map.of("display_name", request.displayName())
+                    ))
+                    .retrieve()
+                    .bodyToMono(JsonNode.class)
+                    .block();
+            return toAuthResponse(payload);
+        } catch (org.springframework.web.reactive.function.client.WebClientResponseException e) {
+            System.err.println("DETALLE DEL ERROR SIGNUP: " + e.getResponseBodyAsString());
+            throw e;
+        }
     }
+    
 
+//    public AuthResponse signIn(SignInRequest request) {
+//        JsonNode payload = webClient.post()
+//                .uri(properties.url() + "/auth/v1/token?grant_type=password")
+//                .header("apikey", properties.anonKey())
+//                .header("Authorization", "Bearer " + properties.anonKey()) // Añadido
+//                .contentType(MediaType.APPLICATION_JSON)
+//                .bodyValue(java.util.Map.of(
+//                        "grant_type", "password", // Añadido al body
+//                        "email", request.email(),
+//                        "password", request.password()
+//                ))
+//                .retrieve()
+//                .bodyToMono(JsonNode.class)
+//                .block();
+//        return toAuthResponse(payload);
+//    }
     public AuthResponse signIn(SignInRequest request) {
-        JsonNode payload = webClient.post()
-                .uri(properties.url() + "/auth/v1/token?grant_type=password")
-                .header("apikey", properties.anonKey())
-                .header("Authorization", "Bearer " + properties.anonKey()) // <--- AGREGADO
-                .contentType(MediaType.APPLICATION_JSON)
-                .bodyValue(java.util.Map.of(
-                        "email", request.email(),
-                        "password", request.password()
-                ))
-                .retrieve()
-                .bodyToMono(JsonNode.class)
-                .block();
-        return toAuthResponse(payload);
+        try {
+            JsonNode payload = webClient.post()
+                    .uri(properties.url() + "/auth/v1/token?grant_type=password")
+                    .header("apikey", properties.anonKey())
+                    .header("Authorization", "Bearer " + properties.anonKey())
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .bodyValue(java.util.Map.of(
+                            "grant_type", "password",
+                            "email", request.email(),
+                            "password", request.password()
+                    ))
+                    .retrieve()
+                    .bodyToMono(JsonNode.class)
+                    .block();
+            return toAuthResponse(payload);
+        } catch (org.springframework.web.reactive.function.client.WebClientResponseException e) {
+            // AQUÍ VEREMOS EL ERROR REAL
+            System.err.println("Error de Supabase: " + e.getResponseBodyAsString());
+            throw e;
+        }
     }
 
     public SessionResponse refresh(RefreshRequest request) {
         JsonNode payload = webClient.post()
                 .uri(properties.url() + "/auth/v1/token?grant_type=refresh_token")
                 .header("apikey", properties.anonKey())
+                .header("Authorization", "Bearer " + properties.anonKey()) // Añadido
                 .contentType(MediaType.APPLICATION_JSON)
-                .bodyValue(java.util.Map.of("refresh_token", request.refreshToken()))
+                .bodyValue(java.util.Map.of(
+                        "grant_type", "refresh_token", // Añadido al body
+                        "refresh_token", request.refreshToken()
+                ))
                 .retrieve()
                 .bodyToMono(JsonNode.class)
                 .block();
@@ -81,10 +130,27 @@ public class SupabaseAuthClient {
     }
 
     public SessionResponse currentSession(String accessToken, String refreshToken) {
-        return new SessionResponse(
-                new UserDto("unknown", null, null),
-                new SessionDto(accessToken, refreshToken, Instant.now().plusSeconds(3600))
-        );
+        try {
+            // Intentar obtener el usuario con el token actual
+            JsonNode payload = webClient.get()
+                    .uri(properties.url() + "/auth/v1/user")
+                    .header("apikey", properties.anonKey())
+                    .header("Authorization", "Bearer " + accessToken)
+                    .retrieve()
+                    .bodyToMono(JsonNode.class)
+                    .block();
+            
+            return toSessionResponse(payload);
+            
+        } catch (org.springframework.web.reactive.function.client.WebClientResponseException.Forbidden e) {
+            // SI FALLA POR 403 (Forbidden), significa que el token expiró.
+            // 1. Ejecutamos el refresh
+            System.out.println("Token expirado, intentando refrescar...");
+            SessionResponse newSession = refresh(new RefreshRequest(refreshToken));
+            
+            // 2. Intentamos de nuevo con el nuevo token
+            return newSession;
+        }
     }
 
     private AuthResponse toAuthResponse(JsonNode payload) {
