@@ -21,15 +21,14 @@ spring:
       ddl-auto: none
     properties:
       hibernate:
-        dialect: org.hibernate.dialect.PostgreSQLDialect
         format_sql: true
   web:
     resources:
       static-locations: classpath:/static/
       add-mappings: true
   mvc:
-    static-path-pattern: /**
-    throw-exception-if-no-handler-found: true
+    throw-exception-if-no-handler-found: false
+    # Elimina static-path-pattern para que no interfiera
 
   logging:
     level:
