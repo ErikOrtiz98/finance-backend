@@ -602,13 +602,13 @@ function fillProfile(user) {
   const currency = el("profile-currency");
   const period = el("profile-period");
   
-  // MeResponse no tiene monthlyIncome, eso se maneja aparte
   if (income) income.value = "";
   if (currency) currency.value = user.currency || "MXN";
   if (period) period.value = user.payCycle === "monthly" ? "monthly" : "biweekly";
   
   toggleProfilePeriodFields(user.payCycle || "biweekly");
   
+  // Cargar los días de pago
   if (user.payDays && user.payDays.length) {
     if (user.payCycle === "biweekly") {
       const payday1 = el("profile-payday1");
@@ -628,9 +628,15 @@ function toggleProfilePeriodFields(period) {
   const quincenalFields2 = el("profile-quincenal-fields2");
   const monthlyFields = el("profile-monthly-fields");
   
-  if (quincenalFields) quincenalFields.classList.toggle("hidden", !isBiweekly);
-  if (quincenalFields2) quincenalFields2.classList.toggle("hidden", !isBiweekly);
-  if (monthlyFields) monthlyFields.classList.toggle("hidden", isBiweekly);
+  if (quincenalFields) {
+    quincenalFields.classList.toggle("hidden", !isBiweekly);
+  }
+  if (quincenalFields2) {
+    quincenalFields2.classList.toggle("hidden", !isBiweekly);
+  }
+  if (monthlyFields) {
+    monthlyFields.classList.toggle("hidden", isBiweekly);
+  }
 }
 
 // ─── HELPERS ───────────────────────────────────────────────
@@ -905,33 +911,37 @@ function wireProfileForm() {
   
   if (periodSelect) periodSelect.addEventListener("change", () => toggleProfilePeriodFields(periodSelect.value));
   
-  if (saveBtn) saveBtn.addEventListener("click", async () => {
-    try {
-      const period = el("profile-period")?.value;
-      let payDays = [];
-      if (period === "biweekly") {
-        const d1 = parseInt(el("profile-payday1")?.value, 10);
-        const d2 = parseInt(el("profile-payday2")?.value, 10);
-        if (!isNaN(d1)) payDays.push(d1);
-        if (!isNaN(d2)) payDays.push(d2);
-      } else {
-        const d = parseInt(el("profile-payday-monthly")?.value, 10);
-        if (!isNaN(d)) payDays.push(d);
+  if (saveBtn) {
+    saveBtn.addEventListener("click", async () => {
+      try {
+        const period = el("profile-period")?.value;
+        let payDays = [];
+        
+        if (period === "biweekly") {
+          const d1 = parseInt(el("profile-payday1")?.value, 10);
+          const d2 = parseInt(el("profile-payday2")?.value, 10);
+          if (!isNaN(d1)) payDays.push(d1);
+          if (!isNaN(d2)) payDays.push(d2);
+        } else {
+          const d = parseInt(el("profile-payday-monthly")?.value, 10);
+          if (!isNaN(d)) payDays.push(d);
+        }
+        
+        const body = {
+          displayName: state.user?.displayName || "",
+          currency: el("profile-currency")?.value,
+          payCycle: period,
+          payDays: payDays,
+        };
+        
+        await api.patch("/me", body);
+        state.user = { ...(state.user || {}), ...body };
+        showToast("Perfil actualizado", "success");
+      } catch (e) {
+        showToast(e.message, "error");
       }
-      
-      const body = {
-        displayName: state.user?.displayName || "",
-        currency: el("profile-currency")?.value,
-        payCycle: period,
-        payDays: payDays,
-      };
-      await api.patch("/me", body);
-      state.user = { ...(state.user || {}), ...body };
-      showToast("Perfil actualizado", "success");
-    } catch (e) {
-      showToast(e.message, "error");
-    }
-  });
+    });
+  }
   
   if (exportBtn) exportBtn.addEventListener("click", async () => {
     try {
