@@ -111,6 +111,18 @@
             <svg viewBox="0 0 20 20"><rect x="2" y="4" width="16" height="12" rx="1" stroke="currentColor" stroke-width="1.5" fill="none"/><path d="M6 8h8M6 12h5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
             Partialidades
           </button>
+		  <button class="nav-item" data-section="goals">
+		    <svg viewBox="0 0 20 20"><path d="M10 2v16M2 10h16" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+		    Metas
+		  </button>
+		  <button class="nav-item" data-section="budgets">
+		    <svg viewBox="0 0 20 20"><path d="M2 14l4-4 4 2 4-6 2 1" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" fill="none"/></svg>
+		    Presupuestos
+		  </button>
+		  <button class="nav-item" data-section="reports">
+		    <svg viewBox="0 0 20 20"><rect x="2" y="12" width="3" height="6" fill="currentColor"/><rect x="8" y="8" width="3" height="10" fill="currentColor"/><rect x="14" y="4" width="3" height="14" fill="currentColor"/></svg>
+		    Reportes
+		  </button>
         </div>
 
         <div class="nav-group">
@@ -428,6 +440,76 @@
           </div>
           <div id="installments-list" class="data-list"></div>
         </section>
+		
+		<!-- ── FINANCIAL GOALS ── -->
+		<section class="page-section hidden" id="section-goals">
+		  <div class="section-header">
+		    <h3 class="card-title">Metas Financieras</h3>
+		    <button class="btn-primary btn-sm" id="btn-add-goal">+ Nueva meta</button>
+		  </div>
+		  <div id="goal-form-wrap" class="inline-form hidden">
+		    <div class="form-grid">
+		      <div class="field-group"><label class="field-label">Nombre</label>
+		        <input id="goal-name" class="field-input" type="text" placeholder="Ej: Viaje, Casa, Ahorro" /></div>
+		      <div class="field-group"><label class="field-label">Monto objetivo</label>
+		        <input id="goal-target" class="field-input" type="number" step="0.01" placeholder="0.00" /></div>
+		      <div class="field-group"><label class="field-label">Progreso actual</label>
+		        <input id="goal-progress" class="field-input" type="number" step="0.01" placeholder="0.00" /></div>
+		      <div class="field-group"><label class="field-label">Fecha objetivo</label>
+		        <input id="goal-date" class="field-input" type="date" /></div>
+		      <div class="field-group"><label class="field-label">Estado</label>
+		        <select id="goal-status" class="field-input">
+		          <option value="active">Activa</option>
+		          <option value="paused">Pausada</option>
+		        </select></div>
+		    </div>
+		    <div class="form-actions">
+		      <button class="btn-primary btn-sm" id="btn-save-goal">Guardar</button>
+		      <button class="btn-secondary btn-sm" id="btn-cancel-goal">Cancelar</button>
+		    </div>
+		  </div>
+		  <div id="goals-list" class="goals-grid"></div>
+		</section>
+
+		<!-- ── BUDGETS ── -->
+		<section class="page-section hidden" id="section-budgets">
+		  <div class="section-header">
+		    <h3 class="card-title">Presupuestos</h3>
+		    <button class="btn-primary btn-sm" id="btn-add-budget">+ Nuevo presupuesto</button>
+		  </div>
+		  <div id="budget-form-wrap" class="inline-form hidden">
+		    <div class="form-grid">
+		      <div class="field-group"><label class="field-label">Categoría</label>
+		        <select id="budget-category" class="field-input"></select></div>
+		      <div class="field-group"><label class="field-label">Monto límite</label>
+		        <input id="budget-limit" class="field-input" type="number" step="0.01" placeholder="0.00" /></div>
+		      <div class="field-group"><label class="field-label">Alerta (%)</label>
+		        <input id="budget-alert" class="field-input" type="number" step="5" min="0" max="100" placeholder="80" /></div>
+		      <div class="field-group"><label class="field-label">Periodo inicio</label>
+		        <input id="budget-start" class="field-input" type="date" /></div>
+		      <div class="field-group"><label class="field-label">Periodo fin</label>
+		        <input id="budget-end" class="field-input" type="date" /></div>
+		    </div>
+		    <div class="form-actions">
+		      <button class="btn-primary btn-sm" id="btn-save-budget">Guardar</button>
+		      <button class="btn-secondary btn-sm" id="btn-cancel-budget">Cancelar</button>
+		    </div>
+		  </div>
+		  <div id="budgets-list" class="budgets-list"></div>
+		</section>
+
+		<!-- ── REPORTS ── -->
+		<section class="page-section hidden" id="section-reports">
+		  <div class="section-header">
+		    <h3 class="card-title">Reportes Mensuales</h3>
+		    <select id="report-year" class="period-select">
+		      <option value="2024">2024</option>
+		      <option value="2025">2025</option>
+		      <option value="2026" selected>2026</option>
+		    </select>
+		  </div>
+		  <div id="reports-list" class="reports-list"></div>
+		</section>
 
         <!-- ── ANALYTICS ── -->
         <section class="page-section hidden" id="section-analytics">

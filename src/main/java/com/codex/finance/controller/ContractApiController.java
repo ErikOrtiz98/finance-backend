@@ -2,6 +2,7 @@ package com.codex.finance.controller;
 
 import com.codex.finance.dto.ContractDtos.AuthResponse;
 import com.codex.finance.dto.ContractDtos.BackupExportResponse;
+import com.codex.finance.dto.ContractDtos;
 import com.codex.finance.dto.ContractDtos.AccountResponse;
 import com.codex.finance.dto.ContractDtos.BackupImportRequest;
 import com.codex.finance.dto.ContractDtos.CategoryResponse;
@@ -268,4 +269,103 @@ public class ContractApiController {
     public Map<String, Object> importBackup(@AuthenticationPrincipal Jwt jwt, @Valid @RequestBody BackupImportRequest request) {
         return service.importBackup(jwt.getSubject(), request);
     }
+ // ==================== INSTALLMENTS ====================
+    @GetMapping("/installments")
+    public List<ContractDtos.InstallmentResponse> listInstallments(
+            @AuthenticationPrincipal Jwt jwt,
+            @RequestParam(required = false) String debtId) {
+        return service.listInstallments(jwt.getSubject(), debtId);
+    }
+
+    @PostMapping("/installments")
+    public ContractDtos.InstallmentResponse createInstallment(
+            @AuthenticationPrincipal Jwt jwt,
+            @Valid @RequestBody ContractDtos.UpsertInstallmentRequest request) {
+        return service.createInstallment(jwt.getSubject(), request);
+    }
+
+    @PatchMapping("/installments/{id}")
+    public ContractDtos.InstallmentResponse updateInstallment(
+            @AuthenticationPrincipal Jwt jwt,
+            @PathVariable String id,
+            @Valid @RequestBody ContractDtos.UpsertInstallmentRequest request) {
+        return service.updateInstallment(jwt.getSubject(), id, request);
+    }
+
+    @PostMapping("/installments/{id}/pay")
+    public ContractDtos.InstallmentResponse markInstallmentAsPaid(
+            @AuthenticationPrincipal Jwt jwt,
+            @PathVariable String id) {
+        return service.markInstallmentAsPaid(jwt.getSubject(), id);
+    }
+
+    @DeleteMapping("/installments/{id}")
+    public Map<String, Object> deleteInstallment(
+            @AuthenticationPrincipal Jwt jwt,
+            @PathVariable String id) {
+        service.deleteInstallment(jwt.getSubject(), id);
+        return Map.of("success", true);
+    }
+ // ==================== FINANCIAL GOALS ====================
+    @GetMapping("/financial-goals")
+    public List<ContractDtos.FinancialGoalResponse> listGoals(@AuthenticationPrincipal Jwt jwt) {
+        return service.listGoals(jwt.getSubject());
+    }
+
+    @PostMapping("/financial-goals")
+    public ContractDtos.FinancialGoalResponse createGoal(
+            @AuthenticationPrincipal Jwt jwt,
+            @Valid @RequestBody ContractDtos.UpsertFinancialGoalRequest request) {
+        return service.createGoal(jwt.getSubject(), request);
+    }
+
+    @PatchMapping("/financial-goals/{id}")
+    public ContractDtos.FinancialGoalResponse updateGoal(
+            @AuthenticationPrincipal Jwt jwt,
+            @PathVariable String id,
+            @Valid @RequestBody ContractDtos.UpsertFinancialGoalRequest request) {
+        return service.updateGoal(jwt.getSubject(), id, request);
+    }
+
+    @DeleteMapping("/financial-goals/{id}")
+    public Map<String, Object> deleteGoal(@AuthenticationPrincipal Jwt jwt, @PathVariable String id) {
+        service.deleteGoal(jwt.getSubject(), id);
+        return Map.of("success", true);
+    }
+
+    // ==================== BUDGETS ====================
+    @GetMapping("/budgets")
+    public List<ContractDtos.BudgetResponse> listBudgets(@AuthenticationPrincipal Jwt jwt) {
+        return service.listBudgets(jwt.getSubject());
+    }
+
+    @PostMapping("/budgets")
+    public ContractDtos.BudgetResponse createBudget(
+            @AuthenticationPrincipal Jwt jwt,
+            @Valid @RequestBody ContractDtos.UpsertBudgetRequest request) {
+        return service.createBudget(jwt.getSubject(), request);
+    }
+
+    @PatchMapping("/budgets/{id}")
+    public ContractDtos.BudgetResponse updateBudget(
+            @AuthenticationPrincipal Jwt jwt,
+            @PathVariable String id,
+            @Valid @RequestBody ContractDtos.UpsertBudgetRequest request) {
+        return service.updateBudget(jwt.getSubject(), id, request);
+    }
+
+    @DeleteMapping("/budgets/{id}")
+    public Map<String, Object> deleteBudget(@AuthenticationPrincipal Jwt jwt, @PathVariable String id) {
+        service.deleteBudget(jwt.getSubject(), id);
+        return Map.of("success", true);
+    }
+
+    // ==================== REPORTS ====================
+    @GetMapping("/reports/monthly")
+    public List<ContractDtos.MonthlyReportResponse> getMonthlyReports(
+            @AuthenticationPrincipal Jwt jwt,
+            @RequestParam int year) {
+        return service.getMonthlyReports(jwt.getSubject(), year);
+    }
 }
+

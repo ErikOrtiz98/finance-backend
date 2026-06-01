@@ -230,6 +230,37 @@ public class FinanceMapper {
             toLong(row[12], 1L)    // version
         );
     }
+    public ContractDtos.FinancialGoalResponse mapToFinancialGoalResponse(Object[] row) {
+        row = unwrap(row);
+        return new ContractDtos.FinancialGoalResponse(
+            toString(row[0]),      // id
+            toString(row[1]),      // name
+            toBigDecimal(row[2]),  // targetAmount
+            toBigDecimal(row[3]),  // currentProgress
+            toLocalDate(row[4]),   // targetDate
+            toString(row[5]),      // status
+            toInstant(row[6]),     // createdAt
+            toInstant(row[7]),     // updatedAt
+            toBigDecimal(row[8])   // progressPercentage
+        );
+    }
+
+    public ContractDtos.BudgetResponse mapToBudgetResponse(Object[] row) {
+        row = unwrap(row);
+        return new ContractDtos.BudgetResponse(
+            toString(row[0]),      // id
+            toString(row[1]),      // categoryId
+            toString(row[2]),      // categoryName
+            toString(row[3]),      // period
+            toLocalDate(row[4]),   // periodStart
+            toLocalDate(row[5]),   // periodEnd
+            toBigDecimal(row[6]),  // amountLimit
+            toBigDecimal(row[7]),  // alertThreshold
+            toBigDecimal(row[8]),  // spentAmount
+            toBigDecimal(row[9]),  // usagePercentage
+            Boolean.TRUE.equals(row[10]) // isAlert
+        );
+    }
     
     
 }

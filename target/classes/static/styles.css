@@ -753,3 +753,64 @@ a { color: inherit; text-decoration: none; }
   .form-grid { grid-template-columns: 1fr; }
   .accounts-grid { grid-template-columns: 1fr; }
 }
+
+/* Goals Grid */
+.goals-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  gap: 1rem;
+  width: 100%;
+}
+
+.goal-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 1.35rem;
+  transition: all var(--transition);
+}
+
+.goal-card:hover { transform: translateY(-2px); border-color: var(--border-hi); }
+.goal-name { font-size: 1.1rem; font-weight: 600; margin-bottom: 0.5rem; }
+.goal-amount { font-size: 1.5rem; font-family: var(--font-display); margin: 0.5rem 0; }
+.goal-progress-bar { height: 8px; background: var(--surface2); border-radius: 99px; overflow: hidden; margin: 0.5rem 0; }
+.goal-progress-fill { height: 100%; background: linear-gradient(90deg, var(--gold), var(--green)); border-radius: 99px; transition: width 0.3s; }
+.goal-date { font-size: 0.8rem; color: var(--text-muted); margin-top: 0.5rem; }
+.goal-status { font-size: 0.7rem; text-transform: uppercase; padding: 0.2rem 0.5rem; border-radius: 99px; display: inline-block; }
+.status-active { background: var(--green-dim); color: var(--green); }
+.status-paused { background: var(--amber-dim, rgba(251,191,36,0.12)); color: var(--amber); }
+
+/* Budgets List */
+.budgets-list { display: grid; gap: 0.65rem; width: 100%; }
+.budget-item {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 1rem;
+}
+.budget-item.alert { border-left: 3px solid var(--red); }
+.budget-header { display: flex; justify-content: space-between; margin-bottom: 0.5rem; }
+.budget-category { font-weight: 600; }
+.budget-amount { font-family: var(--font-display); }
+.budget-bar { height: 6px; background: var(--surface2); border-radius: 99px; overflow: hidden; margin: 0.5rem 0; }
+.budget-fill { height: 100%; border-radius: 99px; transition: width 0.3s; }
+.budget-fill.normal { background: var(--green); }
+.budget-fill.warning { background: var(--amber); }
+.budget-fill.danger { background: var(--red); }
+
+/* Reports List */
+.reports-list { display: grid; gap: 1rem; width: 100%; }
+.report-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 1.5rem;
+}
+.report-month { font-size: 1.2rem; font-weight: 600; margin-bottom: 1rem; }
+.report-stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1rem; margin-bottom: 1rem; }
+.report-stat { text-align: center; }
+.report-stat-label { font-size: 0.75rem; color: var(--text-muted); text-transform: uppercase; }
+.report-stat-value { font-size: 1.25rem; font-family: var(--font-display); font-weight: 600; }
+.report-stat-income .report-stat-value { color: var(--green); }
+.report-stat-expense .report-stat-value { color: var(--red); }
+.report-stat-savings .report-stat-value { color: var(--gold-lt); }

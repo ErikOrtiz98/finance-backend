@@ -158,5 +158,13 @@ public interface MovementRepository extends JpaRepository<Movement, UUID> {
     	                        @Param("from") LocalDate from, 
     	                        @Param("to") LocalDate to, 
     	                        @Param("accountId") UUID accountId);
-    	
+    	@Query(value = "SELECT DATE_TRUNC('month', movement_date) as month, " +
+    		       "SUM(CASE WHEN movement_type = 'income' THEN amount ELSE 0 END) as income, " +
+    		       "SUM(CASE WHEN movement_type IN ('expense', 'payment') THEN amount ELSE 0 END) as expenses " +
+    		       "FROM movements WHERE user_id = :userId AND deleted_at IS NULL " +
+    		       "AND movement_date >= :startDate " +
+    		       "GROUP BY DATE_TRUNC('month', movement_date) " +
+    		       "ORDER BY month DESC", nativeQuery = true)
+    	List<Object[]> getMonthlyReport(@Param("userId") UUID userId, 
+    		                            @Param("startDate") LocalDate startDate);
 }

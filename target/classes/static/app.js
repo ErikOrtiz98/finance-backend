@@ -1321,6 +1321,147 @@ document.addEventListener("click", async (e) => {
     showToast(err.message, "error");
   }
 });
+// ─── FINANCIAL GOALS ─────────────────────────────────────────
+async function loadGoals() {
+  setLoading(true);
+  try {
+    const goals = await api.get("/financial-goals");
+    state.goals = goals || [];
+    renderGoals();
+  } catch (error) {
+    console.error("Error loading goals:", error);
+  } finally {
+    setLoading(false);
+  }
+}
+
+function renderGoals() {
+  const c = el("goals-list");
+  if (!c) return;
+  const cur = state.user?.currency || "MXN";
+  if (!state.goals || state.goals.length === 0) {
+    c.innerHTML = `<div class="empty-state"><div class="empty-state-icon">🎯</div>Sin metas registradas</div>`;
+    return;
+  }
+  c.innerHTML = state.goals.map(goal => `
+    <div class="goal-card">
+      <div class="goal-name">${goal.name}</div>
+      <div class="goal-amount">${fmt(goal.currentProgress, cur)} / ${fmt(goal.targetAmount, cur)}</div>
+      <div class="goal-progress-bar"><div class="goal-progress-fill" style="width:${goal.progressPercentage}%"></div></div>
+      <div class="goal-date">${goal.targetDate ? `Meta: ${new Date(goal.targetDate).toLocaleDateString()}` : 'Sin fecha límite'}</div>
+      <div><span class="goal-status status-${goal.status === 'active' ? 'active' : 'paused'}">${goal.status === 'active' ? 'Activa' : 'Pausada'}</span></div>
+      <div class="account-actions" style="margin-top:1rem">
+        <button class="btn-edit-sm" data-action="edit-goal" data-id="${goal.id}">Editar</button>
+        <button class="btn-danger-sm" data-action="del-goal" data-id="${goal.id}">Eliminar</button>
+      </div>
+    </div>
+  `).join("");
+}
+
+// ─── BUDGETS ────────────────────────────────────────────────
+async function loadBudgets() {
+  setLoading(true);
+  try {
+    const budgets = await api.get("/budgets");
+    state.budgets = budgets || [];
+    renderBudgets();
+    populateCategorySelect("budget-category", state.categories);
+  } catch (error) {
+    console.error("Error loading budgets:", error);
+  } finally {
+    setLoading(false);
+  }
+}
+
+function renderBudgets() {
+  const c = el("budgets-list");
+  if (!c) return;
+  const cur = state.user?.currency || "MXN";
+  if (!state.budgets || state.budgets.length === 0) {
+    c.innerHTML = `<div class="empty-state"><div class="empty-state-icon">💰</div>Sin presupuestos activos</div>`;
+    return;
+  }
+  c.innerHTML = state.budgets.map(b => {
+    const percent = b.usagePercentage || 0;
+    let fillClass = "normal";
+    if (percent >= 90) fillClass = "danger";
+    else if (percent >= 75) fillClass = "warning";
+    return `
+      <div class="budget-item ${b.isAlert ? 'alert' : ''}">
+        <div class="budget-header">
+          <span class="budget-category">${b.categoryName}</span>
+          <span class="budget-amount">${fmt(b.spentAmount, cur)} / ${fmt(b.amountLimit, cur)}</span>
+        </div>
+        <div class="budget-bar"><div class="budget-fill ${fillClass}" style="width:${percent}%"></div></div>
+        <div style="display:flex;justify-content:space-between;margin-top:0.5rem">
+          <span style="font-size:0.75rem">${percent}% usado</span>
+          ${b.isAlert ? '<span style="color:var(--red);font-size:0.75rem">⚠️ Alerta de presupuesto</span>' : ''}
+        </div>
+        <div class="account-actions" style="margin-top:1rem">
+          <button class="btn-edit-sm" data-action="edit-budget" data-id="${b.id}">Editar</button>
+          <button class="btn-danger-sm" data-action="del-budget" data-id="${b.id}">Eliminar</button>
+        </div>
+      </div>
+    `;
+  }).join("");
+}
+
+// ─── REPORTS ────────────────────────────────────────────────
+async function loadReports() {
+  setLoading(true);
+  try {
+    const year = el("report-year")?.value || new Date().getFullYear();
+    const reports = await api.get(`/reports/monthly?year=${year}`);
+    state.reports = reports || [];
+    renderReports();
+  } catch (error) {
+    console.error("Error loading reports:", error);
+  } finally {
+    setLoading(false);
+  }
+}
+
+function renderReports() {
+  const c = el("reports-list");
+  if (!c) return;
+  const cur = state.user?.currency || "MXN";
+  if (!state.reports || state.reports.length === 0) {
+    c.innerHTML = `<div class="empty-state"><div class="empty-state-icon">📊</div>Sin datos para mostrar</div>`;
+    return;
+  }
+  c.innerHTML = state.reports.map(report => `
+    <div class="report-card">
+      <div class="report-month">${report.yearMonth}</div>
+      <div class="report-stats">
+        <div class="report-stat report-stat-income">
+          <div class="report-stat-label">Ingresos</div>
+          <div class="report-stat-value">${fmt(report.totalIncome, cur)}</div>
+        </div>
+        <div class="report-stat report-stat-expense">
+          <div class="report-stat-label">Gastos</div>
+          <div class="report-stat-value">${fmt(report.totalExpenses, cur)}</div>
+        </div>
+        <div class="report-stat report-stat-savings">
+          <div class="report-stat-label">Ahorro</div>
+          <div class="report-stat-value">${fmt(report.totalSavings, cur)}</div>
+        </div>
+      </div>
+      ${report.topExpenses && report.topExpenses.length > 0 ? `
+        <div style="margin-top:1rem">
+          <div style="font-size:0.75rem;color:var(--text-muted);margin-bottom:0.5rem">Top gastos</div>
+          <div class="bars">
+            ${report.topExpenses.slice(0, 3).map(cat => `
+              <div class="bar-row">
+                <div class="bar-meta"><span>${cat.categoryName}</span><span>${fmt(cat.amount, cur)} (${cat.percentage}%)</span></div>
+                <div class="bar-track"><div class="bar-fill" style="width:${cat.percentage}%"></div></div>
+              </div>
+            `).join("")}
+          </div>
+        </div>
+      ` : ''}
+    </div>
+  `).join("");
+}
 
 // ─── INIT ──────────────────────────────────────────────────
 async function init() {

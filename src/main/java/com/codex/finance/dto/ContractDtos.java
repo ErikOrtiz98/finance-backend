@@ -375,4 +375,59 @@ public final class ContractDtos {
 	    Integer limit,
 	    String cursor
 	) { }
+	// Financial Goal Response
+	public record FinancialGoalResponse(
+	    String id,
+	    String name,
+	    BigDecimal targetAmount,
+	    BigDecimal currentProgress,
+	    LocalDate targetDate,
+	    String status,
+	    Instant createdAt,
+	    Instant updatedAt,
+	    BigDecimal progressPercentage
+	) { }
+
+	// Upsert Financial Goal Request
+	public record UpsertFinancialGoalRequest(
+	    @NotBlank String name,
+	    @NotNull BigDecimal targetAmount,
+	    BigDecimal currentProgress,
+	    LocalDate targetDate,
+	    String status
+	) { }
+
+	// Budget Response
+	public record BudgetResponse(
+	    String id,
+	    String categoryId,
+	    String categoryName,
+	    String period,
+	    LocalDate periodStart,
+	    LocalDate periodEnd,
+	    BigDecimal amountLimit,
+	    BigDecimal alertThreshold,
+	    BigDecimal spentAmount,
+	    BigDecimal usagePercentage,
+	    boolean isAlert
+	) { }
+
+	// Upsert Budget Request
+	public record UpsertBudgetRequest(
+	    @NotBlank String categoryId,
+	    @NotBlank String period,
+	    @NotNull LocalDate periodStart,
+	    @NotNull LocalDate periodEnd,
+	    @NotNull BigDecimal amountLimit,
+	    BigDecimal alertThreshold
+	) { }
+
+	// Report Response
+	public record MonthlyReportResponse(
+	    String yearMonth,
+	    BigDecimal totalIncome,
+	    BigDecimal totalExpenses,
+	    BigDecimal totalSavings,
+	    List<CategoryStatResponse> topExpenses
+	) { }
 }
