@@ -382,6 +382,17 @@
                 <input id="debt-name" class="field-input" type="text" placeholder="Préstamo HSBC..." />
               </div>
               <div class="field-group">
+                <label class="field-label">Frecuencia</label>
+				<select id="debt-frequency" class="field-input">
+				  <option value="weekly">Semanal</option>
+				  <option value="biweekly">Quincenal</option>
+				  <option value="monthly" selected>Mensual</option>
+				  <option value="quarterly">Trimestral</option>
+				  <option value="yearly">Anual</option>
+				  <option value="custom">Personalizado</option>
+				</select>
+              </div>
+              <div class="field-group">
                 <label class="field-label">Saldo total</label>
                 <input id="debt-total" class="field-input" type="number" step="0.01" placeholder="0.00" />
               </div>
@@ -490,9 +501,16 @@
 		    <button class="btn-primary btn-sm" id="btn-add-budget">+ Nuevo presupuesto</button>
 		  </div>
 		  <div id="budget-form-wrap" class="inline-form hidden">
-		    <div class="form-grid">
+			<div class="form-grid">
 		      <div class="field-group"><label class="field-label">Categoría</label>
 		        <select id="budget-category" class="field-input"></select></div>
+		      <div class="field-group"><label class="field-label">Periodo</label>
+		        <select id="budget-period" class="field-input">
+		          <option value="weekly">Semanal</option>
+		          <option value="biweekly">Quincenal</option>
+		          <option value="monthly" selected>Mensual</option>
+		          <option value="custom">Personalizado</option>
+		        </select></div>
 		      <div class="field-group"><label class="field-label">Monto límite</label>
 		        <input id="budget-limit" class="field-input" type="number" step="0.01" placeholder="0.00" /></div>
 		      <div class="field-group"><label class="field-label">Alerta (%)</label>
@@ -558,6 +576,7 @@
 				<select id="cat-type" class="field-input">
 				  <option value="expense">Gasto</option>
 				  <option value="income">Ingreso</option>
+				  <option value="transfer">Transferencia</option>
 				  <option value="both">Ambos</option>
 				</select>
               </div>

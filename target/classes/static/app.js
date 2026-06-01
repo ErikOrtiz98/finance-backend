@@ -1,6 +1,67 @@
 // ─── CONFIG ───────────────────────────────────────────────
 const API_BASE = "";
 
+function safeString(value) {
+  return value == null ? "" : String(value);
+}
+
+async function readResponseBody(response) {
+  const contentType = response.headers.get("content-type") || "";
+  try {
+    if (contentType.includes("application/json")) {
+      return await response.json();
+    }
+    const text = await response.text();
+    if (!text) return {};
+    try {
+      return JSON.parse(text);
+    } catch {
+      return { message: text };
+    }
+  } catch {
+    return {};
+  }
+}
+
+function friendlyApiMessage(path, status, data = {}) {
+  const error = safeString(data.error).toLowerCase();
+  const message = safeString(data.message).trim();
+  const fields = data.fields && typeof data.fields === "object" ? Object.values(data.fields).filter(Boolean) : [];
+  const firstFieldMessage = fields.length > 0 ? safeString(fields[0]) : "";
+  const lowerMessage = message.toLowerCase();
+  const normalizedPath = safeString(path);
+
+  if (error === "validation_failed") return firstFieldMessage || message || "Revisa los campos marcados.";
+  if (error === "invalid_parameter") return message || "El valor del parámetro no es válido.";
+
+  if (status === 401 || status === 403) {
+    if (normalizedPath.startsWith("/auth/sign-in")) return "Usuario y/o contraseña incorrectos.";
+    if (normalizedPath.startsWith("/auth/sign-up")) {
+      if (lowerMessage.includes("already") || lowerMessage.includes("registered")) return "El correo ya está registrado.";
+      return "No se pudo crear la cuenta. Verifica los datos.";
+    }
+    return "Tu sesión expiró. Vuelve a iniciar sesión.";
+  }
+
+  if (status === 404) return message || "No se encontró el registro.";
+  if (status === 409) return message || "Ya existe un registro con esos datos.";
+
+  if (status >= 400 && status < 500) {
+    if (lowerMessage.includes("invalid input value for enum") || lowerMessage.includes("enum")) {
+      return "Uno de los valores seleccionados no es válido.";
+    }
+    if (lowerMessage.includes("duplicate key")) return "Ya existe un registro con esos datos.";
+    if (lowerMessage.includes("foreign key")) return "Selecciona un registro relacionado válido.";
+    if (lowerMessage.includes("null value in column") || lowerMessage.includes("not-null")) return "Completa los campos obligatorios.";
+    if (normalizedPath.startsWith("/auth/sign-in")) return "Usuario y/o contraseña incorrectos.";
+    if (normalizedPath.startsWith("/auth/sign-up")) return "No se pudo crear la cuenta. Verifica los datos.";
+    return message || "Revisa los datos e intenta nuevamente.";
+  }
+
+  if (status >= 500) return "Ocurrió un error inesperado. Intenta nuevamente.";
+  return message || `Error ${status}`;
+}
+
 // ─── API CLIENT ───────────────────────────────────────────
 const api = {
   _token: () => localStorage.getItem("fin_token"),
@@ -26,9 +87,12 @@ const api = {
         if (refreshed) {
           headers["Authorization"] = `Bearer ${api._token()}`;
           const retryResponse = await fetch(`${API_BASE}${path}`, { ...options, headers });
-          if (!retryResponse.ok) throw new Error(`HTTP ${retryResponse.status}`);
+          if (!retryResponse.ok) {
+            const retryData = await readResponseBody(retryResponse);
+            throw new Error(friendlyApiMessage(path, retryResponse.status, retryData));
+          }
           if (retryResponse.status === 204) return null;
-          return retryResponse.json();
+          return readResponseBody(retryResponse);
         } else {
           logout();
           return null;
@@ -37,9 +101,9 @@ const api = {
 
       if (response.status === 204) return null;
       
-      const data = await response.json();
+      const data = await readResponseBody(response);
       if (!response.ok) {
-        throw new Error(data.message || `Error ${response.status}`);
+        throw new Error(friendlyApiMessage(path, response.status, data));
       }
       return data;
     } catch (error) {
@@ -86,11 +150,11 @@ async function signIn(email, password) {
   });
   
   if (!response.ok) {
-    const error = await response.json();
-    throw new Error(error.message || "Error al iniciar sesión");
+    const error = await readResponseBody(response);
+    throw new Error(friendlyApiMessage("/auth/sign-in", response.status, error));
   }
   
-  const data = await response.json();
+  const data = await readResponseBody(response);
   
   if (data.accessToken) {
     localStorage.setItem("fin_token", data.accessToken);
@@ -111,11 +175,11 @@ async function signUp(email, password, displayName) {
   });
   
   if (!response.ok) {
-    const error = await response.json();
-    throw new Error(error.message || "Error al crear cuenta");
+    const error = await readResponseBody(response);
+    throw new Error(friendlyApiMessage("/auth/sign-up", response.status, error));
   }
   
-  const data = await response.json();
+  const data = await readResponseBody(response);
   
   if (data.accessToken) {
     localStorage.setItem("fin_token", data.accessToken);
@@ -540,8 +604,12 @@ function renderDebts() {
 async function loadInstallments() {
   setLoading(true);
   try {
-    const installments = await api.get("/installments");
+    const [installments, debts] = await Promise.all([
+      api.get("/installments"),
+      api.get("/debts"),
+    ]);
     state.installments = installments || [];
+    state.debts = debts || [];
     renderInstallments();
     populateDebtSelect("inst-debt", state.debts);
   } catch (error) {
@@ -741,9 +809,7 @@ function populateAccountSelect(selectId, accounts) {
 
 function toggleCreditFields() {
   const type = el("acc-type")?.value;
-  document.querySelectorAll(".credit-only").forEach(field =>
-    field.classList.toggle("hidden", type !== "credit")
-  );
+  syncCreditOnlyFields(document, type);
 }
 
 function showInlineForm(formId, btnId) {
@@ -775,8 +841,44 @@ function openModal(title, bodyHtml, onSave) {
 
 function closeModal() {
   const modal = el("edit-modal");
+  const saveBtn = el("modal-save");
   if (modal) modal.classList.add("hidden");
+  if (saveBtn) saveBtn._handler = null;
   editCtx = { type: null, id: null };
+}
+
+function escapeHtml(value) {
+  return String(value ?? "").replace(/[&<>"']/g, (ch) => ({
+    "&": "&amp;",
+    "<": "&lt;",
+    ">": "&gt;",
+    '"': "&quot;",
+    "'": "&#39;",
+  }[ch]));
+}
+
+function toDateInputValue(value) {
+  if (!value) return "";
+  const text = String(value);
+  if (/^\d{4}-\d{2}-\d{2}$/.test(text)) return text;
+  return text.slice(0, 10);
+}
+
+function buildSelectOptions(items, placeholder, selectedValue, getValue, getLabel) {
+  const selected = String(selectedValue ?? "");
+  const options = (items || []).map(item => {
+    const value = String(getValue(item) ?? "");
+    const label = getLabel(item);
+    return `<option value="${escapeHtml(value)}"${selected === value ? " selected" : ""}>${escapeHtml(label)}</option>`;
+  }).join("");
+  return `<option value="">${escapeHtml(placeholder)}</option>${options}`;
+}
+
+function syncCreditOnlyFields(scope, type) {
+  const root = scope || document;
+  root.querySelectorAll(".credit-only").forEach(field => {
+    field.classList.toggle("hidden", type !== "credit");
+  });
 }
 
 // ─── WIRING ────────────────────────────────────────────────
@@ -968,6 +1070,8 @@ function wireRecurringForm() {
   const cancelBtn = el("btn-cancel-recurring");
   const saveBtn = el("btn-save-recurring");
   const nextDue = el("rec-next-due");
+  const recAccountGroup = el("rec-account")?.closest(".field-group");
+  if (recAccountGroup) recAccountGroup.classList.add("hidden");
   
   if (addBtn) addBtn.addEventListener("click", () => showInlineForm("recurring-form-wrap", "btn-add-recurring"));
   if (cancelBtn) cancelBtn.addEventListener("click", () => hideForm("recurring-form-wrap", "btn-add-recurring", "+ Nuevo"));
@@ -1008,6 +1112,10 @@ function wireDebtForm() {
   const cancelBtn = el("btn-cancel-debt");
   const saveBtn = el("btn-save-debt");
   const dueDate = el("debt-due-date");
+  const debtTotalGroup = el("debt-total")?.closest(".field-group");
+  const debtInterestGroup = el("debt-interest")?.closest(".field-group");
+  if (debtTotalGroup) debtTotalGroup.classList.add("hidden");
+  if (debtInterestGroup) debtInterestGroup.classList.add("hidden");
   
   if (addBtn) addBtn.addEventListener("click", () => showInlineForm("debt-form-wrap", "btn-add-debt"));
   if (cancelBtn) cancelBtn.addEventListener("click", () => hideForm("debt-form-wrap", "btn-add-debt", "+ Nueva deuda"));
@@ -1175,28 +1283,65 @@ function wireProfileForm() {
 
 // ─── MODAL BUILDERS ─────────────────────────────────────────
 function buildEditInstallmentModal(inst) {
-  openModal("Editar partialidad", `
+  const cur = state.user?.currency || "MXN";
+  const debtOptions = buildSelectOptions(
+    state.debts,
+    "Seleccionar deuda",
+    inst.debtId,
+    (d) => d.id,
+    (d) => `${d.name} - ${fmt(d.principalBalance || 0, cur)}`
+  );
+
+  openModal("Editar parcialidad", `
     <div class="form-grid">
-      <div class="field-group"><label class="field-label">Número</label>
-        <input id="m-inst-number" class="field-input" type="number" value="${inst.number}" /></div>
-      <div class="field-group"><label class="field-label">Monto</label>
-        <input id="m-inst-amount" class="field-input" type="number" step="0.01" value="${inst.amount}" /></div>
-      <div class="field-group"><label class="field-label">Fecha de vencimiento</label>
-        <input id="m-inst-due-date" class="field-input" type="date" value="${inst.dueDate}" /></div>
-      <div class="field-group"><label class="field-label">Pagada</label>
+      <div class="field-group field-full">
+        <label class="field-label">Deuda</label>
+        <select id="m-inst-debt" class="field-input">${debtOptions}</select>
+      </div>
+      <div class="field-group">
+        <label class="field-label">Número</label>
+        <input id="m-inst-number" class="field-input" type="number" min="1" value="${escapeHtml(inst.number ?? "")}" />
+      </div>
+      <div class="field-group">
+        <label class="field-label">Monto</label>
+        <input id="m-inst-amount" class="field-input" type="number" step="0.01" value="${escapeHtml(inst.amount ?? "")}" />
+      </div>
+      <div class="field-group">
+        <label class="field-label">Fecha de vencimiento</label>
+        <input id="m-inst-due-date" class="field-input" type="date" value="${escapeHtml(toDateInputValue(inst.dueDate))}" />
+      </div>
+      <div class="field-group">
+        <label class="field-label">Pagada</label>
         <select id="m-inst-paid" class="field-input">
           <option value="false" ${!inst.paid ? "selected" : ""}>No</option>
           <option value="true" ${inst.paid ? "selected" : ""}>Sí</option>
-        </select></div>
+        </select>
+      </div>
     </div>
   `, async () => {
+    const debtId = el("m-inst-debt")?.value;
+    const number = parseInt(el("m-inst-number")?.value, 10);
+    const amount = Number(el("m-inst-amount")?.value || 0);
+    const dueDate = el("m-inst-due-date")?.value;
+
+    if (!debtId) {
+      showToast("Selecciona una deuda", "error");
+      return;
+    }
+    if (!number || !amount || !dueDate) {
+      showToast("Completa número, monto y fecha", "error");
+      return;
+    }
+
     await api.patch(`/installments/${inst.id}`, {
-      number: parseInt(el("m-inst-number").value, 10),
-      amount: Number(el("m-inst-amount").value),
-      dueDate: el("m-inst-due-date").value,
-      paid: el("m-inst-paid").value === "true"
+      debtId,
+      number,
+      amount,
+      dueDate,
+      paid: el("m-inst-paid")?.value === "true",
+      paymentMovementId: inst.paymentMovementId || null,
     });
-    showToast("Partialidad actualizada", "success");
+    showToast("Parcialidad actualizada", "success");
     closeModal();
     await loadInstallments();
     await loadDebts();
@@ -1204,6 +1349,458 @@ function buildEditInstallmentModal(inst) {
 }
 
 // ─── AUTH VIEWS ────────────────────────────────────────────
+function buildEditTransactionModal(tx) {
+  const cur = state.user?.currency || "MXN";
+  const typeLabels = {
+    expense: "Gasto",
+    income: "Ingreso",
+    transfer: "Transferencia",
+    payment: "Pago",
+    adjustment: "Ajuste",
+  };
+  const typeOptions = Object.keys(typeLabels).map(type => `
+    <option value="${type}" ${tx.type === type ? "selected" : ""}>${typeLabels[type]}</option>
+  `).join("");
+  const categoryOptions = buildSelectOptions(
+    state.categories,
+    "Sin categoría",
+    tx.categoryId,
+    (c) => c.id,
+    (c) => `${c.icon || ""} ${c.name}`.trim()
+  );
+  const accountOptions = buildSelectOptions(
+    state.accounts,
+    "Seleccionar cuenta",
+    tx.accountId,
+    (a) => a.id,
+    (a) => a.name
+  );
+  const transferAccountOptions = buildSelectOptions(
+    state.accounts,
+    "Seleccionar cuenta destino",
+    tx.transferAccountId,
+    (a) => a.id,
+    (a) => a.name
+  );
+
+  openModal("Editar transacción", `
+    <div class="form-grid">
+      <div class="field-group">
+        <label class="field-label">Concepto</label>
+        <input id="m-tx-name" class="field-input" type="text" value="${escapeHtml(tx.description || tx.name || "")}" />
+      </div>
+      <div class="field-group">
+        <label class="field-label">Monto</label>
+        <input id="m-tx-amount" class="field-input" type="number" step="0.01" value="${escapeHtml(tx.amount ?? 0)}" />
+      </div>
+      <div class="field-group">
+        <label class="field-label">Tipo</label>
+        <select id="m-tx-type" class="field-input">${typeOptions}</select>
+      </div>
+      <div class="field-group">
+        <label class="field-label">Categoría</label>
+        <select id="m-tx-category" class="field-input">${categoryOptions}</select>
+      </div>
+      <div class="field-group">
+        <label class="field-label">Cuenta</label>
+        <select id="m-tx-account" class="field-input">${accountOptions}</select>
+      </div>
+      <div id="m-transfer-group" class="field-group hidden">
+        <label class="field-label">Cuenta destino</label>
+        <select id="m-tx-transfer-account" class="field-input">${transferAccountOptions}</select>
+      </div>
+      <div class="field-group">
+        <label class="field-label">Fecha</label>
+        <input id="m-tx-date" class="field-input" type="date" value="${escapeHtml(toDateInputValue(tx.transactionDate))}" />
+      </div>
+      <div class="field-group field-full">
+        <label class="field-label">Nota</label>
+        <input id="m-tx-note" class="field-input" type="text" value="${escapeHtml(tx.notes || "")}" />
+      </div>
+    </div>
+  `, async () => {
+    const type = el("m-tx-type")?.value;
+    const accountId = el("m-tx-account")?.value;
+    const transferAccountId = el("m-tx-transfer-account")?.value;
+    const amount = Number(el("m-tx-amount")?.value || 0);
+    const transactionDate = el("m-tx-date")?.value;
+    const description = el("m-tx-name")?.value.trim();
+    const categoryId = el("m-tx-category")?.value || null;
+    const notes = el("m-tx-note")?.value.trim() || null;
+
+    if (!accountId) {
+      showToast("Selecciona una cuenta", "error");
+      return;
+    }
+    if (!amount || !transactionDate || !description) {
+      showToast("Completa concepto, monto y fecha", "error");
+      return;
+    }
+    if (type === "transfer") {
+      if (!transferAccountId) {
+        showToast("Selecciona la cuenta destino", "error");
+        return;
+      }
+      if (transferAccountId === accountId) {
+        showToast("La cuenta origen y destino no pueden ser iguales", "error");
+        return;
+      }
+    }
+
+    await api.patch(`/transactions/${tx.id}`, {
+      accountId,
+      transferAccountId: type === "transfer" ? transferAccountId : null,
+      categoryId,
+      debtId: null,
+      type,
+      description,
+      amount,
+      currency: tx.currency || cur,
+      transactionDate,
+      notes,
+    });
+    showToast("Transacción actualizada", "success");
+    closeModal();
+    await loadTransactions();
+  });
+
+  const typeSelect = el("m-tx-type");
+  const transferGroup = el("m-transfer-group");
+  const syncTransfer = () => {
+    if (transferGroup && typeSelect) {
+      transferGroup.classList.toggle("hidden", typeSelect.value !== "transfer");
+    }
+  };
+  if (typeSelect) typeSelect.addEventListener("change", syncTransfer);
+  syncTransfer();
+}
+
+function buildEditAccountModal(acc) {
+  const cur = state.user?.currency || "MXN";
+  const modal = el("edit-modal");
+  const type = acc.type || "debit";
+
+  openModal("Editar cuenta", `
+    <div class="form-grid">
+      <div class="field-group field-full">
+        <label class="field-label">Institución</label>
+        <input id="m-acc-institution" class="field-input" type="text" value="${escapeHtml(acc.institution || "")}" />
+      </div>
+      <div class="field-group">
+        <label class="field-label">Nombre</label>
+        <input id="m-acc-name" class="field-input" type="text" value="${escapeHtml(acc.name || "")}" />
+      </div>
+      <div class="field-group">
+        <label class="field-label">Tipo</label>
+        <select id="m-acc-type" class="field-input">
+          <option value="debit" ${type === "debit" ? "selected" : ""}>Débito / Cheques</option>
+          <option value="credit" ${type === "credit" ? "selected" : ""}>Tarjeta de crédito</option>
+          <option value="savings" ${type === "savings" ? "selected" : ""}>Ahorro</option>
+          <option value="loan" ${type === "loan" ? "selected" : ""}>Préstamo</option>
+          <option value="cash" ${type === "cash" ? "selected" : ""}>Efectivo</option>
+          <option value="investment" ${type === "investment" ? "selected" : ""}>Inversión</option>
+        </select>
+      </div>
+      <div class="field-group">
+        <label class="field-label">Moneda</label>
+        <select id="m-acc-currency" class="field-input">
+          <option value="MXN" ${String(acc.currency || cur) === "MXN" ? "selected" : ""}>MXN</option>
+          <option value="USD" ${String(acc.currency || cur) === "USD" ? "selected" : ""}>USD</option>
+        </select>
+      </div>
+      <div class="field-group">
+        <label class="field-label">Saldo</label>
+        <input id="m-acc-balance" class="field-input" type="number" step="0.01" value="${escapeHtml(acc.balance ?? 0)}" />
+      </div>
+      <div class="field-group">
+        <label class="field-label">Activa</label>
+        <select id="m-acc-active" class="field-input">
+          <option value="true" ${acc.active !== false ? "selected" : ""}>Sí</option>
+          <option value="false" ${acc.active === false ? "selected" : ""}>No</option>
+        </select>
+      </div>
+      <div class="field-group credit-only hidden">
+        <label class="field-label">Límite de crédito</label>
+        <input id="m-acc-limit" class="field-input" type="number" step="0.01" value="${escapeHtml(acc.creditLimit ?? "")}" />
+      </div>
+      <div class="field-group credit-only hidden">
+        <label class="field-label">Día de corte</label>
+        <input id="m-acc-cut-day" class="field-input" type="number" min="1" max="31" value="${escapeHtml(acc.closingDay ?? "")}" />
+      </div>
+      <div class="field-group credit-only hidden">
+        <label class="field-label">Día de pago</label>
+        <input id="m-acc-due-day" class="field-input" type="number" min="1" max="31" value="${escapeHtml(acc.dueDay ?? "")}" />
+      </div>
+    </div>
+  `, async () => {
+    const accountType = el("m-acc-type")?.value;
+    const body = {
+      type: accountType,
+      name: el("m-acc-name")?.value.trim(),
+      institution: el("m-acc-institution")?.value.trim() || "",
+      currency: el("m-acc-currency")?.value || cur,
+      balance: Number(el("m-acc-balance")?.value || 0),
+      creditLimit: accountType === "credit" ? Number(el("m-acc-limit")?.value || 0) : null,
+      closingDay: accountType === "credit" ? Number(el("m-acc-cut-day")?.value || 0) : null,
+      dueDay: accountType === "credit" ? Number(el("m-acc-due-day")?.value || 0) : null,
+      active: el("m-acc-active")?.value === "true",
+    };
+    if (!body.name) {
+      showToast("Ingresa el nombre de la cuenta", "error");
+      return;
+    }
+    await api.patch(`/accounts/${acc.id}`, body);
+    showToast("Cuenta actualizada", "success");
+    closeModal();
+    await loadAccounts();
+  });
+
+  const typeSelect = el("m-acc-type");
+  if (typeSelect) {
+    const sync = () => syncCreditOnlyFields(modal, typeSelect.value);
+    typeSelect.addEventListener("change", sync);
+    sync();
+  }
+}
+
+function buildEditRecurringModal(rec) {
+  const cur = state.user?.currency || "MXN";
+  const categoryOptions = buildSelectOptions(
+    state.categories,
+    "Sin categoría",
+    rec.categoryId,
+    (c) => c.id,
+    (c) => `${c.icon || ""} ${c.name}`.trim()
+  );
+  const frequencyOptions = [
+    ["weekly", "Semanal"],
+    ["biweekly", "Quincenal"],
+    ["monthly", "Mensual"],
+    ["quarterly", "Trimestral"],
+    ["yearly", "Anual"],
+    ["custom", "Personalizado"],
+  ].map(([value, label]) => `<option value="${value}" ${String(rec.frequency || "").toLowerCase() === value ? "selected" : ""}>${label}</option>`).join("");
+
+  openModal("Editar pago recurrente", `
+    <div class="form-grid">
+      <div class="field-group">
+        <label class="field-label">Nombre</label>
+        <input id="m-rec-name" class="field-input" type="text" value="${escapeHtml(rec.name || "")}" />
+      </div>
+      <div class="field-group">
+        <label class="field-label">Monto</label>
+        <input id="m-rec-amount" class="field-input" type="number" step="0.01" value="${escapeHtml(rec.amount ?? 0)}" />
+      </div>
+      <div class="field-group">
+        <label class="field-label">Moneda</label>
+        <select id="m-rec-currency" class="field-input">
+          <option value="MXN" ${String(rec.currency || cur) === "MXN" ? "selected" : ""}>MXN</option>
+          <option value="USD" ${String(rec.currency || cur) === "USD" ? "selected" : ""}>USD</option>
+        </select>
+      </div>
+      <div class="field-group">
+        <label class="field-label">Frecuencia</label>
+        <select id="m-rec-frequency" class="field-input">${frequencyOptions}</select>
+      </div>
+      <div class="field-group">
+        <label class="field-label">Próximo vencimiento</label>
+        <input id="m-rec-next-due" class="field-input" type="date" value="${escapeHtml(toDateInputValue(rec.nextDueDate))}" />
+      </div>
+      <div class="field-group field-full">
+        <label class="field-label">Categoría</label>
+        <select id="m-rec-category" class="field-input">${categoryOptions}</select>
+      </div>
+    </div>
+  `, async () => {
+    const body = {
+      name: el("m-rec-name")?.value.trim(),
+      amount: Number(el("m-rec-amount")?.value || 0),
+      currency: el("m-rec-currency")?.value || cur,
+      frequency: el("m-rec-frequency")?.value,
+      nextDueDate: el("m-rec-next-due")?.value,
+      categoryId: el("m-rec-category")?.value || null,
+    };
+    if (!body.name || !body.amount || !body.frequency || !body.nextDueDate) {
+      showToast("Completa nombre, monto, frecuencia y fecha", "error");
+      return;
+    }
+    await api.patch(`/recurring-payments/${rec.id}`, body);
+    showToast("Pago recurrente actualizado", "success");
+    closeModal();
+    await loadRecurring();
+  });
+}
+
+function buildEditDebtModal(debt) {
+  const frequencyOptions = [
+    ["weekly", "Semanal"],
+    ["biweekly", "Quincenal"],
+    ["monthly", "Mensual"],
+    ["quarterly", "Trimestral"],
+    ["yearly", "Anual"],
+    ["custom", "Personalizado"],
+  ].map(([value, label]) => `<option value="${value}" ${String(debt.frequency || "").toLowerCase() === value ? "selected" : ""}>${label}</option>`).join("");
+
+  openModal("Editar deuda", `
+    <div class="form-grid">
+      <div class="field-group field-full">
+        <label class="field-label">Nombre</label>
+        <input id="m-debt-name" class="field-input" type="text" value="${escapeHtml(debt.name || "")}" />
+      </div>
+      <div class="field-group">
+        <label class="field-label">Saldo total</label>
+        <input id="m-debt-principal" class="field-input" type="number" step="0.01" value="${escapeHtml(debt.principalBalance ?? 0)}" />
+      </div>
+      <div class="field-group">
+        <label class="field-label">Pago mínimo</label>
+        <input id="m-debt-installment" class="field-input" type="number" step="0.01" value="${escapeHtml(debt.installment ?? "")}" />
+      </div>
+      <div class="field-group">
+        <label class="field-label">Frecuencia</label>
+        <select id="m-debt-frequency" class="field-input">${frequencyOptions}</select>
+      </div>
+      <div class="field-group">
+        <label class="field-label">Próximo pago</label>
+        <input id="m-debt-due-date" class="field-input" type="date" value="${escapeHtml(toDateInputValue(debt.nextDueDate))}" />
+      </div>
+      <div class="field-group field-full">
+        <label class="field-label">Notas</label>
+        <input id="m-debt-notes" class="field-input" type="text" value="${escapeHtml(debt.notes || "")}" />
+      </div>
+    </div>
+  `, async () => {
+    const body = {
+      name: el("m-debt-name")?.value.trim(),
+      principalBalance: Number(el("m-debt-principal")?.value || 0),
+      installment: Number(el("m-debt-installment")?.value || 0),
+      frequency: el("m-debt-frequency")?.value || "monthly",
+      nextDueDate: el("m-debt-due-date")?.value || null,
+      notes: el("m-debt-notes")?.value.trim() || null,
+    };
+    if (!body.name || !body.principalBalance || !body.frequency) {
+      showToast("Completa nombre, saldo y frecuencia", "error");
+      return;
+    }
+    await api.patch(`/debts/${debt.id}`, body);
+    showToast("Deuda actualizada", "success");
+    closeModal();
+    await loadDebts();
+    await loadInstallments();
+  });
+}
+
+function buildEditGoalModal(goal) {
+  openModal("Editar meta", `
+    <div class="form-grid">
+      <div class="field-group field-full">
+        <label class="field-label">Nombre</label>
+        <input id="m-goal-name" class="field-input" type="text" value="${escapeHtml(goal.name || "")}" />
+      </div>
+      <div class="field-group">
+        <label class="field-label">Monto objetivo</label>
+        <input id="m-goal-target" class="field-input" type="number" step="0.01" value="${escapeHtml(goal.targetAmount ?? 0)}" />
+      </div>
+      <div class="field-group">
+        <label class="field-label">Progreso actual</label>
+        <input id="m-goal-progress" class="field-input" type="number" step="0.01" value="${escapeHtml(goal.currentProgress ?? 0)}" />
+      </div>
+      <div class="field-group">
+        <label class="field-label">Fecha objetivo</label>
+        <input id="m-goal-date" class="field-input" type="date" value="${escapeHtml(toDateInputValue(goal.targetDate))}" />
+      </div>
+      <div class="field-group">
+        <label class="field-label">Estado</label>
+        <select id="m-goal-status" class="field-input">
+          <option value="active" ${goal.status === "active" ? "selected" : ""}>Activa</option>
+          <option value="paused" ${goal.status === "paused" ? "selected" : ""}>Pausada</option>
+          <option value="achieved" ${goal.status === "achieved" ? "selected" : ""}>Alcanzada</option>
+          <option value="cancelled" ${goal.status === "cancelled" ? "selected" : ""}>Cancelada</option>
+        </select>
+      </div>
+    </div>
+  `, async () => {
+    const body = {
+      name: el("m-goal-name")?.value.trim(),
+      targetAmount: Number(el("m-goal-target")?.value || 0),
+      currentProgress: Number(el("m-goal-progress")?.value || 0),
+      targetDate: el("m-goal-date")?.value || null,
+      status: el("m-goal-status")?.value || "active",
+    };
+    if (!body.name || !body.targetAmount) {
+      showToast("Completa nombre y monto objetivo", "error");
+      return;
+    }
+    await api.patch(`/financial-goals/${goal.id}`, body);
+    showToast("Meta actualizada", "success");
+    closeModal();
+    await loadGoals();
+  });
+}
+
+function buildEditBudgetModal(budget) {
+  const cur = state.user?.currency || "MXN";
+  const alertPercentage = budget.alertThreshold == null
+    ? 80
+    : Math.round(Number(budget.alertThreshold) * 100);
+  const categoryOptions = buildSelectOptions(
+    state.categories,
+    "Seleccionar categoría",
+    budget.categoryId,
+    (c) => c.id,
+    (c) => `${c.icon || ""} ${c.name}`.trim()
+  );
+
+  openModal("Editar presupuesto", `
+    <div class="form-grid">
+      <div class="field-group field-full">
+        <label class="field-label">Categoría</label>
+        <select id="m-budget-category" class="field-input">${categoryOptions}</select>
+      </div>
+      <div class="field-group">
+        <label class="field-label">Periodo</label>
+        <select id="m-budget-period" class="field-input">
+          <option value="monthly" ${budget.period === "monthly" ? "selected" : ""}>Mensual</option>
+          <option value="biweekly" ${budget.period === "biweekly" ? "selected" : ""}>Quincenal</option>
+        </select>
+      </div>
+      <div class="field-group">
+        <label class="field-label">Monto límite</label>
+        <input id="m-budget-limit" class="field-input" type="number" step="0.01" value="${escapeHtml(budget.amountLimit ?? 0)}" />
+      </div>
+      <div class="field-group">
+        <label class="field-label">Alerta (%)</label>
+        <input id="m-budget-alert" class="field-input" type="number" min="0" max="100" step="1" value="${escapeHtml(alertPercentage)}" />
+      </div>
+      <div class="field-group">
+        <label class="field-label">Periodo inicio</label>
+        <input id="m-budget-start" class="field-input" type="date" value="${escapeHtml(toDateInputValue(budget.periodStart))}" />
+      </div>
+      <div class="field-group">
+        <label class="field-label">Periodo fin</label>
+        <input id="m-budget-end" class="field-input" type="date" value="${escapeHtml(toDateInputValue(budget.periodEnd))}" />
+      </div>
+    </div>
+  `, async () => {
+    const alertValue = Number(el("m-budget-alert")?.value || 80);
+    const body = {
+      categoryId: el("m-budget-category")?.value,
+      period: el("m-budget-period")?.value || "monthly",
+      periodStart: el("m-budget-start")?.value,
+      periodEnd: el("m-budget-end")?.value,
+      amountLimit: Number(el("m-budget-limit")?.value || 0),
+      alertThreshold: alertValue / 100,
+    };
+    if (!body.categoryId || !body.amountLimit || !body.periodStart || !body.periodEnd) {
+      showToast("Completa categoría, monto y rango de fechas", "error");
+      return;
+    }
+    await api.patch(`/budgets/${budget.id}`, body);
+    showToast("Presupuesto actualizado", "success");
+    closeModal();
+    await loadBudgets();
+  });
+}
+
 function showAuth() {
   const authView = el("auth-view");
   const appView = el("app-view");
@@ -1395,6 +1992,42 @@ document.addEventListener("click", async (e) => {
       showToast("Categoría eliminada", "success");
       await loadCategories();
     }
+    if (action === "edit-tx") {
+      const tx = state.transactions.find(item => item.id == id);
+      if (tx) buildEditTransactionModal(tx);
+    }
+    if (action === "edit-acc") {
+      const acc = state.accounts.find(item => item.id == id);
+      if (acc) buildEditAccountModal(acc);
+    }
+    if (action === "edit-rec") {
+      const rec = state.recurring.find(item => item.id == id);
+      if (rec) buildEditRecurringModal(rec);
+    }
+    if (action === "edit-debt") {
+      const debt = state.debts.find(item => item.id == id);
+      if (debt) buildEditDebtModal(debt);
+    }
+    if (action === "edit-goal") {
+      const goal = state.goals.find(item => item.id == id);
+      if (goal) buildEditGoalModal(goal);
+    }
+    if (action === "del-goal") {
+      if (!confirm("¿Eliminar esta meta?")) return;
+      await api.delete(`/financial-goals/${id}`);
+      showToast("Meta eliminada", "success");
+      await loadGoals();
+    }
+    if (action === "edit-budget") {
+      const budget = state.budgets.find(item => item.id == id);
+      if (budget) buildEditBudgetModal(budget);
+    }
+    if (action === "del-budget") {
+      if (!confirm("¿Eliminar este presupuesto?")) return;
+      await api.delete(`/budgets/${id}`);
+      showToast("Presupuesto eliminado", "success");
+      await loadBudgets();
+    }
     if (action === "pay-inst") {
       if (!confirm("¿Marcar esta partialidad como pagada?")) return;
       await api.post(`/installments/${id}/pay`, {});
@@ -1458,8 +2091,12 @@ function renderGoals() {
 async function loadBudgets() {
   setLoading(true);
   try {
-    const budgets = await api.get("/budgets");
+    const [budgets, categories] = await Promise.all([
+      api.get("/budgets"),
+      api.get("/categories"),
+    ]);
     state.budgets = budgets || [];
+    state.categories = categories || [];
     renderBudgets();
     populateCategorySelect("budget-category", state.categories);
   } catch (error) {
