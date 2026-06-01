@@ -1597,7 +1597,7 @@ async function init() {
       wireRecurringForm();
       wireDebtForm();
       wireInstallmentForm();
-      wireCategoryForm();x	
+      wireCategoryForm();
       wireProfileForm();
 	  wireGoalForm();
 	  wireBudgetForm();
