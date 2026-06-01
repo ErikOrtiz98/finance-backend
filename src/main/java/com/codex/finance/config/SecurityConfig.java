@@ -14,6 +14,7 @@ import org.springframework.security.web.SecurityFilterChain;
 @EnableMethodSecurity
 public class SecurityConfig {
 
+
     @Bean
     SecurityFilterChain filterChain(HttpSecurity http, JwtDecoder jwtDecoder) throws Exception {
         return http
@@ -21,7 +22,7 @@ public class SecurityConfig {
                 .authorizeHttpRequests(auth -> auth
                         // Permitir acceso público a la raíz y archivos estáticos
                 		.requestMatchers("/", "/index.html", "/styles.css", "/app.js", 
-                                "/manifest.json", "/sw.js", "/icon.svg", "/static/**").permitAll()
+                                "/manifest.json", "/sw.js","/manifest.json", "/icon.svg", "/static/**").permitAll()
                         // Endpoints de autenticación públicos
                         .requestMatchers("/auth/**", "/actuator/health", "/health").permitAll()
                         // Todo lo demás requiere autenticación

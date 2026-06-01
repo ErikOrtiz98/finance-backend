@@ -1252,6 +1252,8 @@ async function loadAppAfterLogin() {
     wireInstallmentForm();
     wireCategoryForm();
     wireProfileForm();
+	wireGoalForm();
+	wireBudgetForm();
     
     navigateTo("dashboard");
     
@@ -1463,6 +1465,114 @@ function renderReports() {
   `).join("");
 }
 
+// ─── GOAL FORM ────────────────────────────────────────────────
+function wireGoalForm() {
+  const addBtn = el("btn-add-goal");
+  const cancelBtn = el("btn-cancel-goal");
+  const saveBtn = el("btn-save-goal");
+  
+  if (addBtn) {
+    addBtn.addEventListener("click", () => {
+      const form = el("goal-form-wrap");
+      if (form) {
+        form.classList.toggle("hidden");
+        addBtn.textContent = form.classList.contains("hidden") ? "+ Nueva meta" : "✕ Cancelar";
+      }
+    });
+  }
+  
+  if (cancelBtn) {
+    cancelBtn.addEventListener("click", () => {
+      const form = el("goal-form-wrap");
+      if (form) form.classList.add("hidden");
+      if (addBtn) addBtn.textContent = "+ Nueva meta";
+    });
+  }
+  
+  if (saveBtn) {
+    saveBtn.addEventListener("click", async () => {
+      try {
+        const body = {
+          name: el("goal-name")?.value.trim(),
+          targetAmount: Number(el("goal-target")?.value || 0),
+          currentProgress: Number(el("goal-progress")?.value || 0),
+          targetDate: el("goal-date")?.value || null,
+          status: el("goal-status")?.value || "active"
+        };
+        if (!body.name || !body.targetAmount) {
+          showToast("Completa nombre y monto objetivo", "error");
+          return;
+        }
+        await api.post("/financial-goals", body);
+        showToast("Meta guardada", "success");
+        // Limpiar y ocultar formulario
+        const form = el("goal-form-wrap");
+        if (form) form.classList.add("hidden");
+        if (addBtn) addBtn.textContent = "+ Nueva meta";
+        document.querySelectorAll("#goal-form-wrap input, #goal-form-wrap select").forEach(i => i.value = "");
+        await loadGoals();
+      } catch (e) {
+        showToast(e.message, "error");
+      }
+    });
+  }
+}
+
+// ─── BUDGET FORM ──────────────────────────────────────────────
+function wireBudgetForm() {
+  const addBtn = el("btn-add-budget");
+  const cancelBtn = el("btn-cancel-budget");
+  const saveBtn = el("btn-save-budget");
+  
+  if (addBtn) {
+    addBtn.addEventListener("click", () => {
+      const form = el("budget-form-wrap");
+      if (form) {
+        form.classList.toggle("hidden");
+        addBtn.textContent = form.classList.contains("hidden") ? "+ Nuevo presupuesto" : "✕ Cancelar";
+      }
+      // Llenar selector de categorías
+      populateCategorySelect("budget-category", state.categories);
+    });
+  }
+  
+  if (cancelBtn) {
+    cancelBtn.addEventListener("click", () => {
+      const form = el("budget-form-wrap");
+      if (form) form.classList.add("hidden");
+      if (addBtn) addBtn.textContent = "+ Nuevo presupuesto";
+    });
+  }
+  
+  if (saveBtn) {
+    saveBtn.addEventListener("click", async () => {
+      try {
+        const alertValue = Number(el("budget-alert")?.value || 80);
+        const body = {
+          categoryId: el("budget-category")?.value,
+          period: "monthly",
+          periodStart: el("budget-start")?.value,
+          periodEnd: el("budget-end")?.value,
+          amountLimit: Number(el("budget-limit")?.value || 0),
+          alertThreshold: alertValue / 100
+        };
+        if (!body.categoryId || !body.amountLimit) {
+          showToast("Completa categoría y monto límite", "error");
+          return;
+        }
+        await api.post("/budgets", body);
+        showToast("Presupuesto guardado", "success");
+        const form = el("budget-form-wrap");
+        if (form) form.classList.add("hidden");
+        if (addBtn) addBtn.textContent = "+ Nuevo presupuesto";
+        document.querySelectorAll("#budget-form-wrap input, #budget-form-wrap select").forEach(i => i.value = "");
+        await loadBudgets();
+      } catch (e) {
+        showToast(e.message, "error");
+      }
+    });
+  }
+}
 // ─── INIT ──────────────────────────────────────────────────
 async function init() {
   wireAuth();
@@ -1487,8 +1597,10 @@ async function init() {
       wireRecurringForm();
       wireDebtForm();
       wireInstallmentForm();
-      wireCategoryForm();
+      wireCategoryForm();x	
       wireProfileForm();
+	  wireGoalForm();
+	  wireBudgetForm();
       navigateTo("dashboard");
       
     } catch (error) {
