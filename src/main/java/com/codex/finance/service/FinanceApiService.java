@@ -13,6 +13,8 @@ import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.jdbc.core.JdbcTemplate;
+import com.codex.finance.repository.InstallmentRepository;
+
 
 import java.math.BigDecimal;
 import java.time.Instant;
