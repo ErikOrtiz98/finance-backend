@@ -212,5 +212,24 @@ public class FinanceMapper {
         }
     }
     
+    public ContractDtos.InstallmentResponse mapToInstallmentResponse(Object[] row) {
+        row = unwrap(row);
+        return new ContractDtos.InstallmentResponse(
+            toString(row[0]),      // id
+            toString(row[1]),      // debtId
+            toInteger(row[2]),     // number
+            toBigDecimal(row[3]),  // amount
+            toLocalDate(row[4]),   // dueDate
+            toBoolean(row[5]),     // paid
+            toInstant(row[6]),     // paidAt
+            toString(row[7]),      // paymentMovementId
+            toInstant(row[8]),     // createdAt
+            toInstant(row[9]),     // updatedAt
+            toInstant(row[10]),    // deletedAt
+            toSyncStatus(row[11]), // syncStatus
+            toLong(row[12], 1L)    // version
+        );
+    }
+    
     
 }

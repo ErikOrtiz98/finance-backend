@@ -158,4 +158,5 @@ public interface MovementRepository extends JpaRepository<Movement, UUID> {
     	                        @Param("from") LocalDate from, 
     	                        @Param("to") LocalDate to, 
     	                        @Param("accountId") UUID accountId);
+    	
 }

@@ -339,4 +339,40 @@ public final class ContractDtos {
 			Instant migrationCompletedAt
 			) {
 	}
+	// Installment Response
+	public record InstallmentResponse(
+	    String id,
+	    String debtId,
+	    Integer number,
+	    BigDecimal amount,
+	    LocalDate dueDate,
+	    Boolean paid,
+	    Instant paidAt,
+	    String paymentMovementId,
+	    Instant createdAt,
+	    Instant updatedAt,
+	    Instant deletedAt,
+	    SyncStatus syncStatus,
+	    long version
+	) { }
+
+	// Upsert Installment Request
+	public record UpsertInstallmentRequest(
+	    @NotBlank String debtId,
+	    @NotNull Integer number,
+	    @NotNull BigDecimal amount,
+	    @NotNull LocalDate dueDate,
+	    Boolean paid,
+	    String paymentMovementId
+	) { }
+
+	// List Installments Request
+	public record InstallmentFilters(
+	    String debtId,
+	    Boolean paid,
+	    LocalDate dueDateFrom,
+	    LocalDate dueDateTo,
+	    Integer limit,
+	    String cursor
+	) { }
 }

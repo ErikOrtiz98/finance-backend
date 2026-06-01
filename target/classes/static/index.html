@@ -12,7 +12,7 @@
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet" />
-	<link rel="stylesheet" href="/styles.css" />
+    <link rel="stylesheet" href="/styles.css" />
     <title>Finanzas Personales</title>
   </head>
   <body>
@@ -106,6 +106,10 @@
           <button class="nav-item" data-section="debts">
             <svg viewBox="0 0 20 20"><path d="M4 14s0-5 6-5 6 5 6 5" stroke="currentColor" stroke-width="1.5" fill="none" stroke-linecap="round"/><circle cx="10" cy="6" r="2.5" stroke="currentColor" stroke-width="1.5" fill="none"/></svg>
             Deudas / Préstamos
+          </button>
+          <button class="nav-item" data-section="installments">
+            <svg viewBox="0 0 20 20"><rect x="2" y="4" width="16" height="12" rx="1" stroke="currentColor" stroke-width="1.5" fill="none"/><path d="M6 8h8M6 12h5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+            Partialidades
           </button>
         </div>
 
@@ -383,6 +387,46 @@
             </div>
           </div>
           <div id="debts-list" class="data-list"></div>
+        </section>
+
+        <!-- ── INSTALLMENTS ── -->
+        <section class="page-section hidden" id="section-installments">
+          <div class="section-header">
+            <h3 class="card-title">Partialidades</h3>
+            <button class="btn-primary btn-sm" id="btn-add-installment">+ Nueva partialidad</button>
+          </div>
+          <div id="installment-form-wrap" class="inline-form hidden">
+            <div class="form-grid">
+              <div class="field-group">
+                <label class="field-label">Deuda</label>
+                <select id="inst-debt" class="field-input"></select>
+              </div>
+              <div class="field-group">
+                <label class="field-label">Número</label>
+                <input id="inst-number" class="field-input" type="number" min="1" placeholder="1" />
+              </div>
+              <div class="field-group">
+                <label class="field-label">Monto</label>
+                <input id="inst-amount" class="field-input" type="number" step="0.01" placeholder="0.00" />
+              </div>
+              <div class="field-group">
+                <label class="field-label">Fecha de vencimiento</label>
+                <input id="inst-due-date" class="field-input" type="date" />
+              </div>
+              <div class="field-group">
+                <label class="field-label">Pagada</label>
+                <select id="inst-paid" class="field-input">
+                  <option value="false">No</option>
+                  <option value="true">Sí</option>
+                </select>
+              </div>
+            </div>
+            <div class="form-actions">
+              <button class="btn-primary btn-sm" id="btn-save-installment">Guardar</button>
+              <button class="btn-secondary btn-sm" id="btn-cancel-installment">Cancelar</button>
+            </div>
+          </div>
+          <div id="installments-list" class="data-list"></div>
         </section>
 
         <!-- ── ANALYTICS ── -->

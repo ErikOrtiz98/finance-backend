@@ -57,8 +57,10 @@ const api = {
       });
       if (!response.ok) return false;
       const data = await response.json();
-      // SessionResponse tiene user y session
-      if (data.session && data.session.accessToken) {
+      if (data.accessToken) {
+        localStorage.setItem("fin_token", data.accessToken);
+        if (data.refreshToken) localStorage.setItem("fin_refresh", data.refreshToken);
+      } else if (data.session && data.session.accessToken) {
         localStorage.setItem("fin_token", data.session.accessToken);
         if (data.session.refreshToken) localStorage.setItem("fin_refresh", data.session.refreshToken);
       }
@@ -89,13 +91,13 @@ async function signIn(email, password) {
   }
   
   const data = await response.json();
-  console.log("Respuesta del servidor:", data);
   
-  // La respuesta es AuthResponse: { user: UserDto, session: SessionDto }
-  if (data.session && data.session.accessToken) {
+  if (data.accessToken) {
+    localStorage.setItem("fin_token", data.accessToken);
+    if (data.refreshToken) localStorage.setItem("fin_refresh", data.refreshToken);
+  } else if (data.session && data.session.accessToken) {
     localStorage.setItem("fin_token", data.session.accessToken);
-    localStorage.setItem("fin_refresh", data.session.refreshToken);
-    console.log("Token guardado correctamente");
+    if (data.session.refreshToken) localStorage.setItem("fin_refresh", data.session.refreshToken);
   }
   
   return data;
@@ -115,9 +117,12 @@ async function signUp(email, password, displayName) {
   
   const data = await response.json();
   
-  if (data.session && data.session.accessToken) {
+  if (data.accessToken) {
+    localStorage.setItem("fin_token", data.accessToken);
+    if (data.refreshToken) localStorage.setItem("fin_refresh", data.refreshToken);
+  } else if (data.session && data.session.accessToken) {
     localStorage.setItem("fin_token", data.session.accessToken);
-    localStorage.setItem("fin_refresh", data.session.refreshToken);
+    if (data.session.refreshToken) localStorage.setItem("fin_refresh", data.session.refreshToken);
   }
   
   return data;
@@ -145,12 +150,15 @@ let state = {
   recurring: [],
   debts: [],
   categories: [],
+  installments: [],
   summary: null,
   categoryStats: [],
   upcoming: null,
   activePeriod: "biweekly",
   activeSection: "dashboard",
 };
+
+let editCtx = { type: null, id: null };
 
 // ─── UTILS ─────────────────────────────────────────────────
 function fmt(amount, currency = "MXN") {
@@ -197,6 +205,7 @@ const SECTION_TITLES = {
   accounts: "Cuentas y Tarjetas",
   recurring: "Pagos recurrentes",
   debts: "Deudas y préstamos",
+  installments: "Partialidades",
   analytics: "Estadísticas",
   categories: "Categorías",
   profile: "Mi perfil",
@@ -229,6 +238,7 @@ async function loadSection(section) {
       case "accounts": await loadAccounts(); break;
       case "recurring": await loadRecurring(); break;
       case "debts": await loadDebts(); break;
+      case "installments": await loadInstallments(); break;
       case "analytics": await loadAnalytics(); break;
       case "categories": await loadCategories(); break;
       case "profile": await loadProfile(); break;
@@ -243,8 +253,9 @@ async function loadSection(section) {
 async function loadDashboard() {
   setLoading(true);
   try {
+    const range = state.activePeriod;
     const [summary, upcoming, catStats] = await Promise.all([
-      api.get("/stats/summary"),
+      api.get(`/stats/summary?range=${range}`),
       api.get("/stats/upcoming"),
       api.get("/stats/categories"),
     ]);
@@ -270,11 +281,13 @@ function renderKPIs() {
   const kpiObligations = el("kpi-obligations");
   const kpiBalance = el("kpi-balance");
   const kpiDebt = el("kpi-debt");
+  const kpiNote = el("kpi-income-note");
   
   if (kpiIncome) kpiIncome.textContent = fmt(s.income || 0, cur);
   if (kpiObligations) kpiObligations.textContent = fmt(s.fixedPayments || 0, cur);
   if (kpiBalance) kpiBalance.textContent = fmt(s.availableBalance || 0, cur);
   if (kpiDebt) kpiDebt.textContent = fmt(s.debtPayments || 0, cur);
+  if (kpiNote && state.user) kpiNote.textContent = `Periodo ${state.activePeriod === "biweekly" ? "Quincenal" : "Mensual"}`;
 }
 
 function renderUpcoming(containerId, items) {
@@ -489,16 +502,18 @@ function renderDebts() {
   }
   
   c.innerHTML = state.debts.map(d => {
-    const pct = d.principalBalance > 0 ? Math.round(((d.principalBalance - (d.principalBalance - d.installment)) / d.principalBalance) * 100) : 0;
+    const remaining = d.remainingBalance || d.principalBalance || 0;
+    const total = d.principalBalance || remaining;
+    const pct = total > 0 ? Math.round(((total - remaining) / total) * 100) : 0;
     return `
       <div class="data-row" style="flex-direction:column;align-items:stretch;gap:.75rem">
         <div style="display:flex;align-items:center;gap:1rem">
           <div class="data-row-icon">📋</div>
           <div class="data-row-info">
             <div class="data-row-name">${d.name}</div>
-            <div class="data-row-meta">Próximo pago: ${relativeDate(d.nextDueDate)} · Pago: ${fmt(d.installment, cur)}/${d.frequency || "mensual"}</div>
+            <div class="data-row-meta">Próximo pago: ${relativeDate(d.nextDueDate)} · Pago: ${fmt(d.installment || d.minimumPayment || 0, cur)}/${d.frequency || "mensual"}</div>
           </div>
-          <div class="data-row-amount expense">${fmt(d.principalBalance, cur)}</div>
+          <div class="data-row-amount expense">${fmt(remaining, cur)}</div>
           <div class="data-row-actions">
             <button class="btn-edit-sm" data-action="edit-debt" data-id="${d.id}">Editar</button>
             <button class="btn-danger-sm" data-action="del-debt" data-id="${d.id}">Eliminar</button>
@@ -510,6 +525,68 @@ function renderDebts() {
       </div>
     `;
   }).join("");
+}
+
+// ─── INSTALLMENTS ─────────────────────────────────────────────
+async function loadInstallments() {
+  setLoading(true);
+  try {
+    const installments = await api.get("/installments");
+    state.installments = installments || [];
+    renderInstallments();
+    populateDebtSelect("inst-debt", state.debts);
+  } catch (error) {
+    console.error("Error loading installments:", error);
+    showToast("Error al cargar partialidades", "error");
+  } finally {
+    setLoading(false);
+  }
+}
+
+function renderInstallments() {
+  const c = el("installments-list");
+  if (!c) return;
+  const cur = state.user?.currency || "MXN";
+  
+  if (!state.installments || state.installments.length === 0) {
+    c.innerHTML = `<div class="empty-state"><div class="empty-state-icon">📋</div>Sin partialidades registradas</div>`;
+    return;
+  }
+  
+  const sorted = [...state.installments].sort((a, b) => new Date(a.dueDate) - new Date(b.dueDate));
+  
+  c.innerHTML = sorted.map(inst => {
+    const isPaid = inst.paid;
+    const debt = state.debts.find(d => d.id === inst.debtId);
+    return `
+      <div class="data-row" style="${isPaid ? 'opacity:0.7' : ''}">
+        <div class="data-row-icon">${isPaid ? "✅" : "📅"}</div>
+        <div class="data-row-info">
+          <div class="data-row-name">Partialidad #${inst.number} - ${debt?.name || "Deuda"}</div>
+          <div class="data-row-meta">
+            Vence: ${relativeDate(inst.dueDate)} · 
+            ${isPaid ? `Pagada el ${inst.paidAt ? new Date(inst.paidAt).toLocaleDateString() : ''}` : "Pendiente"}
+          </div>
+        </div>
+        <div class="data-row-amount ${isPaid ? "income" : "expense"}">
+          ${fmt(inst.amount, cur)}
+        </div>
+        <div class="data-row-actions">
+          ${!isPaid ? `<button class="btn-success-sm" data-action="pay-inst" data-id="${inst.id}">Pagar</button>` : ''}
+          <button class="btn-edit-sm" data-action="edit-inst" data-id="${inst.id}">Editar</button>
+          <button class="btn-danger-sm" data-action="del-inst" data-id="${inst.id}">Eliminar</button>
+        </div>
+      </div>
+    `;
+  }).join("");
+}
+
+function populateDebtSelect(selectId, debts) {
+  const select = el(selectId);
+  if (!select) return;
+  const cur = state.user?.currency || "MXN";
+  select.innerHTML = `<option value="">Seleccionar deuda</option>` +
+    debts.map(d => `<option value="${d.id}">${d.name} - Saldo: ${fmt(d.remainingBalance || d.principalBalance || 0, cur)}</option>`).join("");
 }
 
 // ─── ANALYTICS ─────────────────────────────────────────────
@@ -627,15 +704,9 @@ function toggleProfilePeriodFields(period) {
   const quincenalFields2 = el("profile-quincenal-fields2");
   const monthlyFields = el("profile-monthly-fields");
   
-  if (quincenalFields) {
-    quincenalFields.classList.toggle("hidden", !isBiweekly);
-  }
-  if (quincenalFields2) {
-    quincenalFields2.classList.toggle("hidden", !isBiweekly);
-  }
-  if (monthlyFields) {
-    monthlyFields.classList.toggle("hidden", isBiweekly);
-  }
+  if (quincenalFields) quincenalFields.classList.toggle("hidden", !isBiweekly);
+  if (quincenalFields2) quincenalFields2.classList.toggle("hidden", !isBiweekly);
+  if (monthlyFields) monthlyFields.classList.toggle("hidden", isBiweekly);
 }
 
 // ─── HELPERS ───────────────────────────────────────────────
@@ -690,6 +761,7 @@ function openModal(title, bodyHtml, onSave) {
 function closeModal() {
   const modal = el("edit-modal");
   if (modal) modal.classList.add("hidden");
+  editCtx = { type: null, id: null };
 }
 
 // ─── WIRING ────────────────────────────────────────────────
@@ -872,6 +944,41 @@ function wireDebtForm() {
   });
 }
 
+function wireInstallmentForm() {
+  const addBtn = el("btn-add-installment");
+  const cancelBtn = el("btn-cancel-installment");
+  const saveBtn = el("btn-save-installment");
+  const dueDate = el("inst-due-date");
+  
+  if (addBtn) addBtn.addEventListener("click", () => showInlineForm("installment-form-wrap", "btn-add-installment"));
+  if (cancelBtn) cancelBtn.addEventListener("click", () => hideForm("installment-form-wrap", "btn-add-installment", "+ Nueva partialidad"));
+  if (dueDate) dueDate.value = todayIso();
+  
+  if (saveBtn) saveBtn.addEventListener("click", async () => {
+    try {
+      const body = {
+        debtId: el("inst-debt")?.value,
+        number: parseInt(el("inst-number")?.value, 10),
+        amount: Number(el("inst-amount")?.value || 0),
+        dueDate: el("inst-due-date")?.value,
+        paid: el("inst-paid")?.value === "true"
+      };
+      if (!body.debtId || !body.number || !body.amount) {
+        showToast("Completa todos los campos", "error");
+        return;
+      }
+      await api.post("/installments", body);
+      showToast("Partialidad guardada", "success");
+      hideForm("installment-form-wrap", "btn-add-installment", "+ Nueva partialidad");
+      document.querySelectorAll("#installment-form-wrap input, #installment-form-wrap select").forEach(i => i.value = "");
+      if (dueDate) dueDate.value = todayIso();
+      await loadInstallments();
+    } catch (e) {
+      showToast(e.message, "error");
+    }
+  });
+}
+
 function wireCategoryForm() {
   const addBtn = el("btn-add-category");
   const cancelBtn = el("btn-cancel-category");
@@ -910,45 +1017,41 @@ function wireProfileForm() {
   
   if (periodSelect) periodSelect.addEventListener("change", () => toggleProfilePeriodFields(periodSelect.value));
   
-  if (saveBtn) {
-    saveBtn.addEventListener("click", async () => {
-      try {
-        const period = el("profile-period")?.value;
-        let payDays = [];
-        
-        if (period === "biweekly") {
-          const d1 = parseInt(el("profile-payday1")?.value, 10);
-          const d2 = parseInt(el("profile-payday2")?.value, 10);
-          if (!isNaN(d1)) payDays.push(d1);
-          if (!isNaN(d2)) payDays.push(d2);
-        } else {
-          const d = parseInt(el("profile-payday-monthly")?.value, 10);
-          if (!isNaN(d)) payDays.push(d);
-        }
-        
-        const monthlyIncomeValue = parseFloat(el("profile-income")?.value || 0);
-        
-        const body = {
-          displayName: state.user?.displayName || "",
-          currency: el("profile-currency")?.value,
-          payCycle: period,
-          payDays: payDays,
-          monthlyIncome: isNaN(monthlyIncomeValue) ? 0 : monthlyIncomeValue
-        };
-        
-        await api.patch("/me", body);
-        state.user = { ...(state.user || {}), ...body };
-        showToast("Perfil actualizado", "success");
-      } catch (e) {
-        showToast(e.message, "error");
+  if (saveBtn) saveBtn.addEventListener("click", async () => {
+    try {
+      const period = el("profile-period")?.value;
+      let payDays = [];
+      if (period === "biweekly") {
+        const d1 = parseInt(el("profile-payday1")?.value, 10);
+        const d2 = parseInt(el("profile-payday2")?.value, 10);
+        if (!isNaN(d1)) payDays.push(d1);
+        if (!isNaN(d2)) payDays.push(d2);
+      } else {
+        const d = parseInt(el("profile-payday-monthly")?.value, 10);
+        if (!isNaN(d)) payDays.push(d);
       }
-    });
-  }
+      
+      const monthlyIncomeValue = parseFloat(el("profile-income")?.value || 0);
+      
+      const body = {
+        displayName: state.user?.displayName || "",
+        currency: el("profile-currency")?.value,
+        payCycle: period,
+        payDays: payDays,
+        monthlyIncome: isNaN(monthlyIncomeValue) ? 0 : monthlyIncomeValue
+      };
+      
+      await api.patch("/me", body);
+      state.user = { ...(state.user || {}), ...body };
+      showToast("Perfil actualizado", "success");
+    } catch (e) {
+      showToast(e.message, "error");
+    }
+  });
   
   if (exportBtn) exportBtn.addEventListener("click", async () => {
     try {
       const data = await api.get("/backup/export");
-      // La respuesta tiene downloadUrl
       if (data.downloadUrl) {
         window.open(data.downloadUrl, '_blank');
       } else {
@@ -974,6 +1077,36 @@ function wireProfileForm() {
     } finally {
       importInput.value = "";
     }
+  });
+}
+
+// ─── MODAL BUILDERS ─────────────────────────────────────────
+function buildEditInstallmentModal(inst) {
+  openModal("Editar partialidad", `
+    <div class="form-grid">
+      <div class="field-group"><label class="field-label">Número</label>
+        <input id="m-inst-number" class="field-input" type="number" value="${inst.number}" /></div>
+      <div class="field-group"><label class="field-label">Monto</label>
+        <input id="m-inst-amount" class="field-input" type="number" step="0.01" value="${inst.amount}" /></div>
+      <div class="field-group"><label class="field-label">Fecha de vencimiento</label>
+        <input id="m-inst-due-date" class="field-input" type="date" value="${inst.dueDate}" /></div>
+      <div class="field-group"><label class="field-label">Pagada</label>
+        <select id="m-inst-paid" class="field-input">
+          <option value="false" ${!inst.paid ? "selected" : ""}>No</option>
+          <option value="true" ${inst.paid ? "selected" : ""}>Sí</option>
+        </select></div>
+    </div>
+  `, async () => {
+    await api.patch(`/installments/${inst.id}`, {
+      number: parseInt(el("m-inst-number").value, 10),
+      amount: Number(el("m-inst-amount").value),
+      dueDate: el("m-inst-due-date").value,
+      paid: el("m-inst-paid").value === "true"
+    });
+    showToast("Partialidad actualizada", "success");
+    closeModal();
+    await loadInstallments();
+    await loadDebts();
   });
 }
 
@@ -1116,6 +1249,7 @@ async function loadAppAfterLogin() {
     wireAccForm();
     wireRecurringForm();
     wireDebtForm();
+    wireInstallmentForm();
     wireCategoryForm();
     wireProfileForm();
     
@@ -1166,6 +1300,23 @@ document.addEventListener("click", async (e) => {
       showToast("Categoría eliminada", "success");
       await loadCategories();
     }
+    if (action === "pay-inst") {
+      if (!confirm("¿Marcar esta partialidad como pagada?")) return;
+      await api.post(`/installments/${id}/pay`, {});
+      showToast("Partialidad marcada como pagada", "success");
+      await loadInstallments();
+      await loadDebts();
+    }
+    if (action === "del-inst") {
+      if (!confirm("¿Eliminar esta partialidad?")) return;
+      await api.delete(`/installments/${id}`);
+      showToast("Partialidad eliminada", "success");
+      await loadInstallments();
+    }
+    if (action === "edit-inst") {
+      const inst = state.installments.find(i => i.id == id);
+      if (inst) buildEditInstallmentModal(inst);
+    }
   } catch (err) {
     showToast(err.message, "error");
   }
@@ -1194,6 +1345,7 @@ async function init() {
       wireAccForm();
       wireRecurringForm();
       wireDebtForm();
+      wireInstallmentForm();
       wireCategoryForm();
       wireProfileForm();
       navigateTo("dashboard");

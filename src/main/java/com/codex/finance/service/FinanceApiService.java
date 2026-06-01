@@ -5,15 +5,14 @@ import com.codex.finance.dto.ContractDtos;
 import com.codex.finance.exception.ApiException;
 import com.codex.finance.mapper.FinanceMapper;
 import com.codex.finance.repository.*;
-import com.codex.finance.validator.AccountTypeValidator;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.node.ObjectNode;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.jdbc.core.JdbcTemplate;
-
 
 import java.math.BigDecimal;
 import java.time.Instant;
@@ -35,12 +34,13 @@ public class FinanceApiService {
     private final ObjectMapper objectMapper;
     private final FinanceMapper mapper;
     private final JdbcTemplate jdbcTemplate;
+    private final InstallmentRepository installmentRepo;
 
     public FinanceApiService(ProfileRepository profileRepo, CategoryRepository categoryRepo,
                             AccountRepository accountRepo, MovementRepository movementRepo,
                             DebtRepository debtRepo, ScheduledPaymentRepository scheduledPaymentRepo,
                             SupabaseAuthClient authClient, ObjectMapper objectMapper, 
-                            FinanceMapper mapper,JdbcTemplate jdbcTemplate) {
+                            FinanceMapper mapper,JdbcTemplate jdbcTemplate,InstallmentRepository installmentRepo) {
         this.profileRepo = profileRepo;
         this.categoryRepo = categoryRepo;
         this.accountRepo = accountRepo;
@@ -51,6 +51,7 @@ public class FinanceApiService {
         this.objectMapper = objectMapper;
         this.mapper = mapper;
         this.jdbcTemplate = jdbcTemplate;
+        this.installmentRepo = installmentRepo;
     }
     private void setAuthContext(String userId) {
         jdbcTemplate.execute("SELECT set_config('request.jwt.claim.sub', '" + userId + "', true)");
@@ -86,15 +87,44 @@ public class FinanceApiService {
 
     public ContractDtos.MeResponse updateMe(String userId, ContractDtos.UpdateMeRequest request) {
         UUID uuid = UUID.fromString(userId);
+        
+        // Obtener settings actuales del perfil
+        String settingsJson = profileRepo.getSettingsJson(uuid);
+        Map<String, Object> settings;
+        try {
+            if (settingsJson != null && !settingsJson.isEmpty()) {
+                settings = objectMapper.readValue(settingsJson, new TypeReference<Map<String, Object>>() {});
+            } else {
+                settings = new HashMap<>();
+            }
+        } catch (Exception e) {
+            settings = new HashMap<>();
+        }
+        
+        // Actualizar settings con los nuevos valores
+        settings.put("monthlyIncome", request.monthlyIncome() != null ? request.monthlyIncome() : 0);
+        settings.put("payCycle", request.payCycle());
+        
         String payDaysJson = toJson(request.payDays());
-        BigDecimal monthlyIncome = request.monthlyIncome() != null ? request.monthlyIncome() : BigDecimal.ZERO;
-        Object[] row = profileRepo.upsertProfile(uuid, 
-                                                  request.displayName(), 
-                                                  request.currency(),
-                                                  request.payCycle(), 
-                                                  payDaysJson,
-                                                  monthlyIncome,  // ← Agrega este parámetro
-                                                  uuid);
+        settings.put("payDays", payDaysJson);
+        
+        // Convertir settings a JSON string
+        String newSettingsJson;
+        try {
+            newSettingsJson = objectMapper.writeValueAsString(settings);
+        } catch (Exception e) {
+            newSettingsJson = "{}";
+        }
+        
+        // Guardar en la base de datos
+        Object[] row = profileRepo.upsertProfile(
+            uuid, 
+            request.displayName(), 
+            request.currency(),
+            newSettingsJson,
+            uuid
+        );
+        
         return mapper.mapToMeResponse(row);
     }
 
@@ -543,5 +573,76 @@ public class FinanceApiService {
             case "custom" -> new LocalDate[]{today.minusDays(30), today};
             default -> new LocalDate[]{today.withDayOfMonth(1), today.withDayOfMonth(today.lengthOfMonth())};
         };
+    }
+    
+ // ==================== INSTALLMENTS ====================
+    @Transactional(readOnly = true)
+    public List<ContractDtos.InstallmentResponse> listInstallments(String userId, String debtId) {
+        UUID uuid = UUID.fromString(userId);
+        List<Object[]> rows;
+        
+        if (debtId != null && !debtId.isEmpty()) {
+            rows = installmentRepo.listInstallmentsByDebt(uuid, UUID.fromString(debtId));
+        } else {
+            rows = installmentRepo.listInstallments(uuid, 500);
+        }
+        
+        return rows.stream()
+            .map(mapper::mapToInstallmentResponse)
+            .collect(Collectors.toList());
+    }
+
+    public ContractDtos.InstallmentResponse createInstallment(String userId, ContractDtos.UpsertInstallmentRequest request) {
+        UUID uuid = UUID.fromString(userId);
+        UUID debtUuid = UUID.fromString(request.debtId());
+        
+        // Verificar que la deuda existe y pertenece al usuario
+        if (debtRepo.existsByUserAndId(debtUuid, uuid) == 0) {
+            throw new ApiException(HttpStatus.NOT_FOUND, "debt not found");
+        }
+        
+        UUID installmentId = installmentRepo.createInstallment(
+            uuid, debtUuid, request.number(), request.amount(), 
+            request.dueDate(), request.paid() != null ? request.paid() : false
+        );
+        
+        Object[] row = installmentRepo.getInstallmentById(uuid, installmentId);
+        return mapper.mapToInstallmentResponse(row);
+    }
+
+    public ContractDtos.InstallmentResponse updateInstallment(String userId, String id, ContractDtos.UpsertInstallmentRequest request) {
+        UUID uuid = UUID.fromString(userId);
+        UUID installmentUuid = UUID.fromString(id);
+        
+        UUID updatedId = installmentRepo.updateInstallment(
+            uuid, installmentUuid, request.number(), request.amount(),
+            request.dueDate(), request.paid()
+        );
+        
+        Object[] row = installmentRepo.getInstallmentById(uuid, updatedId);
+        return mapper.mapToInstallmentResponse(row);
+    }
+
+    public ContractDtos.InstallmentResponse markInstallmentAsPaid(String userId, String id) {
+        UUID uuid = UUID.fromString(userId);
+        UUID installmentUuid = UUID.fromString(id);
+        
+        int updated = installmentRepo.markAsPaid(uuid, installmentUuid);
+        if (updated == 0) {
+            throw new ApiException(HttpStatus.NOT_FOUND, "installment not found or already paid");
+        }
+        
+        Object[] row = installmentRepo.getInstallmentById(uuid, installmentUuid);
+        return mapper.mapToInstallmentResponse(row);
+    }
+
+    public void deleteInstallment(String userId, String id) {
+        UUID uuid = UUID.fromString(userId);
+        UUID installmentUuid = UUID.fromString(id);
+        
+        int deleted = installmentRepo.softDeleteInstallment(uuid, installmentUuid);
+        if (deleted == 0) {
+            throw new ApiException(HttpStatus.NOT_FOUND, "installment not found");
+        }
     }
 }
