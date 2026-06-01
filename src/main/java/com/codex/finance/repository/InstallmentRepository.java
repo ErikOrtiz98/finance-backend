@@ -52,7 +52,7 @@ public interface InstallmentRepository extends JpaRepository<Installment, UUID> 
     @Query(value = "INSERT INTO installments (id, debt_id, user_id, number, amount, due_date, paid, created_at, updated_at, row_version) " +
            "VALUES (gen_random_uuid(), :debtId, :userId, :number, :amount, :dueDate, :paid, NOW(), NOW(), 1) " +
            "RETURNING id", nativeQuery = true)
-    UUID createInstallment(@Param("userId") UUID userId, 
+    void createInstallment(@Param("userId") UUID userId, 
                           @Param("debtId") UUID debtId,
                           @Param("number") Integer number,
                           @Param("amount") BigDecimal amount,
@@ -67,14 +67,13 @@ public interface InstallmentRepository extends JpaRepository<Installment, UUID> 
            "paid = COALESCE(:paid, paid), " +
            "updated_at = NOW(), " +
            "row_version = row_version + 1 " +
-           "WHERE id = :id AND user_id = :userId AND deleted_at IS NULL " +
-           "RETURNING id", nativeQuery = true)
-    UUID updateInstallment(@Param("userId") UUID userId,
-                          @Param("id") UUID id,
-                          @Param("number") Integer number,
-                          @Param("amount") BigDecimal amount,
-                          @Param("dueDate") LocalDate dueDate,
-                          @Param("paid") Boolean paid);
+           "WHERE id = :id AND user_id = :userId AND deleted_at IS NULL", nativeQuery = true)
+    void updateInstallment(@Param("userId") UUID userId,
+                           @Param("id") UUID id,
+                           @Param("number") Integer number,
+                           @Param("amount") BigDecimal amount,
+                           @Param("dueDate") LocalDate dueDate,
+                           @Param("paid") Boolean paid);
     
     @Modifying
     @Query(value = "UPDATE installments SET paid = true, paid_at = NOW(), updated_at = NOW() " +

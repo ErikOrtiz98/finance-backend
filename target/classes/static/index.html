@@ -229,11 +229,13 @@
               </div>
               <div class="field-group">
                 <label class="field-label">Tipo</label>
-                <select id="tx-type" class="field-input">
-                  <option value="expense">Gasto</option>
-                  <option value="income">Ingreso</option>
-                  <option value="transfer">Transferencia</option>
-                </select>
+				<select id="tx-type" class="field-input">
+				  <option value="expense">Gasto</option>
+				  <option value="income">Ingreso</option>
+				  <option value="transfer">Transferencia</option>
+				  <option value="payment">Pago</option>
+				  <option value="adjustment">Ajuste</option>
+				</select>
               </div>
               <div class="field-group">
                 <label class="field-label">Categoría</label>
@@ -243,6 +245,10 @@
                 <label class="field-label">Cuenta</label>
                 <select id="tx-account" class="field-input"></select>
               </div>
+			  <div id="transfer-account-group" class="field-group hidden">
+			    <label class="field-label">Cuenta destino</label>
+			    <select id="tx-transfer-account" class="field-input"></select>
+			  </div>
               <div class="field-group">
                 <label class="field-label">Fecha</label>
                 <input id="tx-date" class="field-input" type="date" />
@@ -274,13 +280,14 @@
               </div>
               <div class="field-group">
                 <label class="field-label">Tipo</label>
-                <select id="acc-type" class="field-input">
-                  <option value="checking">Débito / Cheques</option>
-                  <option value="credit">Tarjeta de crédito</option>
-                  <option value="savings">Ahorro</option>
-                  <option value="loan">Préstamo</option>
-                  <option value="cash">Efectivo</option>
-                </select>
+				<select id="acc-type" class="field-input">
+				  <option value="debit">Débito / Cheques</option>
+				  <option value="credit">Tarjeta de crédito</option>
+				  <option value="savings">Ahorro</option>
+				  <option value="loan">Préstamo</option>
+				  <option value="cash">Efectivo</option>
+				  <option value="investment">Inversión</option>
+				</select>
               </div>
               <div class="field-group">
                 <label class="field-label">Saldo inicial</label>
@@ -332,12 +339,14 @@
               </div>
               <div class="field-group">
                 <label class="field-label">Frecuencia</label>
-                <select id="rec-frequency" class="field-input">
-                  <option value="WEEKLY">Semanal</option>
-                  <option value="BIWEEKLY">Quincenal</option>
-                  <option value="MONTHLY">Mensual</option>
-                  <option value="YEARLY">Anual</option>
-                </select>
+				<select id="rec-frequency" class="field-input">
+				  <option value="weekly">Semanal</option>
+				  <option value="biweekly">Quincenal</option>
+				  <option value="monthly">Mensual</option>
+				  <option value="quarterly">Trimestral</option>
+				  <option value="yearly">Anual</option>
+				  <option value="custom">Personalizado</option>
+				</select>
               </div>
               <div class="field-group">
                 <label class="field-label">Próximo vencimiento</label>
@@ -458,10 +467,13 @@
 		      <div class="field-group"><label class="field-label">Fecha objetivo</label>
 		        <input id="goal-date" class="field-input" type="date" /></div>
 		      <div class="field-group"><label class="field-label">Estado</label>
-		        <select id="goal-status" class="field-input">
-		          <option value="active">Activa</option>
-		          <option value="paused">Pausada</option>
-		        </select></div>
+					<select id="goal-status" class="field-input">
+					  <option value="active">Activa</option>
+					  <option value="paused">Pausada</option>
+					  <option value="achieved">Alcanzada</option>
+					  <option value="cancelled">Cancelada</option>
+					</select>
+				</div>
 		    </div>
 		    <div class="form-actions">
 		      <button class="btn-primary btn-sm" id="btn-save-goal">Guardar</button>
@@ -543,11 +555,11 @@
               </div>
               <div class="field-group">
                 <label class="field-label">Tipo</label>
-                <select id="cat-type" class="field-input">
-                  <option value="expense">Gasto</option>
-                  <option value="income">Ingreso</option>
-                  <option value="both">Ambos</option>
-                </select>
+				<select id="cat-type" class="field-input">
+				  <option value="expense">Gasto</option>
+				  <option value="income">Ingreso</option>
+				  <option value="both">Ambos</option>
+				</select>
               </div>
               <div class="field-group">
                 <label class="field-label">Color (hex)</label>

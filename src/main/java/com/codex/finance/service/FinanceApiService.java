@@ -600,34 +600,35 @@ public class FinanceApiService {
 	}
 
 	public ContractDtos.InstallmentResponse createInstallment(String userId, ContractDtos.UpsertInstallmentRequest request) {
-		UUID uuid = UUID.fromString(userId);
-		UUID debtUuid = UUID.fromString(request.debtId());
+	    UUID uuid = UUID.fromString(userId);
+	    UUID debtUuid = UUID.fromString(request.debtId());
 
-		// Verificar que la deuda existe y pertenece al usuario
-		if (debtRepo.existsByUserAndId(debtUuid, uuid) == 0) {
-			throw new ApiException(HttpStatus.NOT_FOUND, "debt not found");
-		}
+	    if (debtRepo.existsByUserAndId(debtUuid, uuid) == 0) {
+	        throw new ApiException(HttpStatus.NOT_FOUND, "debt not found");
+	    }
 
-		UUID installmentId = installmentRepo.createInstallment(
-				uuid, debtUuid, request.number(), request.amount(), 
-				request.dueDate(), request.paid() != null ? request.paid() : false
-				);
-
-		Object[] row = installmentRepo.getInstallmentById(uuid, installmentId);
-		return mapper.mapToInstallmentResponse(row);
+	    installmentRepo.createInstallment(
+	        uuid, debtUuid, request.number(), request.amount(), 
+	        request.dueDate(), request.paid() != null ? request.paid() : false
+	    );
+	    
+	    // Obtener el installment recién creado
+	    List<Object[]> installments = installmentRepo.listInstallmentsByDebt(uuid, debtUuid);
+	    Object[] lastInstallment = installments.isEmpty() ? null : installments.get(installments.size() - 1);
+	    return mapper.mapToInstallmentResponse(lastInstallment);
 	}
 
 	public ContractDtos.InstallmentResponse updateInstallment(String userId, String id, ContractDtos.UpsertInstallmentRequest request) {
-		UUID uuid = UUID.fromString(userId);
-		UUID installmentUuid = UUID.fromString(id);
+	    UUID uuid = UUID.fromString(userId);
+	    UUID installmentUuid = UUID.fromString(id);
 
-		UUID updatedId = installmentRepo.updateInstallment(
-				uuid, installmentUuid, request.number(), request.amount(),
-				request.dueDate(), request.paid()
-				);
+	    installmentRepo.updateInstallment(
+	        uuid, installmentUuid, request.number(), request.amount(),
+	        request.dueDate(), request.paid()
+	    );
 
-		Object[] row = installmentRepo.getInstallmentById(uuid, updatedId);
-		return mapper.mapToInstallmentResponse(row);
+	    Object[] row = installmentRepo.getInstallmentById(uuid, installmentUuid);
+	    return mapper.mapToInstallmentResponse(row);
 	}
 
 	public ContractDtos.InstallmentResponse markInstallmentAsPaid(String userId, String id) {
@@ -665,63 +666,77 @@ public class FinanceApiService {
 	}
 
 	public ContractDtos.FinancialGoalResponse createGoal(String userId, ContractDtos.UpsertFinancialGoalRequest request) {
-		UUID uuid = UUID.fromString(userId);
-		UUID goalId = financialGoalRepo.createGoal(
-				uuid,
-				request.name(),
-				request.targetAmount(),
-				request.currentProgress() != null ? request.currentProgress() : BigDecimal.ZERO,
-						request.targetDate(),
-						request.status() != null ? request.status() : "active"
-				);
-		Object[] row = financialGoalRepo.getGoalById(uuid, goalId);
-		return mapper.mapToFinancialGoalResponse(row);
+	    UUID uuid = UUID.fromString(userId);
+	    financialGoalRepo.createGoal(
+	        uuid,
+	        request.name(),
+	        request.targetAmount(),
+	        request.currentProgress() != null ? request.currentProgress() : BigDecimal.ZERO,
+	        request.targetDate(),
+	        request.status() != null ? request.status() : "active"
+	    );
+	    
+	    // Obtener el goal recién creado (el último por fecha)
+	    List<Object[]> goals = financialGoalRepo.listGoals(uuid);
+	    Object[] lastGoal = goals.isEmpty() ? null : goals.get(goals.size() - 1);
+	    return mapper.mapToFinancialGoalResponse(lastGoal);
 	}
 
 	public ContractDtos.FinancialGoalResponse updateGoal(String userId, String id, ContractDtos.UpsertFinancialGoalRequest request) {
-		UUID uuid = UUID.fromString(userId);
-		UUID goalUuid = UUID.fromString(id);
-		financialGoalRepo.updateGoal(
-				uuid, goalUuid,
-				request.name(),
-				request.targetAmount(),
-				request.currentProgress(),
-				request.targetDate(),
-				request.status()
-				);
-		Object[] row = financialGoalRepo.getGoalById(uuid, goalUuid);
-		return mapper.mapToFinancialGoalResponse(row);
+	    UUID uuid = UUID.fromString(userId);
+	    UUID goalUuid = UUID.fromString(id);
+	    financialGoalRepo.updateGoal(
+	        uuid, goalUuid,
+	        request.name(),
+	        request.targetAmount(),
+	        request.currentProgress(),
+	        request.targetDate(),
+	        request.status()
+	    );
+	    Object[] row = financialGoalRepo.getGoalById(uuid, goalUuid);
+	    return mapper.mapToFinancialGoalResponse(row);
 	}
-
+	
 	public void deleteGoal(String userId, String id) {
-		UUID uuid = UUID.fromString(userId);
-		UUID goalUuid = UUID.fromString(id);
-		financialGoalRepo.softDeleteGoal(uuid, goalUuid);
-	}
-
-	// ==================== BUDGETS ====================
-	@Transactional(readOnly = true)
-	public List<ContractDtos.BudgetResponse> listBudgets(String userId) {
-		UUID uuid = UUID.fromString(userId);
-		List<Object[]> rows = budgetRepo.listActiveBudgets(uuid);
-		return rows.stream()
-				.map(mapper::mapToBudgetResponse)
-				.collect(Collectors.toList());
+	    UUID uuid = UUID.fromString(userId);
+	    UUID goalUuid = UUID.fromString(id);
+	    financialGoalRepo.softDeleteGoal(uuid, goalUuid);
 	}
 
 	public ContractDtos.BudgetResponse createBudget(String userId, ContractDtos.UpsertBudgetRequest request) {
-		UUID uuid = UUID.fromString(userId);
-		UUID categoryUuid = UUID.fromString(request.categoryId());
-		BigDecimal alertThreshold = request.alertThreshold() != null ? 
-				request.alertThreshold().divide(BigDecimal.valueOf(100)) : BigDecimal.valueOf(0.8);
-
-		UUID budgetId = budgetRepo.createBudget(
-				uuid, categoryUuid, request.period(),
-				request.periodStart(), request.periodEnd(),
-				request.amountLimit(), alertThreshold
-				);
-		Object[] row = budgetRepo.getBudgetById(uuid, budgetId);
-		return mapper.mapToBudgetResponse(row);
+	    UUID uuid = UUID.fromString(userId);
+	    UUID categoryUuid = UUID.fromString(request.categoryId());
+	    
+	    LocalDate periodStart;
+	    LocalDate periodEnd;
+	    LocalDate today = LocalDate.now();
+	    
+	    if ("biweekly".equals(request.period())) {
+	        if (today.getDayOfMonth() <= 15) {
+	            periodStart = today.withDayOfMonth(1);
+	            periodEnd = today.withDayOfMonth(15);
+	        } else {
+	            periodStart = today.withDayOfMonth(16);
+	            periodEnd = today.withDayOfMonth(today.lengthOfMonth());
+	        }
+	    } else {
+	        periodStart = today.withDayOfMonth(1);
+	        periodEnd = today.withDayOfMonth(today.lengthOfMonth());
+	    }
+	    
+	    BigDecimal alertThreshold = request.alertThreshold() != null ? 
+	        request.alertThreshold().divide(BigDecimal.valueOf(100)) : BigDecimal.valueOf(0.8);
+	    
+	    budgetRepo.createBudget(
+	        uuid, categoryUuid, request.period(),
+	        periodStart, periodEnd,
+	        request.amountLimit(), alertThreshold
+	    );
+	    
+	    // Obtener el budget recién creado
+	    List<Object[]> budgets = budgetRepo.listActiveBudgets(uuid);
+	    Object[] lastBudget = budgets.isEmpty() ? null : budgets.get(budgets.size() - 1);
+	    return mapper.mapToBudgetResponse(lastBudget);
 	}
 
 	public ContractDtos.BudgetResponse updateBudget(String userId, String id, ContractDtos.UpsertBudgetRequest request) {
@@ -745,6 +760,17 @@ public class FinanceApiService {
 		UUID budgetUuid = UUID.fromString(id);
 		budgetRepo.softDeleteBudget(uuid, budgetUuid);
 	}
+	
+	// ==================== BUDGETS ====================
+	@Transactional(readOnly = true)
+	public List<ContractDtos.BudgetResponse> listBudgets(String userId) {
+	    UUID uuid = UUID.fromString(userId);
+	    List<Object[]> rows = budgetRepo.listActiveBudgets(uuid);
+	    return rows.stream()
+	            .map(mapper::mapToBudgetResponse)
+	            .collect(Collectors.toList());
+	}
+	
 
 	// ==================== REPORTS ====================
 	@Transactional(readOnly = true)

@@ -151,6 +151,9 @@ let state = {
   debts: [],
   categories: [],
   installments: [],
+  goals: [],
+  budgets: [],
+  reports: [],
   summary: null,
   categoryStats: [],
   upcoming: null,
@@ -206,6 +209,9 @@ const SECTION_TITLES = {
   recurring: "Pagos recurrentes",
   debts: "Deudas y préstamos",
   installments: "Partialidades",
+  goals: "Metas Financieras",
+  budgets: "Presupuestos",
+  reports: "Reportes Mensuales",
   analytics: "Estadísticas",
   categories: "Categorías",
   profile: "Mi perfil",
@@ -239,6 +245,9 @@ async function loadSection(section) {
       case "recurring": await loadRecurring(); break;
       case "debts": await loadDebts(); break;
       case "installments": await loadInstallments(); break;
+      case "goals": await loadGoals(); break;
+      case "budgets": await loadBudgets(); break;
+      case "reports": await loadReports(); break;
       case "analytics": await loadAnalytics(); break;
       case "categories": await loadCategories(); break;
       case "profile": await loadProfile(); break;
@@ -457,7 +466,7 @@ function renderRecurring() {
   const c = el("recurring-list");
   if (!c) return;
   const cur = state.user?.currency || "MXN";
-  const freqMap = { WEEKLY: "Semanal", BIWEEKLY: "Quincenal", MONTHLY: "Mensual", YEARLY: "Anual" };
+  const freqMap = { weekly: "Semanal", biweekly: "Quincenal", monthly: "Mensual", quarterly: "Trimestral", yearly: "Anual", custom: "Personalizado" };
   
   if (!state.recurring.length) {
     c.innerHTML = `<div class="empty-state"><div class="empty-state-icon">🔄</div>Sin pagos recurrentes</div>`;
@@ -720,8 +729,14 @@ function populateCategorySelect(selectId, categories) {
 function populateAccountSelect(selectId, accounts) {
   const select = el(selectId);
   if (!select) return;
-  select.innerHTML = `<option value="">Sin cuenta</option>` +
+  select.innerHTML = `<option value="">Seleccionar cuenta</option>` +
     accounts.map(a => `<option value="${a.id}">${a.name}</option>`).join("");
+  
+  const transferSelect = el("tx-transfer-account");
+  if (transferSelect) {
+    transferSelect.innerHTML = `<option value="">Seleccionar cuenta destino</option>` +
+      accounts.map(a => `<option value="${a.id}">${a.name}</option>`).join("");
+  }
 }
 
 function toggleCreditFields() {
@@ -806,37 +821,109 @@ function wireTxForm() {
   const cancelBtn = el("btn-cancel-transaction");
   const saveBtn = el("btn-save-transaction");
   const dateInput = el("tx-date");
+  const typeSelect = el("tx-type");
+  const transferGroup = el("transfer-account-group");
   
-  if (addBtn) addBtn.addEventListener("click", () => showInlineForm("transaction-form-wrap", "btn-add-transaction"));
-  if (cancelBtn) cancelBtn.addEventListener("click", () => hideForm("transaction-form-wrap", "btn-add-transaction", "+ Nueva"));
-  if (dateInput) dateInput.value = todayIso();
+  if (typeSelect && transferGroup) {
+    typeSelect.addEventListener("change", () => {
+      transferGroup.classList.toggle("hidden", typeSelect.value !== "transfer");
+    });
+  }
   
-  if (saveBtn) saveBtn.addEventListener("click", async () => {
-    try {
-      const body = {
-        accountId: el("tx-account")?.value || null,
-        categoryId: el("tx-category")?.value || null,
-        type: el("tx-type")?.value,
-        description: el("tx-name")?.value.trim(),
-        amount: Number(el("tx-amount")?.value || 0),
-        currency: state.user?.currency || "MXN",
-        transactionDate: el("tx-date")?.value,
-        notes: el("tx-note")?.value.trim(),
-      };
-      if (!body.description || !body.amount) {
-        showToast("Completa concepto y monto", "error");
-        return;
-      }
-      await api.post("/transactions", body);
-      showToast("Transacción guardada", "success");
+  if (addBtn) {
+    addBtn.addEventListener("click", () => {
+      showInlineForm("transaction-form-wrap", "btn-add-transaction");
+      if (transferGroup) transferGroup.classList.add("hidden");
+      if (typeSelect) typeSelect.value = "expense";
+    });
+  }
+  
+  if (cancelBtn) {
+    cancelBtn.addEventListener("click", () => {
       hideForm("transaction-form-wrap", "btn-add-transaction", "+ Nueva");
       document.querySelectorAll("#transaction-form-wrap input, #transaction-form-wrap select").forEach(i => i.value = "");
       if (dateInput) dateInput.value = todayIso();
-      await loadTransactions();
-    } catch (e) {
-      showToast(e.message, "error");
-    }
-  });
+      if (transferGroup) transferGroup.classList.add("hidden");
+      if (typeSelect) typeSelect.value = "expense";
+    });
+  }
+  
+  if (dateInput) dateInput.value = todayIso();
+  
+  if (saveBtn) {
+    saveBtn.addEventListener("click", async () => {
+      try {
+        const type = el("tx-type")?.value;
+        const accountId = el("tx-account")?.value;
+        const amount = Number(el("tx-amount")?.value || 0);
+        const transactionDate = el("tx-date")?.value;
+        const description = el("tx-name")?.value.trim();
+        const categoryId = el("tx-category")?.value || null;
+        const notes = el("tx-note")?.value.trim() || null;
+        const transferAccountId = el("tx-transfer-account")?.value;
+        
+        if (!accountId) {
+          showToast("Selecciona una cuenta", "error");
+          return;
+        }
+        
+        if (!amount || amount <= 0) {
+          showToast("Ingresa un monto válido", "error");
+          return;
+        }
+        
+        if (!transactionDate) {
+          showToast("Ingresa una fecha", "error");
+          return;
+        }
+        
+        if (!description) {
+          showToast("Ingresa una descripción", "error");
+          return;
+        }
+        
+        if (type === "transfer") {
+          if (!transferAccountId) {
+            showToast("Selecciona la cuenta destino", "error");
+            return;
+          }
+          if (transferAccountId === accountId) {
+            showToast("La cuenta origen y destino no pueden ser iguales", "error");
+            return;
+          }
+        }
+        
+        const body = {
+          accountId: accountId,
+          transferAccountId: type === "transfer" ? transferAccountId : null,
+          categoryId: categoryId,
+          debtId: null,
+          type: type,
+          description: description,
+          amount: amount,
+          currency: state.user?.currency || "MXN",
+          transactionDate: transactionDate,
+          notes: notes
+        };
+        
+        console.log("Enviando transacción:", body);
+        await api.post("/transactions", body);
+        showToast("Transacción guardada", "success");
+        
+        hideForm("transaction-form-wrap", "btn-add-transaction", "+ Nueva");
+        document.querySelectorAll("#transaction-form-wrap input, #transaction-form-wrap select").forEach(i => i.value = "");
+        if (dateInput) dateInput.value = todayIso();
+        if (transferGroup) transferGroup.classList.add("hidden");
+        if (typeSelect) typeSelect.value = "expense";
+        
+        await loadTransactions();
+        
+      } catch (e) {
+        console.error("Error al guardar transacción:", e);
+        showToast(e.message || "Error al guardar la transacción", "error");
+      }
+    });
+  }
 }
 
 function wireAccForm() {
@@ -886,28 +973,34 @@ function wireRecurringForm() {
   if (cancelBtn) cancelBtn.addEventListener("click", () => hideForm("recurring-form-wrap", "btn-add-recurring", "+ Nuevo"));
   if (nextDue) nextDue.value = todayIso();
   
-  if (saveBtn) saveBtn.addEventListener("click", async () => {
-    try {
-      const body = {
-        name: el("rec-name")?.value.trim(),
-        amount: Number(el("rec-amount")?.value || 0),
-        currency: state.user?.currency || "MXN",
-        frequency: el("rec-frequency")?.value,
-        nextDueDate: el("rec-next-due")?.value,
-        categoryId: el("rec-category")?.value || null,
-      };
-      if (!body.name || !body.amount) {
-        showToast("Completa nombre y monto", "error");
-        return;
+  if (saveBtn) {
+    saveBtn.addEventListener("click", async () => {
+      try {
+        const frequency = el("rec-frequency")?.value?.toLowerCase();
+        
+        const body = {
+          name: el("rec-name")?.value.trim(),
+          amount: Number(el("rec-amount")?.value || 0),
+          currency: state.user?.currency || "MXN",
+          frequency: frequency,
+          nextDueDate: el("rec-next-due")?.value,
+          categoryId: el("rec-category")?.value || null,
+        };
+        
+        if (!body.name || !body.amount) {
+          showToast("Completa nombre y monto", "error");
+          return;
+        }
+        
+        await api.post("/recurring-payments", body);
+        showToast("Pago recurrente guardado", "success");
+        hideForm("recurring-form-wrap", "btn-add-recurring", "+ Nuevo");
+        await loadRecurring();
+      } catch (e) {
+        showToast(e.message, "error");
       }
-      await api.post("/recurring-payments", body);
-      showToast("Pago recurrente guardado", "success");
-      hideForm("recurring-form-wrap", "btn-add-recurring", "+ Nuevo");
-      await loadRecurring();
-    } catch (e) {
-      showToast(e.message, "error");
-    }
-  });
+    });
+  }
 }
 
 function wireDebtForm() {
@@ -926,7 +1019,7 @@ function wireDebtForm() {
         name: el("debt-name")?.value.trim(),
         principalBalance: Number(el("debt-remaining")?.value || 0),
         installment: Number(el("debt-min-payment")?.value || 0),
-        frequency: "MONTHLY",
+        frequency: "monthly",
         nextDueDate: el("debt-due-date")?.value,
         notes: el("debt-name")?.value,
       };
@@ -1252,8 +1345,8 @@ async function loadAppAfterLogin() {
     wireInstallmentForm();
     wireCategoryForm();
     wireProfileForm();
-	wireGoalForm();
-	wireBudgetForm();
+    wireGoalForm();
+    wireBudgetForm();
     
     navigateTo("dashboard");
     
@@ -1323,6 +1416,7 @@ document.addEventListener("click", async (e) => {
     showToast(err.message, "error");
   }
 });
+
 // ─── FINANCIAL GOALS ─────────────────────────────────────────
 async function loadGoals() {
   setLoading(true);
@@ -1505,7 +1599,6 @@ function wireGoalForm() {
         }
         await api.post("/financial-goals", body);
         showToast("Meta guardada", "success");
-        // Limpiar y ocultar formulario
         const form = el("goal-form-wrap");
         if (form) form.classList.add("hidden");
         if (addBtn) addBtn.textContent = "+ Nueva meta";
@@ -1531,7 +1624,6 @@ function wireBudgetForm() {
         form.classList.toggle("hidden");
         addBtn.textContent = form.classList.contains("hidden") ? "+ Nuevo presupuesto" : "✕ Cancelar";
       }
-      // Llenar selector de categorías
       populateCategorySelect("budget-category", state.categories);
     });
   }
@@ -1573,6 +1665,7 @@ function wireBudgetForm() {
     });
   }
 }
+
 // ─── INIT ──────────────────────────────────────────────────
 async function init() {
   wireAuth();
@@ -1599,8 +1692,8 @@ async function init() {
       wireInstallmentForm();
       wireCategoryForm();
       wireProfileForm();
-	  wireGoalForm();
-	  wireBudgetForm();
+      wireGoalForm();
+      wireBudgetForm();
       navigateTo("dashboard");
       
     } catch (error) {

@@ -33,15 +33,14 @@ public interface FinancialGoalRepository extends JpaRepository<FinancialGoal, UU
     @Query(value = "INSERT INTO financial_goals (id, user_id, name, target_amount, " +
            "current_progress, target_date, status, created_at, updated_at) " +
            "VALUES (gen_random_uuid(), :userId, :name, :targetAmount, " +
-           "COALESCE(:currentProgress, 0), :targetDate, COALESCE(:status, 'active'), NOW(), NOW()) " +
-           "RETURNING id", nativeQuery = true)
-    UUID createGoal(@Param("userId") UUID userId, 
+           "COALESCE(:currentProgress, 0), :targetDate, COALESCE(:status, 'active'), NOW(), NOW())", nativeQuery = true)
+    void createGoal(@Param("userId") UUID userId, 
                     @Param("name") String name,
                     @Param("targetAmount") BigDecimal targetAmount,
                     @Param("currentProgress") BigDecimal currentProgress,
                     @Param("targetDate") LocalDate targetDate,
                     @Param("status") String status);
-    
+
     @Modifying
     @Query(value = "UPDATE financial_goals SET " +
            "name = COALESCE(:name, name), " +
@@ -50,9 +49,8 @@ public interface FinancialGoalRepository extends JpaRepository<FinancialGoal, UU
            "target_date = COALESCE(:targetDate, target_date), " +
            "status = COALESCE(:status, status), " +
            "updated_at = NOW() " +
-           "WHERE id = :id AND user_id = :userId AND deleted_at IS NULL " +
-           "RETURNING id", nativeQuery = true)
-    UUID updateGoal(@Param("userId") UUID userId,
+           "WHERE id = :id AND user_id = :userId AND deleted_at IS NULL", nativeQuery = true)
+    void updateGoal(@Param("userId") UUID userId,
                     @Param("id") UUID id,
                     @Param("name") String name,
                     @Param("targetAmount") BigDecimal targetAmount,

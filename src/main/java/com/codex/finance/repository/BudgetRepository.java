@@ -48,12 +48,9 @@ public interface BudgetRepository extends JpaRepository<Budget, UUID> {
     Object[] getBudgetById(@Param("userId") UUID userId, @Param("id") UUID id);
     
     @Modifying
-    @Query(value = "INSERT INTO budgets (id, user_id, category_id, period, " +
-           "period_start, period_end, amount_limit, alert_threshold, created_at, updated_at) " +
-           "VALUES (gen_random_uuid(), :userId, :categoryId, :period, " +
-           ":periodStart, :periodEnd, :amountLimit, :alertThreshold, NOW(), NOW()) " +
-           "RETURNING id", nativeQuery = true)
-    UUID createBudget(@Param("userId") UUID userId,
+    @Query(value = "INSERT INTO budgets (id, user_id, category_id, period, period_start, period_end, amount_limit, alert_threshold, created_at, updated_at) " +
+           "VALUES (gen_random_uuid(), :userId, :categoryId, :period, :periodStart, :periodEnd, :amountLimit, :alertThreshold, NOW(), NOW())", nativeQuery = true)
+    void createBudget(@Param("userId") UUID userId,
                       @Param("categoryId") UUID categoryId,
                       @Param("period") String period,
                       @Param("periodStart") LocalDate periodStart,
@@ -70,9 +67,8 @@ public interface BudgetRepository extends JpaRepository<Budget, UUID> {
            "amount_limit = COALESCE(:amountLimit, amount_limit), " +
            "alert_threshold = COALESCE(:alertThreshold, alert_threshold), " +
            "updated_at = NOW() " +
-           "WHERE id = :id AND user_id = :userId AND deleted_at IS NULL " +
-           "RETURNING id", nativeQuery = true)
-    UUID updateBudget(@Param("userId") UUID userId,
+           "WHERE id = :id AND user_id = :userId AND deleted_at IS NULL", nativeQuery = true)
+    void updateBudget(@Param("userId") UUID userId,
                       @Param("id") UUID id,
                       @Param("categoryId") UUID categoryId,
                       @Param("period") String period,
@@ -90,4 +86,5 @@ public interface BudgetRepository extends JpaRepository<Budget, UUID> {
            "WHERE user_id = :userId AND category_id = :categoryId AND deleted_at IS NULL " +
            "AND period_start <= CURRENT_DATE AND period_end >= CURRENT_DATE", nativeQuery = true)
     int countActiveBudgetForCategory(@Param("userId") UUID userId, @Param("categoryId") UUID categoryId);
+    
 }
