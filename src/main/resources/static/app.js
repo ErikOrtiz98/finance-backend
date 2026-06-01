@@ -1,5 +1,5 @@
 // ─── CONFIG ───────────────────────────────────────────────
-const API_BASE = "https://finance-backend-production-1f9c.up.railway.app";
+const API_BASE = "";
 
 // ─── API CLIENT ───────────────────────────────────────────
 const api = {
@@ -21,7 +21,6 @@ const api = {
         mode: 'cors'
       });
 
-      // Si es 401 y tenemos refresh token, intentar renovar
       if (response.status === 401 && api._refresh()) {
         const refreshed = await api._tryRefresh();
         if (refreshed) {
@@ -77,27 +76,62 @@ const api = {
 
 // ─── AUTH ──────────────────────────────────────────────────
 async function signIn(email, password) {
-  const data = await api.post("/auth/sign-in", { email, password });
+  const response = await fetch(`${API_BASE}/auth/sign-in`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ email, password })
+  });
+  
+  if (!response.ok) {
+    const error = await response.json();
+    throw new Error(error.message || "Error al iniciar sesión");
+  }
+  
+  const data = await response.json();
+  console.log("Respuesta del servidor:", data);
+  
+  // Guardar tokens correctamente
   if (data.accessToken) {
     localStorage.setItem("fin_token", data.accessToken);
-    if (data.refreshToken) localStorage.setItem("fin_refresh", data.refreshToken);
+    console.log("Token guardado:", data.accessToken.substring(0, 50) + "...");
   }
+  if (data.refreshToken) {
+    localStorage.setItem("fin_refresh", data.refreshToken);
+  }
+  
   return data;
 }
 
 async function signUp(email, password, displayName) {
-  const data = await api.post("/auth/sign-up", { email, password, displayName });
+  const response = await fetch(`${API_BASE}/auth/sign-up`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ email, password, displayName })
+  });
+  
+  if (!response.ok) {
+    const error = await response.json();
+    throw new Error(error.message || "Error al crear cuenta");
+  }
+  
+  const data = await response.json();
+  
   if (data.accessToken) {
     localStorage.setItem("fin_token", data.accessToken);
     if (data.refreshToken) localStorage.setItem("fin_refresh", data.refreshToken);
   }
+  
   return data;
 }
 
 function logout() {
   const refreshToken = localStorage.getItem("fin_refresh");
   if (refreshToken) {
-    api.post("/auth/sign-out", { refreshToken }).catch(() => {});
+    fetch(`${API_BASE}/auth/sign-out`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ refreshToken })
+    }).catch(() => {});
   }
   localStorage.removeItem("fin_token");
   localStorage.removeItem("fin_refresh");
@@ -987,68 +1021,78 @@ function wireAuth() {
     if (viewLogin) viewLogin.classList.remove("hidden");
   });
   
-  if (loginBtn) loginBtn.addEventListener("click", async () => {
-    const email = el("login-email")?.value.trim();
-    const password = el("login-password")?.value;
-    const errorEl = el("login-error");
-    
-    if (errorEl) errorEl.classList.add("hidden");
-    if (!email || !password) {
-      if (errorEl) {
-        errorEl.textContent = "Completa correo y contraseña";
-        errorEl.classList.remove("hidden");
+  if (loginBtn) {
+    loginBtn.addEventListener("click", async () => {
+      const email = el("login-email")?.value.trim();
+      const password = el("login-password")?.value;
+      const errorEl = el("login-error");
+      
+      if (errorEl) errorEl.classList.add("hidden");
+      if (!email || !password) {
+        if (errorEl) {
+          errorEl.textContent = "Completa correo y contraseña";
+          errorEl.classList.remove("hidden");
+        }
+        return;
       }
-      return;
-    }
-    try {
-      setLoading(true);
-      await signIn(email, password);
-      // Después del login exitoso, recargar la app
-      await init();
-    } catch (err) {
-      if (errorEl) {
-        errorEl.textContent = err.message || "Credenciales incorrectas";
-        errorEl.classList.remove("hidden");
+      try {
+        setLoading(true);
+        const data = await signIn(email, password);
+        console.log("Login exitoso, token guardado");
+        
+        // Mostrar la app inmediatamente
+        await loadAppAfterLogin();
+        
+      } catch (err) {
+        console.error("Login error:", err);
+        if (errorEl) {
+          errorEl.textContent = err.message || "Credenciales incorrectas";
+          errorEl.classList.remove("hidden");
+        }
+      } finally {
+        setLoading(false);
       }
-    } finally {
-      setLoading(false);
-    }
-  });
+    });
+  }
   
-  if (registerBtn) registerBtn.addEventListener("click", async () => {
-    const email = el("reg-email")?.value.trim();
-    const displayName = el("reg-username")?.value.trim();
-    const password = el("reg-password")?.value;
-    const errorEl = el("reg-error");
-    
-    if (errorEl) errorEl.classList.add("hidden");
-    if (!displayName || !email || !password) {
-      if (errorEl) {
-        errorEl.textContent = "Completa todos los campos";
-        errorEl.classList.remove("hidden");
+  if (registerBtn) {
+    registerBtn.addEventListener("click", async () => {
+      const email = el("reg-email")?.value.trim();
+      const displayName = el("reg-username")?.value.trim();
+      const password = el("reg-password")?.value;
+      const errorEl = el("reg-error");
+      
+      if (errorEl) errorEl.classList.add("hidden");
+      if (!displayName || !email || !password) {
+        if (errorEl) {
+          errorEl.textContent = "Completa todos los campos";
+          errorEl.classList.remove("hidden");
+        }
+        return;
       }
-      return;
-    }
-    if (password.length < 8) {
-      if (errorEl) {
-        errorEl.textContent = "La contraseña debe tener al menos 8 caracteres";
-        errorEl.classList.remove("hidden");
+      if (password.length < 8) {
+        if (errorEl) {
+          errorEl.textContent = "La contraseña debe tener al menos 8 caracteres";
+          errorEl.classList.remove("hidden");
+        }
+        return;
       }
-      return;
-    }
-    try {
-      setLoading(true);
-      await signUp(email, password, displayName);
-      await bootApp();
-    } catch (err) {
-      if (errorEl) {
-        errorEl.textContent = err.message || "Error al crear cuenta";
-        errorEl.classList.remove("hidden");
+      try {
+        setLoading(true);
+        const data = await signUp(email, password, displayName);
+        console.log("Registro exitoso");
+        await loadAppAfterLogin();
+      } catch (err) {
+        console.error("Register error:", err);
+        if (errorEl) {
+          errorEl.textContent = err.message || "Error al crear cuenta";
+          errorEl.classList.remove("hidden");
+        }
+      } finally {
+        setLoading(false);
       }
-    } finally {
-      setLoading(false);
-    }
-  });
+    });
+  }
   
   // Enter key support
   ["login-email", "login-password"].forEach(id => {
@@ -1059,6 +1103,50 @@ function wireAuth() {
     const input = el(id);
     if (input) input.addEventListener("keydown", e => { if (e.key === "Enter") registerBtn?.click(); });
   });
+}
+
+// ─── LOAD APP AFTER LOGIN ──────────────────────────────────
+async function loadAppAfterLogin() {
+  try {
+    // Verificar que el token existe
+    const token = localStorage.getItem("fin_token");
+    if (!token) {
+      throw new Error("No hay token guardado");
+    }
+    
+    console.log("Cargando datos del usuario...");
+    const user = await api.get("/me");
+    state.user = user;
+    console.log("Usuario cargado:", user);
+    
+    // Mostrar la interfaz de la app
+    showApp();
+    
+    // Configurar el avatar
+    const avatar = el("user-avatar");
+    if (avatar) {
+      avatar.textContent = (user.displayName || user.email || "U")[0].toUpperCase();
+    }
+    
+    // Inicializar todas las funciones de la app
+    wireNav();
+    wireTxForm();
+    wireAccForm();
+    wireRecurringForm();
+    wireDebtForm();
+    wireCategoryForm();
+    wireProfileForm();
+    
+    // Navegar al dashboard
+    navigateTo("dashboard");
+    
+    console.log("App cargada correctamente");
+  } catch (error) {
+    console.error("Error cargando app:", error);
+    showToast("Error al cargar la aplicación: " + error.message, "error");
+    // Si hay error, hacer logout
+    logout();
+  }
 }
 
 // ─── GLOBAL EVENT DELEGATION ───────────────────────────────
@@ -1078,45 +1166,27 @@ document.addEventListener("click", async (e) => {
   }
 });
 
-// ─── BOOT ──────────────────────────────────────────────────
-async function bootApp() {
-  try {
-    const user = await api.get("/me");
-    state.user = user;
-    const avatar = el("user-avatar");
-    if (avatar) avatar.textContent = (user.displayName || user.email || "U")[0].toUpperCase();
-    showApp();
-    wireNav();
-    wireTxForm();
-    wireAccForm();
-    wireRecurringForm();
-    wireDebtForm();
-    wireCategoryForm();
-    wireProfileForm();
-    navigateTo("dashboard");
-    
-    if ("serviceWorker" in navigator) {
-      navigator.serviceWorker.register("./sw.js").catch(() => console.log("SW registration failed"));
-    }
-  } catch (error) {
-    console.error("Boot error:", error);
-    // Si hay error, mostrar pantalla de login
-    logout();
-  }
-}
-
+// ─── INIT ──────────────────────────────────────────────────
 async function init() {
   wireAuth();
   
   const token = localStorage.getItem("fin_token");
+  console.log("Token existente:", token ? "Sí hay token" : "No hay token");
   
   if (token) {
     try {
       setLoading(true);
-      // Intentar obtener el usuario para verificar si el token es válido
+      // Verificar si el token es válido
       const user = await api.get("/me");
       state.user = user;
+      console.log("Sesión válida, cargando app...");
       showApp();
+      
+      const avatar = el("user-avatar");
+      if (avatar) {
+        avatar.textContent = (user.displayName || user.email || "U")[0].toUpperCase();
+      }
+      
       wireNav();
       wireTxForm();
       wireAccForm();
@@ -1126,12 +1196,8 @@ async function init() {
       wireProfileForm();
       navigateTo("dashboard");
       
-      if ("serviceWorker" in navigator) {
-        navigator.serviceWorker.register("./sw.js").catch(() => {});
-      }
     } catch (error) {
-      console.error("Token inválido o expirado:", error);
-      // Si hay error, limpiar token y mostrar login
+      console.error("Sesión inválida:", error);
       localStorage.removeItem("fin_token");
       localStorage.removeItem("fin_refresh");
       showAuth();
@@ -1143,18 +1209,5 @@ async function init() {
   }
 }
 
-// Función para verificar si el token es válido
-async function verifyToken() {
-  try {
-    await api.get("/me");
-    return true;
-  } catch (error) {
-    // Si es 401, el token expiró o es inválido
-    if (error.message.includes("401")) {
-      return false;
-    }
-    throw error;
-  }
-}
-
+// Iniciar la aplicación
 init();
