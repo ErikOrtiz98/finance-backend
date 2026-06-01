@@ -602,13 +602,12 @@ function fillProfile(user) {
   const currency = el("profile-currency");
   const period = el("profile-period");
   
-  if (income) income.value = "";
+  if (income) income.value = user.monthlyIncome || "";
   if (currency) currency.value = user.currency || "MXN";
   if (period) period.value = user.payCycle === "monthly" ? "monthly" : "biweekly";
   
   toggleProfilePeriodFields(user.payCycle || "biweekly");
   
-  // Cargar los días de pago
   if (user.payDays && user.payDays.length) {
     if (user.payCycle === "biweekly") {
       const payday1 = el("profile-payday1");
@@ -927,11 +926,14 @@ function wireProfileForm() {
           if (!isNaN(d)) payDays.push(d);
         }
         
+        const monthlyIncomeValue = parseFloat(el("profile-income")?.value || 0);
+        
         const body = {
           displayName: state.user?.displayName || "",
           currency: el("profile-currency")?.value,
           payCycle: period,
           payDays: payDays,
+          monthlyIncome: isNaN(monthlyIncomeValue) ? 0 : monthlyIncomeValue
         };
         
         await api.patch("/me", body);

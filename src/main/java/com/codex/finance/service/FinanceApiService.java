@@ -87,8 +87,14 @@ public class FinanceApiService {
     public ContractDtos.MeResponse updateMe(String userId, ContractDtos.UpdateMeRequest request) {
         UUID uuid = UUID.fromString(userId);
         String payDaysJson = toJson(request.payDays());
-        Object[] row = profileRepo.upsertProfile(uuid, request.displayName(), request.currency(),
-                                                  request.payCycle(), payDaysJson, uuid);
+        BigDecimal monthlyIncome = request.monthlyIncome() != null ? request.monthlyIncome() : BigDecimal.ZERO;
+        Object[] row = profileRepo.upsertProfile(uuid, 
+                                                  request.displayName(), 
+                                                  request.currency(),
+                                                  request.payCycle(), 
+                                                  payDaysJson,
+                                                  monthlyIncome,  // ← Agrega este parámetro
+                                                  uuid);
         return mapper.mapToMeResponse(row);
     }
 
@@ -350,27 +356,75 @@ public class FinanceApiService {
         UUID uuid = UUID.fromString(userId);
         String currency = profileRepo.getUserCurrency(uuid);
         
-        Object[] row;
-        if (from != null && to != null && accountId != null) {
-            row = movementRepo.getSummaryFull(uuid, from, to, mapper.toUuid(accountId));
-        } else if (from != null && to != null) {
-            row = movementRepo.getSummaryByDateRange(uuid, from, to);
-        } else if (accountId != null) {
-            row = movementRepo.getSummaryByAccount(uuid, mapper.toUuid(accountId));
-        } else {
-            row = movementRepo.getSummaryAll(uuid);
+        // Obtener el rango de fechas correcto
+        LocalDate[] window = resolveWindow(range, from, to);
+        LocalDate startDate = window[0];
+        LocalDate endDate = window[1];
+        
+        // Obtener ingresos reales de transacciones en el rango
+        BigDecimal realIncome = BigDecimal.ZERO;
+        if (startDate != null && endDate != null) {
+            Object[] incomeRow = movementRepo.getSummaryByDateRange(uuid, startDate, endDate);
+            if (incomeRow != null) {
+                incomeRow = mapper.unwrap(incomeRow);
+                realIncome = mapper.toBigDecimal(incomeRow[0]);
+            }
         }
         
-        row = mapper.unwrap(row);
+        // Obtener monthlyIncome del perfil
+        BigDecimal monthlyIncome = BigDecimal.ZERO;
+        Object[] profileRow = profileRepo.getProfile(uuid);
+        if (profileRow != null) {
+            profileRow = mapper.unwrap(profileRow);
+            // monthlyIncome está en la posición 6 del array
+            if (profileRow.length > 6 && profileRow[6] != null) {
+                monthlyIncome = mapper.toBigDecimal(profileRow[6]);
+            }
+        }
         
-        BigDecimal income = mapper.toBigDecimal(row[0]);
-        BigDecimal expenses = mapper.toBigDecimal(row[1]);
-        BigDecimal debtPayments = mapper.toBigDecimal(row[2]);
-        BigDecimal fixedPayments = mapper.toBigDecimal(row[3]);
-        BigDecimal availableBalance = accountId == null ? 
-            accountRepo.getTotalBalance(uuid) : 
-            accountRepo.getAccountBalance(uuid, UUID.fromString(accountId));
-        return new ContractDtos.SummaryResponse(income, expenses, fixedPayments, debtPayments, availableBalance, currency);
+        // Calcular el ingreso proporcional según el rango
+        BigDecimal finalIncome = realIncome;
+        if (realIncome == null || realIncome.compareTo(BigDecimal.ZERO) == 0) {
+            // Si no hay transacciones, usar monthlyIncome proporcional
+            if (monthlyIncome.compareTo(BigDecimal.ZERO) > 0) {
+                if ("biweekly".equals(range)) {
+                    // Para quincena, la mitad del ingreso mensual
+                    finalIncome = monthlyIncome.divide(BigDecimal.valueOf(2), 2, java.math.RoundingMode.HALF_UP);
+                } else {
+                    finalIncome = monthlyIncome;
+                }
+            } else {
+                finalIncome = BigDecimal.ZERO;
+            }
+        }
+        
+        // Obtener gastos, pagos fijos y pagos de deudas en el rango
+        BigDecimal expenses = BigDecimal.ZERO;
+        BigDecimal fixedPayments = BigDecimal.ZERO;
+        BigDecimal debtPayments = BigDecimal.ZERO;
+        
+        if (startDate != null && endDate != null) {
+            Object[] summaryRow = movementRepo.getSummaryByDateRange(uuid, startDate, endDate);
+            if (summaryRow != null) {
+                summaryRow = mapper.unwrap(summaryRow);
+                expenses = mapper.toBigDecimal(summaryRow[1]);
+                debtPayments = mapper.toBigDecimal(summaryRow[2]);
+                fixedPayments = mapper.toBigDecimal(summaryRow[3]);
+            }
+        }
+        
+        // Calcular balance disponible
+        BigDecimal availableBalance = finalIncome.subtract(expenses)
+            .subtract(fixedPayments).subtract(debtPayments);
+        
+        return new ContractDtos.SummaryResponse(
+            finalIncome,      // income
+            expenses,         // expenses
+            fixedPayments,    // fixedPayments
+            debtPayments,     // debtPayments
+            availableBalance, // availableBalance
+            currency
+        );
     }
 
     @Transactional(readOnly = true)

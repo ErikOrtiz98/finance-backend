@@ -35,13 +35,16 @@ public class FinanceMapper {
         map.put("currency",    toStringText(row[3]));
         map.put("payCycle",    toStringText(row[4]));
         map.put("payDays",     normalizePayDays(row[5]));
-        map.put("createdAt",   row[6]);
-        map.put("updatedAt",   row[7]);
-        map.put("deletedAt",   row[8]);
-        map.put("syncStatus",  toStringText(row[9]));
-        map.put("version",     row[10]);
+        map.put("monthlyIncome", toBigDecimal(row[6]));
+        map.put("createdAt",   row[7]);
+        map.put("updatedAt",   row[8]);
+        map.put("deletedAt",   row[9]);
+        map.put("syncStatus",  toStringText(row[10]));
+        map.put("version",     row[11]);
         return objectMapper.convertValue(map, ContractDtos.MeResponse.class);
     }
+    
+    
 
     public ContractDtos.CategoryResponse mapToCategoryResponse(Object[] row) {
     	row = unwrap(row);

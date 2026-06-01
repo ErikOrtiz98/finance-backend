@@ -1,6 +1,8 @@
 package com.codex.finance.entity;
 
 import jakarta.persistence.*;
+
+import java.math.BigDecimal;
 import java.time.OffsetDateTime;
 import java.util.UUID;
 
@@ -43,6 +45,9 @@ public class Profile {
     
     @Column(name = "row_version")
     private Long rowVersion;
+    
+    @Column(name = "monthly_income")
+    private BigDecimal monthlyIncome;
 
     // Getters y Setters
     public UUID getUserId() { return userId; }

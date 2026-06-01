@@ -221,7 +221,6 @@ a { color: inherit; text-decoration: none; }
   backdrop-filter: blur(16px);
   border-bottom: 1px solid var(--border);
   width: 100%;
-  max-width: 1400px;
 }
 .topbar-left { display: flex; align-items: center; gap: 1rem; }
 .topbar-right { display: flex; align-items: center; gap: 0.75rem; }
@@ -394,6 +393,7 @@ a { color: inherit; text-decoration: none; }
   align-items: center;
   justify-content: space-between;
   margin-bottom: 1.5rem;
+  width: 100%;
 }
 
 .card-title {
@@ -408,7 +408,7 @@ a { color: inherit; text-decoration: none; }
 /* ─── KPI CARDS ──────────────────────────────────────────── */
 .kpi-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
   gap: 1rem;
   margin-bottom: 1.5rem;
   width: 100%;
@@ -427,11 +427,6 @@ a { color: inherit; text-decoration: none; }
   transition: transform var(--transition);
 }
 .kpi-card:hover { transform: translateY(-2px); }
-
-.kpi-income::before   { background: radial-gradient(ellipse at 0% 100%, rgba(201,168,76,0.08), transparent 60%); }
-.kpi-balance::before  { background: radial-gradient(ellipse at 0% 100%, rgba(52,211,153,0.07), transparent 60%); }
-.kpi-obligations::before { background: radial-gradient(ellipse at 0% 100%, rgba(251,191,36,0.07), transparent 60%); }
-.kpi-debt::before     { background: radial-gradient(ellipse at 0% 100%, rgba(248,113,113,0.07), transparent 60%); }
 
 .kpi-label {
   font-size: 0.78rem;
@@ -453,7 +448,7 @@ a { color: inherit; text-decoration: none; }
 /* ─── DASH GRID ──────────────────────────────────────────── */
 .dash-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(380px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(380px, 1fr));
   gap: 1rem;
   width: 100%;
 }
@@ -463,6 +458,7 @@ a { color: inherit; text-decoration: none; }
   border: 1px solid var(--border);
   border-radius: var(--radius);
   padding: 1.5rem;
+  width: 100%;
 }
 .dash-card .card-title { margin-bottom: 1rem; }
 .dash-card-full { grid-column: 1 / -1; }
@@ -475,7 +471,7 @@ a { color: inherit; text-decoration: none; }
 .bar-fill  { height: 100%; border-radius: inherit; background: linear-gradient(90deg, var(--gold), var(--green)); transition: width 0.5s cubic-bezier(0.4,0,0.2,1); }
 
 /* ─── UPCOMING ───────────────────────────────────────────── */
-.upcoming-list { display: grid; gap: 0.65rem; }
+.upcoming-list { display: grid; gap: 0.65rem; width: 100%; }
 .upcoming-item {
   display: flex;
   align-items: center;
@@ -501,6 +497,7 @@ a { color: inherit; text-decoration: none; }
   border: 1px solid var(--border);
   border-radius: var(--radius-sm);
   transition: border-color var(--transition);
+  width: 100%;
 }
 .data-row:hover { border-color: var(--border-hi); }
 .data-row-icon {
@@ -584,11 +581,11 @@ a { color: inherit; text-decoration: none; }
 /* ─── ANALYTICS ──────────────────────────────────────────── */
 .analytics-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(380px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(380px, 1fr));
   gap: 1rem;
   width: 100%;
 }
-.analytics-summary { display: grid; gap: 0.75rem; }
+.analytics-summary { display: grid; gap: 0.75rem; width: 100%; }
 .analytics-row {
   display: flex;
   justify-content: space-between;
@@ -601,7 +598,7 @@ a { color: inherit; text-decoration: none; }
 /* ─── PROFILE ────────────────────────────────────────────── */
 .profile-wrap {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(380px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(380px, 1fr));
   gap: 1.5rem;
   align-items: start;
   width: 100%;
