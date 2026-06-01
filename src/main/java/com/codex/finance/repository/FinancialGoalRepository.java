@@ -33,7 +33,7 @@ public interface FinancialGoalRepository extends JpaRepository<FinancialGoal, UU
     @Query(value = "INSERT INTO financial_goals (id, user_id, name, target_amount, " +
            "current_progress, target_date, status, created_at, updated_at) " +
            "VALUES (gen_random_uuid(), :userId, :name, :targetAmount, " +
-           "COALESCE(:currentProgress, 0), :targetDate, COALESCE(:status, 'active'), NOW(), NOW())", nativeQuery = true)
+           "COALESCE(:currentProgress, 0), :targetDate, CAST(COALESCE(:status, 'active') AS goal_status), NOW(), NOW())", nativeQuery = true)
     void createGoal(@Param("userId") UUID userId, 
                     @Param("name") String name,
                     @Param("targetAmount") BigDecimal targetAmount,

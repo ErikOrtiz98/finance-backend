@@ -1033,36 +1033,62 @@ function wireAccForm() {
   const cancelBtn = el("btn-cancel-account");
   const saveBtn = el("btn-save-account");
   const typeSelect = el("acc-type");
+  const institutionSelect = el("acc-institution");
+  const otherGroup = el("acc-other-institution-group");
+  const otherInput = el("acc-other-institution");
+  
+  // Mostrar/ocultar campo de "Otra" institución
+  if (institutionSelect && otherGroup) {
+    institutionSelect.addEventListener("change", () => {
+      otherGroup.classList.toggle("hidden", institutionSelect.value !== "Otra");
+      if (otherInput) otherInput.value = "";
+    });
+  }
   
   if (addBtn) addBtn.addEventListener("click", () => showInlineForm("account-form-wrap", "btn-add-account"));
   if (cancelBtn) cancelBtn.addEventListener("click", () => hideForm("account-form-wrap", "btn-add-account", "+ Nueva cuenta"));
   if (typeSelect) typeSelect.addEventListener("change", toggleCreditFields);
   
-  if (saveBtn) saveBtn.addEventListener("click", async () => {
-    try {
-      const body = {
-        type: el("acc-type")?.value,
-        name: el("acc-name")?.value.trim(),
-        institution: "",
-        currency: el("acc-currency")?.value,
-        balance: Number(el("acc-balance")?.value || 0),
-        creditLimit: el("acc-type")?.value === "credit" ? Number(el("acc-limit")?.value || 0) : null,
-        closingDay: el("acc-type")?.value === "credit" ? Number(el("acc-cut-day")?.value || 0) : null,
-        dueDay: el("acc-type")?.value === "credit" ? Number(el("acc-due-day")?.value || 0) : null,
-        active: true,
-      };
-      if (!body.name) {
-        showToast("Ingresa el nombre de la cuenta", "error");
-        return;
+  if (saveBtn) {
+    saveBtn.addEventListener("click", async () => {
+      try {
+        let institution = institutionSelect?.value || "";
+        if (institution === "Otra") {
+          institution = otherInput?.value.trim() || "";
+          if (!institution) {
+            showToast("Escribe el nombre de la institución", "error");
+            return;
+          }
+        }
+        
+        const body = {
+          type: el("acc-type")?.value,
+          name: el("acc-name")?.value.trim(),
+          institution: institution,
+          currency: el("acc-currency")?.value,
+          balance: Number(el("acc-balance")?.value || 0),
+          creditLimit: el("acc-type")?.value === "credit" ? Number(el("acc-limit")?.value || 0) : null,
+          closingDay: el("acc-type")?.value === "credit" ? Number(el("acc-cut-day")?.value || 0) : null,
+          dueDay: el("acc-type")?.value === "credit" ? Number(el("acc-due-day")?.value || 0) : null,
+          active: true,
+        };
+        if (!body.name) {
+          showToast("Ingresa el nombre de la cuenta", "error");
+          return;
+        }
+        await api.post("/accounts", body);
+        showToast("Cuenta creada", "success");
+        hideForm("account-form-wrap", "btn-add-account", "+ Nueva cuenta");
+        // Limpiar campos
+        if (institutionSelect) institutionSelect.value = "";
+        if (otherGroup) otherGroup.classList.add("hidden");
+        if (otherInput) otherInput.value = "";
+        await loadAccounts();
+      } catch (e) {
+        showToast(e.message, "error");
       }
-      await api.post("/accounts", body);
-      showToast("Cuenta creada", "success");
-      hideForm("account-form-wrap", "btn-add-account", "+ Nueva cuenta");
-      await loadAccounts();
-    } catch (e) {
-      showToast(e.message, "error");
-    }
-  });
+    });
+  }
 }
 
 function wireRecurringForm() {
@@ -2301,6 +2327,12 @@ function wireBudgetForm() {
       }
     });
   }
+}
+function syncCreditOnlyFields(scope, type) {
+  const root = scope || document;
+  root.querySelectorAll(".credit-only").forEach(field => {
+    field.classList.toggle("hidden", type !== "credit");
+  });
 }
 
 // ─── INIT ──────────────────────────────────────────────────

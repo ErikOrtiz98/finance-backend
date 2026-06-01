@@ -16,7 +16,7 @@ import com.codex.finance.entity.Budget;
 @Repository
 public interface BudgetRepository extends JpaRepository<Budget, UUID> {
     
-    @Query(value = "SELECT b.id, b.category_id, c.name as category_name, b.period, " +
+    @Query(value = "SELECT b.id, b.category_id, c.name as category_name, b.budget_period as period, " +
            "b.period_start, b.period_end, b.amount_limit, b.alert_threshold, " +
            "COALESCE(SUM(m.amount), 0) as spent_amount, " +
            "ROUND((COALESCE(SUM(m.amount), 0) / NULLIF(b.amount_limit, 0)) * 100, 2) as usage_percent, " +
@@ -32,7 +32,7 @@ public interface BudgetRepository extends JpaRepository<Budget, UUID> {
            "GROUP BY b.id, c.name", nativeQuery = true)
     List<Object[]> listActiveBudgets(@Param("userId") UUID userId);
     
-    @Query(value = "SELECT b.id, b.category_id, c.name as category_name, b.period, " +
+    @Query(value = "SELECT b.id, b.category_id, c.name as category_name, b.budget_period as period, " +
            "b.period_start, b.period_end, b.amount_limit, b.alert_threshold " +
            "FROM budgets b " +
            "LEFT JOIN categories c ON c.id = b.category_id " +
@@ -40,7 +40,7 @@ public interface BudgetRepository extends JpaRepository<Budget, UUID> {
            "ORDER BY b.period_start DESC", nativeQuery = true)
     List<Object[]> listAllBudgets(@Param("userId") UUID userId);
     
-    @Query(value = "SELECT b.id, b.category_id, c.name as category_name, b.period, " +
+    @Query(value = "SELECT b.id, b.category_id, c.name as category_name, b.budget_period as period, " +
            "b.period_start, b.period_end, b.amount_limit, b.alert_threshold " +
            "FROM budgets b " +
            "LEFT JOIN categories c ON c.id = b.category_id " +
@@ -48,8 +48,8 @@ public interface BudgetRepository extends JpaRepository<Budget, UUID> {
     Object[] getBudgetById(@Param("userId") UUID userId, @Param("id") UUID id);
     
     @Modifying
-    @Query(value = "INSERT INTO budgets (id, user_id, category_id, period, period_start, period_end, amount_limit, alert_threshold, created_at, updated_at) " +
-           "VALUES (gen_random_uuid(), :userId, :categoryId, :period, :periodStart, :periodEnd, :amountLimit, :alertThreshold, NOW(), NOW())", nativeQuery = true)
+    @Query(value = "INSERT INTO budgets (id, user_id, category_id, budget_period, period_start, period_end, amount_limit, alert_threshold, created_at, updated_at) " +
+           "VALUES (gen_random_uuid(), :userId, :categoryId, CAST(:period AS public.budget_period), :periodStart, :periodEnd, :amountLimit, :alertThreshold, NOW(), NOW())", nativeQuery = true)
     void createBudget(@Param("userId") UUID userId,
                       @Param("categoryId") UUID categoryId,
                       @Param("period") String period,
@@ -61,7 +61,7 @@ public interface BudgetRepository extends JpaRepository<Budget, UUID> {
     @Modifying
     @Query(value = "UPDATE budgets SET " +
            "category_id = COALESCE(:categoryId, category_id), " +
-           "period = COALESCE(:period, period), " +
+           "budget_period = COALESCE(CAST(:period AS public.budget_period), budget_period), " +
            "period_start = COALESCE(:periodStart, period_start), " +
            "period_end = COALESCE(:periodEnd, period_end), " +
            "amount_limit = COALESCE(:amountLimit, amount_limit), " +
@@ -86,5 +86,4 @@ public interface BudgetRepository extends JpaRepository<Budget, UUID> {
            "WHERE user_id = :userId AND category_id = :categoryId AND deleted_at IS NULL " +
            "AND period_start <= CURRENT_DATE AND period_end >= CURRENT_DATE", nativeQuery = true)
     int countActiveBudgetForCategory(@Param("userId") UUID userId, @Param("categoryId") UUID categoryId);
-    
 }
