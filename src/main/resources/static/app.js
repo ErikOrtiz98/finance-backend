@@ -57,9 +57,10 @@ const api = {
       });
       if (!response.ok) return false;
       const data = await response.json();
-      if (data.accessToken) {
-        localStorage.setItem("fin_token", data.accessToken);
-        if (data.refreshToken) localStorage.setItem("fin_refresh", data.refreshToken);
+      // SessionResponse tiene user y session
+      if (data.session && data.session.accessToken) {
+        localStorage.setItem("fin_token", data.session.accessToken);
+        if (data.session.refreshToken) localStorage.setItem("fin_refresh", data.session.refreshToken);
       }
       return true;
     } catch (error) {
@@ -90,13 +91,11 @@ async function signIn(email, password) {
   const data = await response.json();
   console.log("Respuesta del servidor:", data);
   
-  // Guardar tokens correctamente
-  if (data.accessToken) {
-    localStorage.setItem("fin_token", data.accessToken);
-    console.log("Token guardado:", data.accessToken.substring(0, 50) + "...");
-  }
-  if (data.refreshToken) {
-    localStorage.setItem("fin_refresh", data.refreshToken);
+  // La respuesta es AuthResponse: { user: UserDto, session: SessionDto }
+  if (data.session && data.session.accessToken) {
+    localStorage.setItem("fin_token", data.session.accessToken);
+    localStorage.setItem("fin_refresh", data.session.refreshToken);
+    console.log("Token guardado correctamente");
   }
   
   return data;
@@ -116,9 +115,9 @@ async function signUp(email, password, displayName) {
   
   const data = await response.json();
   
-  if (data.accessToken) {
-    localStorage.setItem("fin_token", data.accessToken);
-    if (data.refreshToken) localStorage.setItem("fin_refresh", data.refreshToken);
+  if (data.session && data.session.accessToken) {
+    localStorage.setItem("fin_token", data.session.accessToken);
+    localStorage.setItem("fin_refresh", data.session.refreshToken);
   }
   
   return data;
@@ -152,8 +151,6 @@ let state = {
   activePeriod: "biweekly",
   activeSection: "dashboard",
 };
-
-let editCtx = { type: null, id: null };
 
 // ─── UTILS ─────────────────────────────────────────────────
 function fmt(amount, currency = "MXN") {
@@ -256,7 +253,7 @@ async function loadDashboard() {
     state.categoryStats = catStats || [];
 
     renderKPIs();
-    renderUpcoming("upcoming-list", state.upcoming?.items || []);
+    renderUpcoming("upcoming-list", state.upcoming?.next7Days || []);
     renderCategoryBars("category-bars", state.categoryStats);
   } catch (error) {
     console.error("Dashboard error:", error);
@@ -273,13 +270,11 @@ function renderKPIs() {
   const kpiObligations = el("kpi-obligations");
   const kpiBalance = el("kpi-balance");
   const kpiDebt = el("kpi-debt");
-  const kpiNote = el("kpi-income-note");
   
-  if (kpiIncome) kpiIncome.textContent = fmt(s.totalIncome || 0, cur);
-  if (kpiObligations) kpiObligations.textContent = fmt(s.totalObligations || 0, cur);
-  if (kpiBalance) kpiBalance.textContent = fmt(s.netCashflow || 0, cur);
-  if (kpiDebt) kpiDebt.textContent = fmt(s.totalDebt || 0, cur);
-  if (kpiNote && state.user) kpiNote.textContent = `Periodo ${state.activePeriod === "biweekly" ? "Quincenal" : "Mensual"}`;
+  if (kpiIncome) kpiIncome.textContent = fmt(s.income || 0, cur);
+  if (kpiObligations) kpiObligations.textContent = fmt(s.fixedPayments || 0, cur);
+  if (kpiBalance) kpiBalance.textContent = fmt(s.availableBalance || 0, cur);
+  if (kpiDebt) kpiDebt.textContent = fmt(s.debtPayments || 0, cur);
 }
 
 function renderUpcoming(containerId, items) {
@@ -293,8 +288,8 @@ function renderUpcoming(containerId, items) {
   c.innerHTML = items.slice(0, 6).map(item => `
     <div class="upcoming-item">
       <div>
-        <div class="item-name">${item.name || item.description || item.title}</div>
-        <div class="item-due">${relativeDate(item.dueDate || item.nextDueDate || item.date)}</div>
+        <div class="item-name">${item.name}</div>
+        <div class="item-due">${relativeDate(item.dueDate)}</div>
       </div>
       <div class="item-amount">${fmt(item.amount, cur)}</div>
     </div>
@@ -309,15 +304,15 @@ function renderCategoryBars(containerId, items) {
     return;
   }
   const cur = state.user?.currency || "MXN";
-  const max = Math.max(...items.map(i => Number(i.total || 0)));
+  const max = Math.max(...items.map(i => Number(i.amount || 0)));
   c.innerHTML = items.map(item => {
-    const val = Number(item.total || 0);
+    const val = Number(item.amount || 0);
     const pct = max > 0 ? Math.round((val / max) * 100) : 0;
     return `
       <div class="bar-row">
         <div class="bar-meta">
-          <span>${item.categoryName || item.category || item.name}</span>
-          <span>${fmt(val, cur)}</span>
+          <span>${item.categoryName}</span>
+          <span>${fmt(val, cur)} (${item.percentage}%)</span>
         </div>
         <div class="bar-track"><div class="bar-fill" style="width:${pct}%"></div></div>
       </div>
@@ -355,7 +350,7 @@ function renderTransactions() {
   }
   
   const sorted = [...state.transactions].sort((a, b) => 
-    new Date(b.transactionDate || b.date) - new Date(a.transactionDate || a.date)
+    new Date(b.transactionDate) - new Date(a.transactionDate)
   );
   
   c.innerHTML = sorted.map(tx => {
@@ -367,7 +362,7 @@ function renderTransactions() {
         <div class="data-row-icon">${cat?.icon || (isExpense ? "💸" : "💰")}</div>
         <div class="data-row-info">
           <div class="data-row-name">${tx.description || tx.name}</div>
-          <div class="data-row-meta">${cat?.name || "—"} · ${acc?.name || "—"} · ${relativeDate(tx.transactionDate || tx.date)}</div>
+          <div class="data-row-meta">${cat?.name || "—"} · ${acc?.name || "—"} · ${relativeDate(tx.transactionDate)}</div>
         </div>
         <div class="data-row-amount ${isExpense ? "expense" : "income"}">
           ${isExpense ? "-" : "+"}${fmt(tx.amount, cur)}
@@ -413,7 +408,7 @@ function renderAccounts() {
     return `
       <div class="account-card ${typeClass}">
         <div class="account-name">${acc.name}</div>
-        <div class="account-type">${typeLabel}</div>
+        <div class="account-type">${typeLabel}${acc.institution ? ` · ${acc.institution}` : ""}</div>
         <div class="account-balance">${fmt(acc.balance, acc.currency || cur)}</div>
         ${creditLine}
         <div class="account-actions">
@@ -494,18 +489,16 @@ function renderDebts() {
   }
   
   c.innerHTML = state.debts.map(d => {
-    const remaining = d.remainingBalance || d.principalBalance || 0;
-    const total = d.principalBalance || remaining;
-    const pct = total > 0 ? Math.round(((total - remaining) / total) * 100) : 0;
+    const pct = d.principalBalance > 0 ? Math.round(((d.principalBalance - (d.principalBalance - d.installment)) / d.principalBalance) * 100) : 0;
     return `
       <div class="data-row" style="flex-direction:column;align-items:stretch;gap:.75rem">
         <div style="display:flex;align-items:center;gap:1rem">
           <div class="data-row-icon">📋</div>
           <div class="data-row-info">
             <div class="data-row-name">${d.name}</div>
-            <div class="data-row-meta">Próximo pago: ${relativeDate(d.nextDueDate)} · Pago: ${fmt(d.installment || d.minimumPayment || 0, cur)}/${d.frequency || "mensual"}</div>
+            <div class="data-row-meta">Próximo pago: ${relativeDate(d.nextDueDate)} · Pago: ${fmt(d.installment, cur)}/${d.frequency || "mensual"}</div>
           </div>
-          <div class="data-row-amount expense">${fmt(remaining, cur)}</div>
+          <div class="data-row-amount expense">${fmt(d.principalBalance, cur)}</div>
           <div class="data-row-actions">
             <button class="btn-edit-sm" data-action="edit-debt" data-id="${d.id}">Editar</button>
             <button class="btn-danger-sm" data-action="del-debt" data-id="${d.id}">Eliminar</button>
@@ -534,7 +527,7 @@ async function loadAnalytics() {
     
     renderAnalyticsSummary();
     renderCategoryBars("analytics-categories", state.categoryStats);
-    renderUpcoming("analytics-upcoming", state.upcoming?.items || []);
+    renderUpcoming("analytics-upcoming", state.upcoming?.next7Days || []);
   } finally {
     setLoading(false);
   }
@@ -544,11 +537,11 @@ function renderAnalyticsSummary() {
   const s = state.summary || {};
   const cur = state.user?.currency || "MXN";
   const rows = [
-    ["Ingreso del periodo", fmt(s.totalIncome || 0, cur)],
-    ["Gastos del periodo", fmt(s.totalExpenses || 0, cur)],
-    ["Obligaciones próximas", fmt(s.totalObligations || 0, cur)],
-    ["Flujo neto", fmt(s.netCashflow || 0, cur)],
-    ["Deuda total", fmt(s.totalDebt || 0, cur)],
+    ["Ingresos", fmt(s.income || 0, cur)],
+    ["Gastos", fmt(s.expenses || 0, cur)],
+    ["Pagos fijos", fmt(s.fixedPayments || 0, cur)],
+    ["Pagos de deudas", fmt(s.debtPayments || 0, cur)],
+    ["Balance disponible", fmt(s.availableBalance || 0, cur)],
   ];
   const container = el("analytics-summary");
   if (container) {
@@ -609,7 +602,8 @@ function fillProfile(user) {
   const currency = el("profile-currency");
   const period = el("profile-period");
   
-  if (income) income.value = user.monthlyIncome || "";
+  // MeResponse no tiene monthlyIncome, eso se maneja aparte
+  if (income) income.value = "";
   if (currency) currency.value = user.currency || "MXN";
   if (period) period.value = user.payCycle === "monthly" ? "monthly" : "biweekly";
   
@@ -691,19 +685,6 @@ function openModal(title, bodyHtml, onSave) {
 function closeModal() {
   const modal = el("edit-modal");
   if (modal) modal.classList.add("hidden");
-  editCtx = { type: null, id: null };
-}
-
-// ─── EVENT HANDLERS ────────────────────────────────────────
-async function handleDelete(action, id, loadFunction, entityName) {
-  if (!confirm(`¿Eliminar ${entityName}?`)) return;
-  try {
-    await api.delete(`/${action}/${id}`);
-    showToast(`${entityName} eliminado`, "success");
-    await loadFunction();
-  } catch (err) {
-    showToast(err.message, "error");
-  }
 }
 
 // ─── WIRING ────────────────────────────────────────────────
@@ -756,14 +737,14 @@ function wireTxForm() {
   if (saveBtn) saveBtn.addEventListener("click", async () => {
     try {
       const body = {
+        accountId: el("tx-account")?.value || null,
+        categoryId: el("tx-category")?.value || null,
+        type: el("tx-type")?.value,
         description: el("tx-name")?.value.trim(),
         amount: Number(el("tx-amount")?.value || 0),
-        type: el("tx-type")?.value,
-        categoryId: el("tx-category")?.value || null,
-        accountId: el("tx-account")?.value || null,
+        currency: state.user?.currency || "MXN",
         transactionDate: el("tx-date")?.value,
         notes: el("tx-note")?.value.trim(),
-        currency: state.user?.currency || "MXN",
       };
       if (!body.description || !body.amount) {
         showToast("Completa concepto y monto", "error");
@@ -794,10 +775,11 @@ function wireAccForm() {
   if (saveBtn) saveBtn.addEventListener("click", async () => {
     try {
       const body = {
-        name: el("acc-name")?.value.trim(),
         type: el("acc-type")?.value,
-        balance: Number(el("acc-balance")?.value || 0),
+        name: el("acc-name")?.value.trim(),
+        institution: "",
         currency: el("acc-currency")?.value,
+        balance: Number(el("acc-balance")?.value || 0),
         creditLimit: el("acc-type")?.value === "credit" ? Number(el("acc-limit")?.value || 0) : null,
         closingDay: el("acc-type")?.value === "credit" ? Number(el("acc-cut-day")?.value || 0) : null,
         dueDay: el("acc-type")?.value === "credit" ? Number(el("acc-due-day")?.value || 0) : null,
@@ -832,11 +814,10 @@ function wireRecurringForm() {
       const body = {
         name: el("rec-name")?.value.trim(),
         amount: Number(el("rec-amount")?.value || 0),
+        currency: state.user?.currency || "MXN",
         frequency: el("rec-frequency")?.value,
         nextDueDate: el("rec-next-due")?.value,
         categoryId: el("rec-category")?.value || null,
-        accountId: el("rec-account")?.value || null,
-        currency: state.user?.currency || "MXN",
       };
       if (!body.name || !body.amount) {
         showToast("Completa nombre y monto", "error");
@@ -868,8 +849,9 @@ function wireDebtForm() {
         name: el("debt-name")?.value.trim(),
         principalBalance: Number(el("debt-remaining")?.value || 0),
         installment: Number(el("debt-min-payment")?.value || 0),
+        frequency: "MONTHLY",
         nextDueDate: el("debt-due-date")?.value,
-        frequency: "monthly",
+        notes: el("debt-name")?.value,
       };
       if (!body.name) {
         showToast("Ingresa el nombre de la deuda", "error");
@@ -938,7 +920,7 @@ function wireProfileForm() {
       }
       
       const body = {
-        monthlyIncome: Number(el("profile-income")?.value || 0),
+        displayName: state.user?.displayName || "",
         currency: el("profile-currency")?.value,
         payCycle: period,
         payDays: payDays,
@@ -954,11 +936,12 @@ function wireProfileForm() {
   if (exportBtn) exportBtn.addEventListener("click", async () => {
     try {
       const data = await api.get("/backup/export");
-      const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
-      const url = URL.createObjectURL(blob);
-      const a = Object.assign(document.createElement("a"), { href: url, download: `respaldo-${todayIso()}.json` });
-      a.click();
-      URL.revokeObjectURL(url);
+      // La respuesta tiene downloadUrl
+      if (data.downloadUrl) {
+        window.open(data.downloadUrl, '_blank');
+      } else {
+        showToast("No se pudo generar el respaldo", "error");
+      }
       showToast("Respaldo exportado", "success");
     } catch (e) {
       showToast(e.message, "error");
@@ -989,7 +972,6 @@ function showAuth() {
   if (authView) authView.classList.remove("hidden");
   if (appView) appView.classList.add("hidden");
   
-  // Limpiar campos de login
   const loginEmail = el("login-email");
   const loginPassword = el("login-password");
   if (loginEmail) loginEmail.value = "";
@@ -1037,12 +1019,8 @@ function wireAuth() {
       }
       try {
         setLoading(true);
-        const data = await signIn(email, password);
-        console.log("Login exitoso, token guardado");
-        
-        // Mostrar la app inmediatamente
+        await signIn(email, password);
         await loadAppAfterLogin();
-        
       } catch (err) {
         console.error("Login error:", err);
         if (errorEl) {
@@ -1079,8 +1057,7 @@ function wireAuth() {
       }
       try {
         setLoading(true);
-        const data = await signUp(email, password, displayName);
-        console.log("Registro exitoso");
+        await signUp(email, password, displayName);
         await loadAppAfterLogin();
       } catch (err) {
         console.error("Register error:", err);
@@ -1094,7 +1071,6 @@ function wireAuth() {
     });
   }
   
-  // Enter key support
   ["login-email", "login-password"].forEach(id => {
     const input = el(id);
     if (input) input.addEventListener("keydown", e => { if (e.key === "Enter") loginBtn?.click(); });
@@ -1108,27 +1084,21 @@ function wireAuth() {
 // ─── LOAD APP AFTER LOGIN ──────────────────────────────────
 async function loadAppAfterLogin() {
   try {
-    // Verificar que el token existe
     const token = localStorage.getItem("fin_token");
     if (!token) {
       throw new Error("No hay token guardado");
     }
     
-    console.log("Cargando datos del usuario...");
     const user = await api.get("/me");
     state.user = user;
-    console.log("Usuario cargado:", user);
     
-    // Mostrar la interfaz de la app
     showApp();
     
-    // Configurar el avatar
     const avatar = el("user-avatar");
     if (avatar) {
       avatar.textContent = (user.displayName || user.email || "U")[0].toUpperCase();
     }
     
-    // Inicializar todas las funciones de la app
     wireNav();
     wireTxForm();
     wireAccForm();
@@ -1137,14 +1107,12 @@ async function loadAppAfterLogin() {
     wireCategoryForm();
     wireProfileForm();
     
-    // Navegar al dashboard
     navigateTo("dashboard");
     
     console.log("App cargada correctamente");
   } catch (error) {
     console.error("Error cargando app:", error);
     showToast("Error al cargar la aplicación: " + error.message, "error");
-    // Si hay error, hacer logout
     logout();
   }
 }
@@ -1156,11 +1124,36 @@ document.addEventListener("click", async (e) => {
   const { action, id } = btn.dataset;
   
   try {
-    if (action === "del-tx") await handleDelete("transactions", id, loadTransactions, "Transacción");
-    if (action === "del-acc") await handleDelete("accounts", id, loadAccounts, "Cuenta");
-    if (action === "del-rec") await handleDelete("recurring-payments", id, loadRecurring, "Pago recurrente");
-    if (action === "del-debt") await handleDelete("debts", id, loadDebts, "Deuda");
-    if (action === "del-cat") await handleDelete("categories", id, loadCategories, "Categoría");
+    if (action === "del-tx") {
+      if (!confirm("¿Eliminar esta transacción?")) return;
+      await api.delete(`/transactions/${id}`);
+      showToast("Transacción eliminada", "success");
+      await loadTransactions();
+    }
+    if (action === "del-acc") {
+      if (!confirm("¿Eliminar esta cuenta?")) return;
+      await api.delete(`/accounts/${id}`);
+      showToast("Cuenta eliminada", "success");
+      await loadAccounts();
+    }
+    if (action === "del-rec") {
+      if (!confirm("¿Eliminar este pago recurrente?")) return;
+      await api.delete(`/recurring-payments/${id}`);
+      showToast("Pago recurrente eliminado", "success");
+      await loadRecurring();
+    }
+    if (action === "del-debt") {
+      if (!confirm("¿Eliminar esta deuda?")) return;
+      await api.delete(`/debts/${id}`);
+      showToast("Deuda eliminada", "success");
+      await loadDebts();
+    }
+    if (action === "del-cat") {
+      if (!confirm("¿Eliminar esta categoría?")) return;
+      await api.delete(`/categories/${id}`);
+      showToast("Categoría eliminada", "success");
+      await loadCategories();
+    }
   } catch (err) {
     showToast(err.message, "error");
   }
@@ -1171,15 +1164,12 @@ async function init() {
   wireAuth();
   
   const token = localStorage.getItem("fin_token");
-  console.log("Token existente:", token ? "Sí hay token" : "No hay token");
   
   if (token) {
     try {
       setLoading(true);
-      // Verificar si el token es válido
       const user = await api.get("/me");
       state.user = user;
-      console.log("Sesión válida, cargando app...");
       showApp();
       
       const avatar = el("user-avatar");
@@ -1209,5 +1199,4 @@ async function init() {
   }
 }
 
-// Iniciar la aplicación
 init();
