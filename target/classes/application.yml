@@ -1,0 +1,37 @@
+server:
+  port: 8080
+
+spring:
+  datasource:
+    url: jdbc:postgresql://db.kqzjbstrhutdgrqcqfow.supabase.co:5432/postgres
+    username: postgres
+    password: vd@2d8$R-F?fVuH
+  flyway:
+    enabled: true
+    baseline-on-migrate: true
+    baseline-version: 1
+  jackson:
+    serialization:
+      write-dates-as-timestamps: false
+    default-property-inclusion: non_null
+  jpa:
+    show-sql: false
+    hibernate:
+      ddl-auto: none
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.PostgreSQLDialect
+        format_sql: true
+  logging:
+    level:
+      org.springframework.security: TRACE
+app:
+  url: https://kqzjbstrhutdgrqcqfow.supabase.co
+  anon-key: ${APP_ANON_KEY}
+  jwk-set-uri: https://kqzjbstrhutdgrqcqfow.supabase.co/auth/v1/.well-known/jwks.json
+
+supabase:
+  url: https://kqzjbstrhutdgrqcqfow.supabase.co
+  anon-key: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imtxempic3RyaHV0ZGdycWNxZm93Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODAyMzg4NzYsImV4cCI6MjA5NTgxNDg3Nn0.ykuH3fTY42XiSG2pv5LEBPEHsYYo3fnAxNFowPj0_rE
+  service-role-key: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imtxempic3RyaHV0ZGdycWNxZm93Iiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc4MDIzODg3NiwiZXhwIjoyMDk1ODE0ODc2fQ.4mtIqyRyk3MPhB7ze2d7WIXLENY_FZmtuK8AtI17Aoo
+  jwk-set-uri: http://127.0.0.1:54321/auth/v1/.well-known/jwks.json
