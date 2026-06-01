@@ -29,6 +29,7 @@ public class SupabaseAuthClient {
         JsonNode payload = webClient.post()
                 .uri(properties.url() + "/auth/v1/signup")
                 .header("apikey", properties.anonKey())
+                .header("Authorization", "Bearer " + properties.anonKey()) // <--- AGREGADO
                 .contentType(MediaType.APPLICATION_JSON)
                 .bodyValue(java.util.Map.of(
                         "email", request.email(),
@@ -45,6 +46,7 @@ public class SupabaseAuthClient {
         JsonNode payload = webClient.post()
                 .uri(properties.url() + "/auth/v1/token?grant_type=password")
                 .header("apikey", properties.anonKey())
+                .header("Authorization", "Bearer " + properties.anonKey()) // <--- AGREGADO
                 .contentType(MediaType.APPLICATION_JSON)
                 .bodyValue(java.util.Map.of(
                         "email", request.email(),
