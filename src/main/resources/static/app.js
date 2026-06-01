@@ -1,5 +1,5 @@
 // ─── CONFIG ───────────────────────────────────────────────
-const API_BASE = "";
+const API_BASE = "https://finance-backend-production-1f9c.up.railway.app";
 
 // ─── API CLIENT ───────────────────────────────────────────
 const api = {
@@ -1093,23 +1093,50 @@ async function bootApp() {
     }
   } catch (error) {
     console.error("Boot error:", error);
+    // Si hay error, mostrar pantalla de login
     logout();
   }
 }
 
 async function init() {
   wireAuth();
-  if (api._token()) {
+  
+  const token = localStorage.getItem("fin_token");
+  const refreshToken = localStorage.getItem("fin_refresh");
+  
+  if (token) {
     try {
       setLoading(true);
-      await bootApp();
-    } catch {
-      showAuth();
+      // Verificar si el token es válido antes de bootear
+      const isValid = await verifyToken();
+      if (isValid) {
+        await bootApp();
+      } else {
+        // Token inválido, hacer logout
+        logout();
+      }
+    } catch (error) {
+      console.error("Token verification error:", error);
+      logout();
     } finally {
       setLoading(false);
     }
   } else {
     showAuth();
+  }
+}
+
+// Función para verificar si el token es válido
+async function verifyToken() {
+  try {
+    await api.get("/me");
+    return true;
+  } catch (error) {
+    // Si es 401, el token expiró o es inválido
+    if (error.message.includes("401")) {
+      return false;
+    }
+    throw error;
   }
 }
 
