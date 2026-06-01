@@ -7,7 +7,7 @@ spring:
     username: postgres
     password: vd@2d8$R-F?fVuH
   flyway:
-    enabled: true
+    enabled: false
     baseline-on-migrate: true
     baseline-version: 1
   jackson:
