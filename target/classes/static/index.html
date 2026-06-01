@@ -1,0 +1,522 @@
+<!doctype html>
+<html lang="es">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#080c14" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="description" content="Control de finanzas personales con backend seguro." />
+    <link rel="icon" href="./icon.svg" type="image/svg+xml" />
+    <link rel="manifest" href="/manifest.json" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet" />
+	<link rel="stylesheet" href="/styles.css" />
+    <title>Finanzas Personales</title>
+  </head>
+  <body>
+
+    <!-- ─── AUTH ─────────────────────────────────────────────── -->
+    <div id="auth-view" class="auth-shell">
+      <div class="auth-brand">
+        <svg class="brand-icon" viewBox="0 0 40 40" fill="none">
+          <circle cx="20" cy="20" r="19" stroke="var(--gold)" stroke-width="1.5"/>
+          <path d="M13 20h14M20 13v14" stroke="var(--gold)" stroke-width="1.5" stroke-linecap="round"/>
+        </svg>
+        <span class="brand-name">Finanzas</span>
+      </div>
+
+      <div class="auth-card" id="auth-card">
+        <!-- Login -->
+        <div id="view-login" class="auth-face">
+          <p class="auth-eyebrow">Bienvenido de vuelta</p>
+          <h1 class="auth-title">Inicia sesión</h1>
+          <div class="field-group">
+            <label class="field-label">Correo electrónico</label>
+            <input id="login-email" class="field-input" type="email" autocomplete="email" placeholder="correo@ejemplo.com" />
+          </div>
+          <div class="field-group">
+            <label class="field-label">Contraseña</label>
+            <input id="login-password" class="field-input" type="password" autocomplete="current-password" placeholder="••••••••" />
+          </div>
+          <button id="btn-login" class="btn-primary" type="button">Entrar</button>
+          <p class="auth-switch">¿No tienes cuenta? <button type="button" class="link-btn" id="go-register">Regístrate</button></p>
+          <p id="login-error" class="auth-error hidden"></p>
+        </div>
+
+        <!-- Register -->
+        <div id="view-register" class="auth-face hidden">
+          <p class="auth-eyebrow">Primera vez aquí</p>
+          <h1 class="auth-title">Crea tu cuenta</h1>
+          <div class="field-group">
+            <label class="field-label">Nombre de usuario</label>
+            <input id="reg-username" class="field-input" type="text" autocomplete="username" placeholder="cómo te llamas" />
+          </div>
+          <div class="field-group">
+            <label class="field-label">Correo electrónico</label>
+            <input id="reg-email" class="field-input" type="email" autocomplete="email" placeholder="correo@ejemplo.com" />
+          </div>
+          <div class="field-group">
+            <label class="field-label">Contraseña</label>
+            <input id="reg-password" class="field-input" type="password" autocomplete="new-password" placeholder="mínimo 8 caracteres" />
+          </div>
+          <button id="btn-register" class="btn-primary" type="button">Crear cuenta</button>
+          <p class="auth-switch">¿Ya tienes cuenta? <button type="button" class="link-btn" id="go-login">Inicia sesión</button></p>
+          <p id="reg-error" class="auth-error hidden"></p>
+        </div>
+      </div>
+    </div>
+
+    <!-- ─── APP ──────────────────────────────────────────────── -->
+    <div id="app-view" class="hidden">
+
+      <!-- Sidebar -->
+      <nav class="sidebar">
+        <div class="sidebar-brand">
+          <svg viewBox="0 0 40 40" fill="none" width="28">
+            <circle cx="20" cy="20" r="19" stroke="var(--gold)" stroke-width="1.5"/>
+            <path d="M13 20h14M20 13v14" stroke="var(--gold)" stroke-width="1.5" stroke-linecap="round"/>
+          </svg>
+          <span>Finanzas</span>
+        </div>
+
+        <div class="nav-group">
+          <p class="nav-label">General</p>
+          <button class="nav-item active" data-section="dashboard">
+            <svg viewBox="0 0 20 20"><rect x="2" y="2" width="7" height="7" rx="1.5" fill="currentColor"/><rect x="11" y="2" width="7" height="7" rx="1.5" fill="currentColor"/><rect x="2" y="11" width="7" height="7" rx="1.5" fill="currentColor"/><rect x="11" y="11" width="7" height="7" rx="1.5" fill="currentColor"/></svg>
+            Dashboard
+          </button>
+          <button class="nav-item" data-section="transactions">
+            <svg viewBox="0 0 20 20"><path d="M3 10h14M10 3l7 7-7 7" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" fill="none"/></svg>
+            Transacciones
+          </button>
+          <button class="nav-item" data-section="accounts">
+            <svg viewBox="0 0 20 20"><rect x="2" y="5" width="16" height="12" rx="2" stroke="currentColor" stroke-width="1.5" fill="none"/><path d="M2 9h16" stroke="currentColor" stroke-width="1.5"/></svg>
+            Cuentas / Tarjetas
+          </button>
+        </div>
+
+        <div class="nav-group">
+          <p class="nav-label">Compromisos</p>
+          <button class="nav-item" data-section="recurring">
+            <svg viewBox="0 0 20 20"><circle cx="10" cy="10" r="7.5" stroke="currentColor" stroke-width="1.5" fill="none"/><path d="M10 6v4l3 2" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" fill="none"/></svg>
+            Pagos recurrentes
+          </button>
+          <button class="nav-item" data-section="debts">
+            <svg viewBox="0 0 20 20"><path d="M4 14s0-5 6-5 6 5 6 5" stroke="currentColor" stroke-width="1.5" fill="none" stroke-linecap="round"/><circle cx="10" cy="6" r="2.5" stroke="currentColor" stroke-width="1.5" fill="none"/></svg>
+            Deudas / Préstamos
+          </button>
+        </div>
+
+        <div class="nav-group">
+          <p class="nav-label">Análisis</p>
+          <button class="nav-item" data-section="analytics">
+            <svg viewBox="0 0 20 20"><path d="M3 16l4-5 4 2 4-7 2 1" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" fill="none"/></svg>
+            Estadísticas
+          </button>
+          <button class="nav-item" data-section="categories">
+            <svg viewBox="0 0 20 20"><circle cx="10" cy="10" r="3" fill="currentColor"/><path d="M10 3v2M10 15v2M3 10h2M15 10h2" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+            Categorías
+          </button>
+        </div>
+
+        <div class="sidebar-footer">
+          <button class="nav-item" data-section="profile">
+            <svg viewBox="0 0 20 20"><circle cx="10" cy="7" r="3.5" stroke="currentColor" stroke-width="1.5" fill="none"/><path d="M3 18c0-3.866 3.134-7 7-7s7 3.134 7 7" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" fill="none"/></svg>
+            Mi perfil
+          </button>
+          <button class="nav-item nav-danger" id="btn-logout">
+            <svg viewBox="0 0 20 20"><path d="M13 4h3a1 1 0 011 1v10a1 1 0 01-1 1h-3M8 14l4-4-4-4M3 10h9" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" fill="none"/></svg>
+            Cerrar sesión
+          </button>
+        </div>
+      </nav>
+
+      <!-- Main -->
+      <div class="main-area">
+
+        <!-- Top bar -->
+        <header class="topbar">
+          <div class="topbar-left">
+            <button class="hamburger" id="hamburger">
+              <span></span><span></span><span></span>
+            </button>
+            <h2 class="page-title" id="page-title">Dashboard</h2>
+          </div>
+          <div class="topbar-right">
+            <select id="period-select" class="period-select">
+              <option value="biweekly">Quincenal</option>
+              <option value="monthly">Mensual</option>
+            </select>
+            <div class="avatar" id="user-avatar">U</div>
+          </div>
+        </header>
+
+        <!-- Loader global -->
+        <div id="global-loader" class="global-loader hidden">
+          <div class="spinner"></div>
+        </div>
+
+        <!-- ── DASHBOARD ── -->
+        <section class="page-section active" id="section-dashboard">
+          <div class="kpi-grid">
+            <div class="kpi-card kpi-income">
+              <span class="kpi-label">Ingreso del periodo</span>
+              <strong class="kpi-value" id="kpi-income">$0.00</strong>
+              <small class="kpi-note" id="kpi-income-note">—</small>
+            </div>
+            <div class="kpi-card kpi-obligations">
+              <span class="kpi-label">Obligaciones próximas</span>
+              <strong class="kpi-value" id="kpi-obligations">$0.00</strong>
+              <small class="kpi-note">Pagos del periodo activo</small>
+            </div>
+            <div class="kpi-card kpi-balance">
+              <span class="kpi-label">Balance estimado</span>
+              <strong class="kpi-value" id="kpi-balance">$0.00</strong>
+              <small class="kpi-note">Ingreso menos compromisos</small>
+            </div>
+            <div class="kpi-card kpi-debt">
+              <span class="kpi-label">Deuda total</span>
+              <strong class="kpi-value" id="kpi-debt">$0.00</strong>
+              <small class="kpi-note">Tarjetas + préstamos</small>
+            </div>
+          </div>
+
+          <div class="dash-grid">
+            <div class="dash-card">
+              <h3 class="card-title">Próximos vencimientos</h3>
+              <div id="upcoming-list" class="upcoming-list"></div>
+            </div>
+            <div class="dash-card">
+              <h3 class="card-title">Gasto por categoría</h3>
+              <div id="category-bars" class="bars"></div>
+            </div>
+          </div>
+        </section>
+
+        <!-- ── TRANSACTIONS ── -->
+        <section class="page-section hidden" id="section-transactions">
+          <div class="section-header">
+            <h3 class="card-title">Transacciones</h3>
+            <button class="btn-primary btn-sm" id="btn-add-transaction">+ Nueva</button>
+          </div>
+          <div id="transaction-form-wrap" class="inline-form hidden">
+            <div class="form-grid">
+              <div class="field-group">
+                <label class="field-label">Concepto</label>
+                <input id="tx-name" class="field-input" type="text" placeholder="Descripción" />
+              </div>
+              <div class="field-group">
+                <label class="field-label">Monto</label>
+                <input id="tx-amount" class="field-input" type="number" step="0.01" placeholder="0.00" />
+              </div>
+              <div class="field-group">
+                <label class="field-label">Tipo</label>
+                <select id="tx-type" class="field-input">
+                  <option value="expense">Gasto</option>
+                  <option value="income">Ingreso</option>
+                  <option value="transfer">Transferencia</option>
+                </select>
+              </div>
+              <div class="field-group">
+                <label class="field-label">Categoría</label>
+                <select id="tx-category" class="field-input"></select>
+              </div>
+              <div class="field-group">
+                <label class="field-label">Cuenta</label>
+                <select id="tx-account" class="field-input"></select>
+              </div>
+              <div class="field-group">
+                <label class="field-label">Fecha</label>
+                <input id="tx-date" class="field-input" type="date" />
+              </div>
+              <div class="field-group field-full">
+                <label class="field-label">Nota</label>
+                <input id="tx-note" class="field-input" type="text" placeholder="Opcional" />
+              </div>
+            </div>
+            <div class="form-actions">
+              <button class="btn-primary btn-sm" id="btn-save-transaction">Guardar</button>
+              <button class="btn-secondary btn-sm" id="btn-cancel-transaction">Cancelar</button>
+            </div>
+          </div>
+          <div id="transactions-list" class="data-list"></div>
+        </section>
+
+        <!-- ── ACCOUNTS ── -->
+        <section class="page-section hidden" id="section-accounts">
+          <div class="section-header">
+            <h3 class="card-title">Cuentas y Tarjetas</h3>
+            <button class="btn-primary btn-sm" id="btn-add-account">+ Nueva cuenta</button>
+          </div>
+          <div id="account-form-wrap" class="inline-form hidden">
+            <div class="form-grid">
+              <div class="field-group">
+                <label class="field-label">Nombre</label>
+                <input id="acc-name" class="field-input" type="text" placeholder="BBVA Débito..." />
+              </div>
+              <div class="field-group">
+                <label class="field-label">Tipo</label>
+                <select id="acc-type" class="field-input">
+                  <option value="checking">Débito / Cheques</option>
+                  <option value="credit">Tarjeta de crédito</option>
+                  <option value="savings">Ahorro</option>
+                  <option value="loan">Préstamo</option>
+                  <option value="cash">Efectivo</option>
+                </select>
+              </div>
+              <div class="field-group">
+                <label class="field-label">Saldo inicial</label>
+                <input id="acc-balance" class="field-input" type="number" step="0.01" placeholder="0.00" />
+              </div>
+              <div class="field-group">
+                <label class="field-label">Moneda</label>
+                <select id="acc-currency" class="field-input">
+                  <option value="MXN">MXN</option>
+                  <option value="USD">USD</option>
+                </select>
+              </div>
+              <div class="field-group credit-only hidden">
+                <label class="field-label">Límite de crédito</label>
+                <input id="acc-limit" class="field-input" type="number" step="0.01" placeholder="0.00" />
+              </div>
+              <div class="field-group credit-only hidden">
+                <label class="field-label">Día de corte</label>
+                <input id="acc-cut-day" class="field-input" type="number" min="1" max="31" />
+              </div>
+              <div class="field-group credit-only hidden">
+                <label class="field-label">Día de pago</label>
+                <input id="acc-due-day" class="field-input" type="number" min="1" max="31" />
+              </div>
+            </div>
+            <div class="form-actions">
+              <button class="btn-primary btn-sm" id="btn-save-account">Guardar</button>
+              <button class="btn-secondary btn-sm" id="btn-cancel-account">Cancelar</button>
+            </div>
+          </div>
+          <div id="accounts-list" class="accounts-grid"></div>
+        </section>
+
+        <!-- ── RECURRING ── -->
+        <section class="page-section hidden" id="section-recurring">
+          <div class="section-header">
+            <h3 class="card-title">Pagos recurrentes</h3>
+            <button class="btn-primary btn-sm" id="btn-add-recurring">+ Nuevo</button>
+          </div>
+          <div id="recurring-form-wrap" class="inline-form hidden">
+            <div class="form-grid">
+              <div class="field-group">
+                <label class="field-label">Nombre</label>
+                <input id="rec-name" class="field-input" type="text" placeholder="Netflix, Renta..." />
+              </div>
+              <div class="field-group">
+                <label class="field-label">Monto</label>
+                <input id="rec-amount" class="field-input" type="number" step="0.01" placeholder="0.00" />
+              </div>
+              <div class="field-group">
+                <label class="field-label">Frecuencia</label>
+                <select id="rec-frequency" class="field-input">
+                  <option value="WEEKLY">Semanal</option>
+                  <option value="BIWEEKLY">Quincenal</option>
+                  <option value="MONTHLY">Mensual</option>
+                  <option value="YEARLY">Anual</option>
+                </select>
+              </div>
+              <div class="field-group">
+                <label class="field-label">Próximo vencimiento</label>
+                <input id="rec-next-due" class="field-input" type="date" />
+              </div>
+              <div class="field-group">
+                <label class="field-label">Categoría</label>
+                <select id="rec-category" class="field-input"></select>
+              </div>
+              <div class="field-group">
+                <label class="field-label">Cuenta a cargar</label>
+                <select id="rec-account" class="field-input"></select>
+              </div>
+            </div>
+            <div class="form-actions">
+              <button class="btn-primary btn-sm" id="btn-save-recurring">Guardar</button>
+              <button class="btn-secondary btn-sm" id="btn-cancel-recurring">Cancelar</button>
+            </div>
+          </div>
+          <div id="recurring-list" class="data-list"></div>
+        </section>
+
+        <!-- ── DEBTS ── -->
+        <section class="page-section hidden" id="section-debts">
+          <div class="section-header">
+            <h3 class="card-title">Deudas y préstamos</h3>
+            <button class="btn-primary btn-sm" id="btn-add-debt">+ Nueva deuda</button>
+          </div>
+          <div id="debt-form-wrap" class="inline-form hidden">
+            <div class="form-grid">
+              <div class="field-group">
+                <label class="field-label">Nombre</label>
+                <input id="debt-name" class="field-input" type="text" placeholder="Préstamo HSBC..." />
+              </div>
+              <div class="field-group">
+                <label class="field-label">Saldo total</label>
+                <input id="debt-total" class="field-input" type="number" step="0.01" placeholder="0.00" />
+              </div>
+              <div class="field-group">
+                <label class="field-label">Saldo restante</label>
+                <input id="debt-remaining" class="field-input" type="number" step="0.01" placeholder="0.00" />
+              </div>
+              <div class="field-group">
+                <label class="field-label">Pago mínimo</label>
+                <input id="debt-min-payment" class="field-input" type="number" step="0.01" placeholder="0.00" />
+              </div>
+              <div class="field-group">
+                <label class="field-label">Próximo pago</label>
+                <input id="debt-due-date" class="field-input" type="date" />
+              </div>
+              <div class="field-group">
+                <label class="field-label">Interés anual (%)</label>
+                <input id="debt-interest" class="field-input" type="number" step="0.01" placeholder="0.00" />
+              </div>
+            </div>
+            <div class="form-actions">
+              <button class="btn-primary btn-sm" id="btn-save-debt">Guardar</button>
+              <button class="btn-secondary btn-sm" id="btn-cancel-debt">Cancelar</button>
+            </div>
+          </div>
+          <div id="debts-list" class="data-list"></div>
+        </section>
+
+        <!-- ── ANALYTICS ── -->
+        <section class="page-section hidden" id="section-analytics">
+          <div class="analytics-grid">
+            <div class="dash-card">
+              <h3 class="card-title">Resumen del periodo</h3>
+              <div id="analytics-summary" class="analytics-summary"></div>
+            </div>
+            <div class="dash-card">
+              <h3 class="card-title">Gasto por categoría</h3>
+              <div id="analytics-categories" class="bars"></div>
+            </div>
+            <div class="dash-card dash-card-full">
+              <h3 class="card-title">Próximos vencimientos (30 días)</h3>
+              <div id="analytics-upcoming" class="upcoming-list"></div>
+            </div>
+          </div>
+        </section>
+
+        <!-- ── CATEGORIES ── -->
+        <section class="page-section hidden" id="section-categories">
+          <div class="section-header">
+            <h3 class="card-title">Categorías</h3>
+            <button class="btn-primary btn-sm" id="btn-add-category">+ Nueva</button>
+          </div>
+          <div id="category-form-wrap" class="inline-form hidden">
+            <div class="form-grid">
+              <div class="field-group">
+                <label class="field-label">Nombre</label>
+                <input id="cat-name" class="field-input" type="text" placeholder="Alimentación..." />
+              </div>
+              <div class="field-group">
+                <label class="field-label">Tipo</label>
+                <select id="cat-type" class="field-input">
+                  <option value="expense">Gasto</option>
+                  <option value="income">Ingreso</option>
+                  <option value="both">Ambos</option>
+                </select>
+              </div>
+              <div class="field-group">
+                <label class="field-label">Color (hex)</label>
+                <input id="cat-color" class="field-input" type="color" value="#6ee7b7" />
+              </div>
+              <div class="field-group">
+                <label class="field-label">Ícono (emoji)</label>
+                <input id="cat-icon" class="field-input" type="text" maxlength="4" placeholder="🍔" />
+              </div>
+            </div>
+            <div class="form-actions">
+              <button class="btn-primary btn-sm" id="btn-save-category">Guardar</button>
+              <button class="btn-secondary btn-sm" id="btn-cancel-category">Cancelar</button>
+            </div>
+          </div>
+          <div id="categories-list" class="categories-grid"></div>
+        </section>
+
+        <!-- ── PROFILE ── -->
+        <section class="page-section hidden" id="section-profile">
+          <div class="profile-wrap">
+            <div class="dash-card">
+              <h3 class="card-title">Configuración del perfil</h3>
+              <div class="form-grid">
+                <div class="field-group">
+                  <label class="field-label">Ingreso mensual</label>
+                  <input id="profile-income" class="field-input" type="number" step="0.01" placeholder="0.00" />
+                </div>
+                <div class="field-group">
+                  <label class="field-label">Moneda principal</label>
+                  <select id="profile-currency" class="field-input">
+                    <option value="MXN">MXN</option>
+                    <option value="USD">USD</option>
+                  </select>
+                </div>
+                <div class="field-group">
+                  <label class="field-label">Ciclo base</label>
+                  <select id="profile-period" class="field-input">
+                    <option value="biweekly">Quincenal</option>
+                    <option value="monthly">Mensual</option>
+                  </select>
+                </div>
+                <div id="profile-quincenal-fields" class="field-group">
+                  <label class="field-label">Fecha de pago 1 (día del mes)</label>
+                  <input id="profile-payday1" class="field-input" type="number" min="1" max="31" placeholder="ej. 15" />
+                </div>
+                <div id="profile-quincenal-fields2" class="field-group">
+                  <label class="field-label">Fecha de pago 2 (día del mes)</label>
+                  <input id="profile-payday2" class="field-input" type="number" min="1" max="31" placeholder="ej. 30" />
+                </div>
+                <div id="profile-monthly-fields" class="field-group hidden">
+                  <label class="field-label">Día de pago del mes</label>
+                  <input id="profile-payday-monthly" class="field-input" type="number" min="1" max="31" placeholder="ej. 15" />
+                </div>
+              </div>
+              <div class="form-actions" style="margin-top:1.5rem">
+                <button class="btn-primary btn-sm" id="btn-save-profile">Guardar perfil</button>
+              </div>
+            </div>
+
+            <div class="dash-card">
+              <h3 class="card-title">Respaldo de datos</h3>
+              <p class="text-muted" style="margin-bottom:1rem;font-size:.9rem">Exporta todos tus datos del backend en formato JSON o impórtalos desde otro dispositivo.</p>
+              <div class="form-actions">
+                <button class="btn-primary btn-sm" id="btn-export-backup">Exportar respaldo</button>
+                <label class="btn-secondary btn-sm" style="cursor:pointer">
+                  Importar respaldo
+                  <input id="import-backup" type="file" accept="application/json" style="display:none" />
+                </label>
+              </div>
+            </div>
+          </div>
+        </section>
+
+      </div><!-- /main-area -->
+    </div><!-- /app-view -->
+
+    <!-- Toast -->
+    <div id="toast-container" class="toast-container"></div>
+
+    <!-- Edit modal -->
+    <div id="edit-modal" class="modal-overlay hidden">
+      <div class="modal-box">
+        <div class="modal-header">
+          <h3 id="modal-title">Editar</h3>
+          <button class="modal-close" id="modal-close">✕</button>
+        </div>
+        <div id="modal-body" class="modal-body"></div>
+        <div class="modal-footer">
+          <button class="btn-primary btn-sm" id="modal-save">Guardar cambios</button>
+          <button class="btn-secondary btn-sm" id="modal-cancel">Cancelar</button>
+        </div>
+      </div>
+    </div>
+
+    <script src="/app.js" type="module"></script>
+  </body>
+</html>
