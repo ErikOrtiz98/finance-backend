@@ -367,5 +367,9 @@ public class ContractApiController {
             @RequestParam int year) {
         return service.getMonthlyReports(jwt.getSubject(), year);
     }
+    @GetMapping("/health")
+    public Map<String, String> health() {
+        return Map.of("status", "ok");
+    }
 }
 

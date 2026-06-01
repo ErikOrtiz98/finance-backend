@@ -1,5 +1,11 @@
 server:
   port: 8080
+  tomcat:
+    threads:
+      max: 10                    # Reducir hilos (default 200)
+      min-spare: 2
+    accept-count: 5
+    connection-timeout: 20000
 
 spring:
   datasource:   
@@ -7,10 +13,14 @@ spring:
     username: ${SPRING_DATASOURCE_USERNAME}
     password: ${SPRING_DATASOURCE_PASSWORD}
     driver-class-name: org.postgresql.Driver
+    hikari:
+      maximum-pool-size: 2       # Reducir conexiones BD (default 10)
+      minimum-idle: 1
+      idle-timeout: 60000        # 1 minuto
+      connection-timeout: 30000
+      max-lifetime: 300000
   flyway:
     enabled: false
-    baseline-on-migrate: true
-    baseline-version: 1
   jackson:
     serialization:
       write-dates-as-timestamps: false
@@ -21,19 +31,22 @@ spring:
       ddl-auto: none
     properties:
       hibernate:
-        format_sql: true
+        format_sql: false        # ← Cambiado: false para ahorrar CPU
+        jdbc.batch_size: 5       # ← Nuevo: procesar en lote
+        order_inserts: true      # ← Nuevo
+        order_updates: true      # ← Nuevo
   web:
     resources:
       static-locations: classpath:/static/
       add-mappings: true
-  mvc:
-    throw-exception-if-no-handler-found: false
-    # Elimina static-path-pattern para que no interfiera
+      cache:
+        period: 86400            # ← Nuevo: cachear recursos estáticos 24h
 
   logging:
     level:
-      org.springframework.web.reactive.function.client: DEBUG
-      reactor.netty.http.client: DEBUG
+      com.codex.finance: WARN   # ← Cambiado: solo warnings de tu app
+      org.springframework: WARN  # ← Cambiado: reducir logs
+      org.hibernate: WARN        # ← Cambiado: reducir logs
 
 app:
   url: https://kqzjbstrhutdgrqcqfow.supabase.co
