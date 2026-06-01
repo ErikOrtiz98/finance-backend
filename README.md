@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 # Finance contract backend
 
 Spring Boot backend aligned to the API contract from the pasted file.
@@ -51,3 +52,6 @@ Spring Boot backend aligned to the API contract from the pasted file.
 - JWT auth is expected from Supabase.
 - `syncStatus` and `version` are included in API responses.
 - This backend assumes the Supabase schema generated earlier in `supabase_finanzas_personales.sql`.
+=======
+# finance-backend
+>>>>>>> e3ca2c82662a2381277afc79d3d9666a3a71a391
