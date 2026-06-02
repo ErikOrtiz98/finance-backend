@@ -692,50 +692,55 @@ public class FinanceApiService {
 	    UUID uuid = UUID.fromString(userId);
 	    List<ContractDtos.UpcomingItemResponse> items = new ArrayList<>();
 	    
-	    // Pagos recurrentes (gastos e ingresos)
+	    System.out.println("=== UPCOMING DEBUG ===");
+	    System.out.println("UserId: " + userId);
+	    
+	    // 1. Pagos recurrentes
 	    List<Object[]> recurringRows = scheduledPaymentRepo.getUpcomingRecurringPayments(uuid);
-	    if (recurringRows != null) {
+	    System.out.println("Recurring rows found: " + (recurringRows == null ? "null" : recurringRows.size()));
+	    
+	    if (recurringRows != null && !recurringRows.isEmpty()) {
 	        for (Object[] row : recurringRows) {
-	            // La estructura depende de tu query
-	            // Asumiendo que row[0]=type, row[1]=id, row[2]=name, row[3]=dueDate, row[4]=amount
 	            items.add(new ContractDtos.UpcomingItemResponse(
 	                "recurring",
-	                mapper.toString(row[1]),
-	                mapper.toString(row[2]),
-	                mapper.toLocalDate(row[3]),
-	                mapper.toBigDecimal(row[4])
+	                mapper.toString(row[0]),  // id
+	                mapper.toString(row[1]),  // name
+	                mapper.toLocalDate(row[2]), // dueDate
+	                mapper.toBigDecimal(row[3])  // amount
 	            ));
+	            System.out.println("Added recurring: " + mapper.toString(row[1]));
 	        }
 	    }
 	    
-	    // Deudas
+	    // 2. Deudas
 	    List<Object[]> debtRows = debtRepo.getUpcomingDebts(uuid);
-	    if (debtRows != null) {
+	    System.out.println("Debt rows found: " + (debtRows == null ? "null" : debtRows.size()));
+	    
+	    if (debtRows != null && !debtRows.isEmpty()) {
 	        for (Object[] row : debtRows) {
-	            items.add(new ContractDtos.UpcomingItemResponse(
-	                "debt",
-	                mapper.toString(row[1]),
-	                mapper.toString(row[2]),
-	                mapper.toLocalDate(row[3]),
-	                mapper.toBigDecimal(row[4])
-	            ));
+	            // Solo agregar deudas con saldo mayor a 0
+	            BigDecimal amount = mapper.toBigDecimal(row[3]);
+	            if (amount.compareTo(BigDecimal.ZERO) > 0) {
+	                items.add(new ContractDtos.UpcomingItemResponse(
+	                    "debt",
+	                    mapper.toString(row[0]),  // id
+	                    mapper.toString(row[1]),  // name
+	                    mapper.toLocalDate(row[2]), // dueDate
+	                    amount
+	                ));
+	                System.out.println("Added debt: " + mapper.toString(row[1]) + " - Amount: " + amount);
+	            } else {
+	                System.out.println("Skipped debt (saldo 0): " + mapper.toString(row[1]));
+	            }
 	        }
 	    }
 	    
 	    // Ordenar por fecha
 	    items.sort(Comparator.comparing(ContractDtos.UpcomingItemResponse::dueDate));
 	    
-	    // Limitar a los próximos 7 días (opcional)
-	    LocalDate today = LocalDate.now();
-	    LocalDate next7Days = today.plusDays(7);
+	    System.out.println("Total items: " + items.size());
 	    
-	    List<ContractDtos.UpcomingItemResponse> next7DaysItems = items.stream()
-	        .filter(item -> item.dueDate() != null && 
-	               (item.dueDate().isEqual(today) || 
-	                (item.dueDate().isAfter(today) && item.dueDate().isBefore(next7Days.plusDays(1)))))
-	        .collect(Collectors.toList());
-	    
-	    return new ContractDtos.UpcomingResponse(next7DaysItems);
+	    return new ContractDtos.UpcomingResponse(items);
 	}
 
 	// ==================== NUEVO: SOBREENDEUDAMIENTO ====================

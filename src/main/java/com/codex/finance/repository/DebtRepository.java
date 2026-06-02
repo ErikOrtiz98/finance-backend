@@ -78,12 +78,12 @@ public interface DebtRepository extends JpaRepository<Debt, UUID> {
 			+ "ORDER BY deleted_at DESC", nativeQuery = true)
 	List<Map<String, Object>> findDeleted(@Param("userId") UUID userId, @Param("since") Instant since);
 
-	@Query(value = "SELECT 'debt' AS type, d.id, d.name, "
-			+ "COALESCE((d.metadata->>'nextDueDate')::date, CURRENT_DATE) AS dueDate, "
-			+ "COALESCE(d.fixed_payment, d.remaining_balance) AS amount "
-			+ "FROM debts d WHERE d.user_id = :userId AND d.deleted_at IS NULL "
-			+ "ORDER BY dueDate ASC", nativeQuery = true)
-	List<Object[]> getUpcomingDebts(@Param("userId") UUID userId);
+	@Query(value = "SELECT d.id, d.name, " +
+		       "COALESCE((d.metadata->>'nextDueDate')::date, CURRENT_DATE) AS dueDate, " +
+		       "d.remaining_balance AS amount " +
+		       "FROM debts d WHERE d.user_id = :userId AND d.deleted_at IS NULL " +
+		       "ORDER BY dueDate ASC", nativeQuery = true)
+		List<Object[]> getUpcomingDebts(@Param("userId") UUID userId);
 
 	@Query(value = "SELECT d.id, d.user_id AS userId, d.name, "
 			+ "d.remaining_balance AS principalBalance, d.fixed_payment AS installment, "

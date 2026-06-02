@@ -418,10 +418,23 @@ function renderUpcoming(containerId, items) {
   }
   const cur = state.user?.currency || "MXN";
   c.innerHTML = items.map(item => {
-    // Ícono según el tipo
     let icon = "📅";
-    if (item.type === "recurring") icon = "🔄";
-    if (item.type === "debt") icon = "📋";
+    let amountClass = "expense";
+    let amountPrefix = "-";
+    
+    if (item.type === "recurring") {
+      icon = "🔄";
+    } else if (item.type === "debt") {
+      if (item.amount <= 0) {
+        icon = "✅";
+        amountClass = "income";
+        amountPrefix = "✓ ";
+      } else {
+        icon = "📋";
+      }
+    }
+    
+    const formattedAmount = item.amount <= 0 ? "Saldada" : `${amountPrefix}${fmt(item.amount, cur)}`;
     
     return `
       <div class="upcoming-item">
@@ -429,7 +442,7 @@ function renderUpcoming(containerId, items) {
           <div class="item-name">${icon} ${item.name}</div>
           <div class="item-due">${relativeDate(item.dueDate)}</div>
         </div>
-        <div class="item-amount expense">${fmt(item.amount, cur)}</div>
+        <div class="item-amount ${amountClass}">${formattedAmount}</div>
       </div>
     `;
   }).join("");
