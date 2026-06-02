@@ -548,15 +548,27 @@ public class FinanceApiService {
     // ==================== SUMMARY ====================
     @Transactional(readOnly = true)
     public ContractDtos.SummaryResponse summary(String userId, String range, LocalDate from, LocalDate to, String accountId) {
-        UUID uuid = UUID.fromString(userId);
+    	UUID uuid = UUID.fromString(userId);
         String currency = profileRepo.getUserCurrency(uuid);
+        
+        // Validar el range antes de usarlo
+        if (range != null && !range.isEmpty()) {
+            String validRange = range.toLowerCase().trim();
+            if (!validRange.equals("biweekly") && !validRange.equals("monthly") && !validRange.equals("custom")) {
+                // Si el valor no es válido, usar monthly por defecto
+                System.out.println("Invalid range value: " + range + ", using monthly");
+                range = "monthly";
+            }
+        } else {
+            range = "monthly";
+        }
         
         LocalDate[] window = resolveWindow(range, from, to);
         LocalDate startDate = window[0];
         LocalDate endDate = window[1];
         
         BigDecimal realIncome = BigDecimal.ZERO;
-        BigDecimal totalExpenses = BigDecimal.ZERO;  // <-- CAMBIO: solo un total de gastos
+        BigDecimal totalExpenses = BigDecimal.ZERO;  
         BigDecimal debtPayments = BigDecimal.ZERO;
         
         if (startDate != null && endDate != null) {
@@ -818,15 +830,27 @@ public class FinanceApiService {
     private LocalDate[] resolveWindow(String range, LocalDate from, LocalDate to) {
         if (from != null || to != null) return new LocalDate[]{from, to};
         LocalDate today = LocalDate.now();
-        return switch (range == null ? "monthly" : range) {
-            case "biweekly" -> today.getDayOfMonth() <= 15 ? 
-                new LocalDate[]{today.withDayOfMonth(1), today.withDayOfMonth(15)} : 
-                new LocalDate[]{today.withDayOfMonth(16), today.withDayOfMonth(today.lengthOfMonth())};
-            case "custom" -> new LocalDate[]{today.minusDays(30), today};
-            default -> new LocalDate[]{today.withDayOfMonth(1), today.withDayOfMonth(today.lengthOfMonth())};
-        };
+        
+        // Normalizar el valor de range (convertir a minúsculas y manejar valores posibles)
+        String normalizedRange = range == null ? "monthly" : range.toLowerCase().trim();
+        
+        switch (normalizedRange) {
+            case "biweekly":
+                if (today.getDayOfMonth() <= 15) {
+                    return new LocalDate[]{today.withDayOfMonth(1), today.withDayOfMonth(15)};
+                } else {
+                    return new LocalDate[]{today.withDayOfMonth(16), today.withDayOfMonth(today.lengthOfMonth())};
+                }
+            case "monthly":
+                return new LocalDate[]{today.withDayOfMonth(1), today.withDayOfMonth(today.lengthOfMonth())};
+            case "custom":
+                return new LocalDate[]{today.minusDays(30), today};
+            default:
+                // Si no es ninguno de los valores esperados, usar monthly por defecto
+                System.out.println("Warning: Unknown range value '" + range + "', using 'monthly' as default");
+                return new LocalDate[]{today.withDayOfMonth(1), today.withDayOfMonth(today.lengthOfMonth())};
+        }
     }
- // ==================== CREDIT CARD INSTALLMENT (Compra a meses) ====================
  // ==================== CREDIT CARD INSTALLMENT (Compra a meses) ====================
     @Transactional
     public List<ContractDtos.InstallmentResponse> createCreditCardPurchase(String userId, ContractDtos.CreditCardPurchaseRequest request) {

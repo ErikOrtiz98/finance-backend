@@ -2940,10 +2940,6 @@ function showCreditCardPurchaseForm() {
   });
 }
 
-// Agregar botón en la sección de tarjetas para compras a meses
-// En el HTML de accounts, agregar:
-// <button class="btn-primary btn-sm" id="btn-msi-purchase">+ Compra a meses</button>
-
 // ─── INIT ──────────────────────────────────────────────────
 async function init() {
   wireAuth();

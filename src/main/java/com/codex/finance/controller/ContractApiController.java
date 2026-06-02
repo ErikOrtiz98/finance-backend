@@ -236,12 +236,22 @@ public class ContractApiController {
     }
 
     @GetMapping("/stats/summary")
-    public SummaryResponse summary(@AuthenticationPrincipal Jwt jwt,
-                                   @RequestParam(required = false) String range,
-                                   @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate from,
-                                   @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate to,
-                                   @RequestParam(required = false) String accountId) {
-        return service.summary(jwt.getSubject(), range, from, to, accountId);
+    public ContractDtos.SummaryResponse summary(
+            @AuthenticationPrincipal Jwt jwt,
+            @RequestParam(required = false) String range,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate from,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate to,
+            @RequestParam(required = false) String accountId) {
+        
+        // Si no viene range, usar "monthly" por defecto
+        String finalRange = (range == null || range.isEmpty()) ? "monthly" : range;
+        
+        // Sanitizar
+        if (!finalRange.equals("biweekly") && !finalRange.equals("monthly") && !finalRange.equals("custom")) {
+            finalRange = "monthly";
+        }
+        
+        return service.summary(jwt.getSubject(), finalRange, from, to, accountId);
     }
 
     @GetMapping("/stats/categories")
