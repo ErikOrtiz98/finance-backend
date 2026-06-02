@@ -320,7 +320,7 @@ async function loadSection(section) {
       case "categories": await loadCategories(); break;
       case "profile": await loadProfile(); break;
       case "biweekly": await loadBiweeklySchedule(); break;
-	  case "help": /* No necesita cargar datos, solo mostrar HTML */ break;
+	  case "help": break;
     }
   } catch (e) {
     console.error("Error loading section:", e);
