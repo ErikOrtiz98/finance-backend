@@ -781,11 +781,58 @@ public class FinanceApiService {
     
     private List<ContractDtos.BiweeklyPaymentItem> getPaymentsInRange(UUID userId, LocalDate start, LocalDate end) {
         List<ContractDtos.BiweeklyPaymentItem> items = new ArrayList<>();
-        List<Object[]> debtRows = debtRepo.getUpcomingDebtsInRange(userId, start, end);
-        for (Object[] row : debtRows) {
-            Object[] unwrapped = mapper.unwrap(row);
-            items.add(new ContractDtos.BiweeklyPaymentItem(mapper.toString(unwrapped[0]), mapper.toString(unwrapped[1]), mapper.toBigDecimal(unwrapped[4]), mapper.toLocalDate(unwrapped[3]), mapper.toString(unwrapped[2]), "debt"));
+        
+        // Pagos recurrentes
+        try {
+            List<Object[]> recurringRows = scheduledPaymentRepo.getUpcomingRecurringPaymentsInRange(userId, start, end);
+            if (recurringRows != null) {
+                for (Object[] row : recurringRows) {
+                    Object[] unwrapped = mapper.unwrap(row);
+                    items.add(new ContractDtos.BiweeklyPaymentItem(
+                            mapper.toString(unwrapped[0]),  // id
+                            mapper.toString(unwrapped[1]),  // name
+                            mapper.toBigDecimal(unwrapped[2]), // amount
+                            mapper.toLocalDate(unwrapped[4]), // dueDate
+                            mapper.toString(unwrapped[3]),  // frequency
+                            "recurring",
+                            null  // recurring no tiene remainingBalance
+                        ));
+                }
+            }
+        } catch (Exception e) {
+            System.err.println("Error loading recurring payments: " + e.getMessage());
         }
+        
+        // Deudas - CORREGIDO: usar el monto correcto (min entre fixed_payment y remaining_balance)
+        try {
+            List<Object[]> debtRows = debtRepo.getUpcomingDebtsInRange(userId, start, end);
+            if (debtRows != null) {
+                for (Object[] row : debtRows) {
+                    Object[] unwrapped = mapper.unwrap(row);
+                    BigDecimal amount = mapper.toBigDecimal(unwrapped[4]); // amount (ya calculado como LEAST)
+                    BigDecimal remainingBalance = mapper.toBigDecimal(unwrapped[5]); // remaining_balance
+                    
+                    items.add(new ContractDtos.BiweeklyPaymentItem(
+                    	    mapper.toString(unwrapped[0]),  // id
+                    	    mapper.toString(unwrapped[1]),  // name
+                    	    amount,  // amount
+                    	    mapper.toLocalDate(unwrapped[3]), // dueDate
+                    	    mapper.toString(unwrapped[2]),  // frequency
+                    	    "debt",
+                    	    remainingBalance  // remainingBalance
+                    	));
+                    
+                    System.out.println("Deuda: " + mapper.toString(unwrapped[1]) + 
+                                     " - Monto a pagar: " + amount + 
+                                     " - Saldo restante: " + remainingBalance);
+                }
+            }
+        } catch (Exception e) {
+            System.err.println("Error loading debts: " + e.getMessage());
+            e.printStackTrace();
+        }
+        
+        // Ordenar por fecha
         items.sort(Comparator.comparing(ContractDtos.BiweeklyPaymentItem::dueDate));
         return items;
     }

@@ -505,6 +505,7 @@ function renderBiweeklySchedule() {
               <div class="payment-name">${p.name}</div>
               <div class="payment-date">${relativeDate(p.dueDate)}</div>
               <div class="payment-amount">${fmt(p.amount, cur)}</div>
+              ${p.remainingBalance ? `<div class="payment-remaining">Saldo restante: ${fmt(p.remainingBalance, cur)}</div>` : ''}
             </div>
           `).join("")}
         </div>
@@ -1190,83 +1191,90 @@ function wireTxForm() {
   }
 }
 
-function wireAccForm() {
-  const addBtn = el("btn-add-account");
-  const cancelBtn = el("btn-cancel-account");
-  const saveBtn = el("btn-save-account");
-  const typeSelect = el("acc-type");
-  const institutionSelect = el("acc-institution");
-  const otherGroup = el("acc-other-institution-group");
-  const otherInput = el("acc-other-institution");
+// Agregar al HTML un nuevo formulario para compras a meses
+function showCreditCardPurchaseForm() {
+  const modalBody = `
+    <div class="form-grid">
+      <div class="field-group field-full">
+        <label class="field-label">Tarjeta de crédito</label>
+        <select id="purchase-account" class="field-input">
+          ${state.accounts.filter(a => a.type === "credit").map(a => 
+            `<option value="${a.id}">${a.name} - Límite: ${fmt(a.creditLimit)} - Disponible: ${fmt(a.creditLimit - a.balance)}</option>`
+          ).join("")}
+        </select>
+      </div>
+      <div class="field-group field-full">
+        <label class="field-label">Nombre de la compra</label>
+        <input id="purchase-name" class="field-input" type="text" placeholder="Ej: iPhone 15, Lavadora, Viaje..." />
+      </div>
+      <div class="field-group">
+        <label class="field-label">Monto total</label>
+        <input id="purchase-total" class="field-input" type="number" step="0.01" placeholder="0.00" />
+      </div>
+      <div class="field-group">
+        <label class="field-label">Número de meses</label>
+        <select id="purchase-months" class="field-input">
+          <option value="3">3 meses</option>
+          <option value="6">6 meses</option>
+          <option value="9">9 meses</option>
+          <option value="12">12 meses</option>
+          <option value="18">18 meses</option>
+          <option value="24">24 meses</option>
+        </select>
+      </div>
+      <div class="field-group">
+        <label class="field-label">Tasa de interés (%)</label>
+        <input id="purchase-interest" class="field-input" type="number" step="0.01" placeholder="0 (sin intereses)" value="0" />
+      </div>
+      <div class="field-group">
+        <label class="field-label">Primer pago</label>
+        <input id="purchase-first-due" class="field-input" type="date" value="${todayIso()}" />
+      </div>
+      <div class="field-group">
+        <label class="field-label">Categoría</label>
+        <select id="purchase-category" class="field-input">
+          <option value="">Seleccionar categoría</option>
+          ${state.categories.map(c => `<option value="${c.id}">${c.icon || ""} ${c.name}</option>`).join("")}
+        </select>
+      </div>
+    </div>
+  `;
   
-  if (institutionSelect && otherGroup) {
-    institutionSelect.addEventListener("change", () => {
-      otherGroup.classList.toggle("hidden", institutionSelect.value !== "Otra");
-      if (otherInput) otherInput.value = "";
-    });
-  }
-  
-  if (addBtn) {
-    const newAddBtn = addBtn.cloneNode(true);
-    addBtn.parentNode.replaceChild(newAddBtn, addBtn);
-    newAddBtn.addEventListener("click", () => showInlineForm("account-form-wrap", "btn-add-account"));
-  }
-  
-  if (cancelBtn) {
-    const newCancelBtn = cancelBtn.cloneNode(true);
-    cancelBtn.parentNode.replaceChild(newCancelBtn, cancelBtn);
-    newCancelBtn.addEventListener("click", () => hideForm("account-form-wrap", "btn-add-account", "+ Nueva cuenta"));
-  }
-  
-  if (typeSelect) typeSelect.addEventListener("change", toggleCreditFields);
-  
-  if (saveBtn) {
-    const newSaveBtn = saveBtn.cloneNode(true);
-    saveBtn.parentNode.replaceChild(newSaveBtn, saveBtn);
+  openModal("Comprar a meses", modalBody, async () => {
+    const accountId = el("purchase-account")?.value;
+    const name = el("purchase-name")?.value.trim();
+    const totalAmount = Number(el("purchase-total")?.value || 0);
+    const months = parseInt(el("purchase-months")?.value, 10);
+    const interestRate = Number(el("purchase-interest")?.value || 0);
+    const firstDueDate = el("purchase-first-due")?.value;
+    const categoryId = el("purchase-category")?.value || null;
     
-    newSaveBtn.addEventListener("click", async () => {
-      if (newSaveBtn.dataset.saving === "true") return;
-      newSaveBtn.dataset.saving = "true";
-      
-      try {
-        let institution = institutionSelect?.value || "";
-        if (institution === "Otra") {
-          institution = otherInput?.value.trim() || "";
-          if (!institution) {
-            showToast("Escribe el nombre de la institución", "error");
-            return;
-          }
-        }
-        
-        const body = {
-          type: el("acc-type")?.value,
-          name: el("acc-name")?.value.trim(),
-          institution: institution,
-          currency: el("acc-currency")?.value,
-          balance: Number(el("acc-balance")?.value || 0),
-          creditLimit: el("acc-type")?.value === "credit" ? Number(el("acc-limit")?.value || 0) : null,
-          closingDay: el("acc-type")?.value === "credit" ? Number(el("acc-cut-day")?.value || 0) : null,
-          dueDay: el("acc-type")?.value === "credit" ? Number(el("acc-due-day")?.value || 0) : null,
-          active: true,
-        };
-        if (!body.name) {
-          showToast("Ingresa el nombre de la cuenta", "error");
-          return;
-        }
-        await api.post("/accounts", body);
-        showToast("Cuenta creada", "success");
-        hideForm("account-form-wrap", "btn-add-account", "+ Nueva cuenta");
-        if (institutionSelect) institutionSelect.value = "";
-        if (otherGroup) otherGroup.classList.add("hidden");
-        if (otherInput) otherInput.value = "";
-        await loadAccounts();
-      } catch (e) {
-        showToast(e.message, "error");
-      } finally {
-        newSaveBtn.dataset.saving = "false";
-      }
-    });
-  }
+    if (!accountId || !name || !totalAmount || !months || !firstDueDate) {
+      showToast("Completa todos los campos", "error");
+      return;
+    }
+    
+    const body = {
+      accountId: accountId,
+      name: name,
+      totalAmount: totalAmount,
+      months: months,
+      interestRate: interestRate,
+      firstDueDate: firstDueDate,
+      categoryId: categoryId
+    };
+    
+    try {
+      await api.post("/installments/credit-card-purchase", body);
+      showToast(`Compra a ${months} meses registrada exitosamente`, "success");
+      closeModal();
+      await loadInstallments();
+      await loadAccounts();
+      await loadDebts();
+    } catch (e) {
+      showToast(e.message, "error");
+    }
+  });
 }
 
 function wireRecurringForm() {
@@ -2972,6 +2980,12 @@ async function init() {
       wireNav();
       wireTxForm();
       wireAccForm();
+	  const msiBtn = el("btn-msi-purchase");
+	  if (msiBtn) {
+	      msiBtn.addEventListener("click", () => {
+	          showCreditCardPurchaseForm();
+	      });
+	  }
       wireRecurringForm();
       wireDebtForm();
       wireInstallmentForm();

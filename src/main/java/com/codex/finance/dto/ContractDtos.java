@@ -421,13 +421,14 @@ public final class ContractDtos {
 
 	// Para organización quincenal
 	public record BiweeklyPaymentItem(
-			String paymentId,
-			String name,
-			BigDecimal amount,
-			LocalDate dueDate,
-			String frequency,
-			String paymentType
-			) {}
+		    String paymentId,
+		    String name,
+		    BigDecimal amount,
+		    LocalDate dueDate,
+		    String frequency,
+		    String paymentType,
+		    BigDecimal remainingBalance  
+		) {}
 
 	public record BiweeklyScheduleResponse(
 			String periodName,  // "Primera quincena" o "Segunda quincena"

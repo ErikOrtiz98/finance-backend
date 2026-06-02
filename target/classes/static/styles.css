@@ -1003,3 +1003,35 @@ a { color: inherit; text-decoration: none; }
   background: var(--blue-dim);
   color: var(--blue);
 }
+
+.payment-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0.5rem;
+  background: var(--surface2);
+  border-radius: var(--radius-xs);
+  font-size: 0.85rem;
+  flex-wrap: wrap;
+}
+.payment-name {
+  font-weight: 500;
+  flex: 2;
+}
+.payment-date {
+  color: var(--text-muted);
+  font-size: 0.75rem;
+  flex: 1;
+}
+.payment-amount {
+  font-family: var(--font-display);
+  flex: 1;
+  text-align: right;
+}
+.payment-remaining {
+  width: 100%;
+  font-size: 0.7rem;
+  color: var(--text-muted);
+  margin-top: 0.25rem;
+  text-align: right;
+}

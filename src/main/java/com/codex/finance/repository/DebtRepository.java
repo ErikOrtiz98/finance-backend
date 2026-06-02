@@ -98,16 +98,16 @@ public interface DebtRepository extends JpaRepository<Debt, UUID> {
            "FROM debts d WHERE d.user_id = :userId AND d.id = :id AND d.deleted_at IS NULL", nativeQuery = true)
     Object[] getDebtById(@Param("userId") UUID userId, @Param("id") UUID id);
     
-    // CORREGIDO: usar fixed_payment en lugar de installment
     @Query(value = "SELECT d.id, d.name, " +
-           "COALESCE(d.metadata->>'frequency', 'monthly') AS frequency, " +
-           "COALESCE((d.metadata->>'nextDueDate')::date, CURRENT_DATE) AS next_due_date, " +
-           "COALESCE(d.fixed_payment, d.remaining_balance) AS amount " +
-           "FROM debts d " +
-           "WHERE d.user_id = :userId AND d.deleted_at IS NULL " +
-           "AND (d.metadata->>'nextDueDate')::date BETWEEN :startDate AND :endDate " +
-           "ORDER BY next_due_date ASC", nativeQuery = true)
-    List<Object[]> getUpcomingDebtsInRange(@Param("userId") UUID userId, 
-                                            @Param("startDate") LocalDate startDate,
-                                            @Param("endDate") LocalDate endDate);
+    	       "COALESCE(d.metadata->>'frequency', 'monthly') AS frequency, " +
+    	       "COALESCE((d.metadata->>'nextDueDate')::date, CURRENT_DATE) AS next_due_date, " +
+    	       "LEAST(COALESCE(d.fixed_payment, d.remaining_balance), d.remaining_balance) AS amount, " +
+    	       "d.remaining_balance AS remaining_balance " +
+    	       "FROM debts d " +
+    	       "WHERE d.user_id = :userId AND d.deleted_at IS NULL " +
+    	       "AND (d.metadata->>'nextDueDate')::date BETWEEN :startDate AND :endDate " +
+    	       "ORDER BY next_due_date ASC", nativeQuery = true)
+    	List<Object[]> getUpcomingDebtsInRange(@Param("userId") UUID userId, 
+    	                                        @Param("startDate") LocalDate startDate,
+    	                                        @Param("endDate") LocalDate endDate);
 }
