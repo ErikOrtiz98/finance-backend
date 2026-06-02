@@ -547,7 +547,7 @@ function renderTransactions() {
   );
   
   c.innerHTML = sorted.map(tx => {
-    const isExpense = tx.type === "expense" || tx.type === "withdrawal";
+    const isExpense = tx.type === "expense";
     const isPaymentToCredit = tx.type === "payment";
     const cat = state.categories.find(c => c.id === tx.categoryId);
     const acc = state.accounts.find(a => a.id === tx.accountId);
@@ -1060,9 +1060,12 @@ function wireTxForm() {
   const addBtn = el("btn-add-transaction");
   const cancelBtn = el("btn-cancel-transaction");
   const saveBtn = el("btn-save-transaction");
+  const type = el("tx-type")?.value;
   const dateInput = el("tx-date");
   const typeSelect = el("tx-type");
   const transferGroup = el("transfer-account-group");
+  const validTypes = ["expense", "income", "transfer", "payment", "adjustment"];
+  const finalType = validTypes.includes(type) ? type : "expense";
   
   if (typeSelect && transferGroup) {
     typeSelect.addEventListener("change", () => {
