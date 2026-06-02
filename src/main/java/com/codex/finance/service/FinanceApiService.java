@@ -205,30 +205,38 @@ public class FinanceApiService {
 
     public ContractDtos.TransactionResponse createTransaction(String userId, ContractDtos.UpsertTransactionRequest request) {
         setAuthContext(userId);
+        
+        // LOG PARA VER QUÉ ESTÁ LLEGANDO
+        System.out.println("=== CREATE TRANSACTION DEBUG ===");
+        System.out.println("Tipo recibido: '" + request.type() + "'");
+        System.out.println("Longitud del tipo: " + (request.type() == null ? "null" : request.type().length()));
+        System.out.println("Caracteres: " + java.util.Arrays.toString(request.type() == null ? new char[0] : request.type().toCharArray()));
+        
         UUID uuid = UUID.fromString(userId);
         UUID accountUuid = mapper.toUuid(request.accountId());
         
-        // Verificar si es pago a tarjeta de crédito
-        if ("payment".equals(request.type())) {
-            Object[] accountRow = accountRepo.getAccountById(accountUuid, uuid);
-            if (accountRow != null) {
-                Object[] unwrapped = mapper.unwrap(accountRow);
-                String accountType = mapper.toString(unwrapped[2]);
-                BigDecimal currentBalance = mapper.toBigDecimal(unwrapped[5]);
-                
-                if ("credit".equals(accountType)) {
-                    BigDecimal newBalance = currentBalance.subtract(request.amount());
-                    if (newBalance.compareTo(BigDecimal.ZERO) < 0) {
-                        newBalance = BigDecimal.ZERO;
-                    }
-                    accountRepo.updateBalance(accountUuid, uuid, newBalance);
-                }
+        // Validar y sanitizar el tipo ANTES de enviar a la BD
+        String movementType = request.type();
+        if (movementType != null) {
+            movementType = movementType.toLowerCase().trim();
+            // Mapear 'withdrawal' a 'expense'
+            if ("withdrawal".equals(movementType)) {
+                System.out.println("⚠️ Se recibió 'withdrawal', convirtiendo a 'expense'");
+                movementType = "expense";
             }
+            // Validar que sea un valor permitido
+            List<String> validTypes = List.of("income", "expense", "transfer", "payment", "adjustment");
+            if (!validTypes.contains(movementType)) {
+                System.out.println("❌ Tipo inválido: " + movementType + ", usando 'expense' por defecto");
+                movementType = "expense";
+            }
+        } else {
+            movementType = "expense";
         }
         
         Object[] result = movementRepo.createTransaction(uuid, accountUuid,
                 mapper.toUuid(request.transferAccountId()), mapper.toUuid(request.categoryId()),
-                request.type(), request.amount(), request.description(),
+                movementType, request.amount(), request.description(),
                 request.currency(), request.transactionDate(), request.notes());
         return mapper.mapToTransactionResponse(result);
     }

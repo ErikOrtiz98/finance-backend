@@ -537,6 +537,7 @@ function renderTransactions() {
   const c = el("transactions-list");
   if (!c) return;
   const cur = state.user?.currency || "MXN";
+  const isExpense = tx.type === "expense" || tx.type === "payment";
   if (!state.transactions.length) {
     c.innerHTML = `<div class="empty-state"><div class="empty-state-icon">💸</div>Sin transacciones aún</div>`;
     return;
@@ -1060,12 +1061,10 @@ function wireTxForm() {
   const addBtn = el("btn-add-transaction");
   const cancelBtn = el("btn-cancel-transaction");
   const saveBtn = el("btn-save-transaction");
-  const type = el("tx-type")?.value;
   const dateInput = el("tx-date");
   const typeSelect = el("tx-type");
   const transferGroup = el("transfer-account-group");
   const validTypes = ["expense", "income", "transfer", "payment", "adjustment"];
-  const finalType = validTypes.includes(type) ? type : "expense";
   
   if (typeSelect && transferGroup) {
     typeSelect.addEventListener("change", () => {
@@ -1108,7 +1107,15 @@ function wireTxForm() {
       newSaveBtn.dataset.saving = "true";
       
       try {
-        const type = el("tx-type")?.value;
+        // OBTENER Y VALIDAR EL TIPO AQUÍ DENTRO DEL EVENTO
+        let type = el("tx-type")?.value;
+        
+        // Validar que el tipo sea uno de los permitidos
+        if (!validTypes.includes(type)) {
+          console.warn(`Tipo de transacción inválido: "${type}", cambiando a "expense"`);
+          type = "expense";
+        }
+        
         const accountId = el("tx-account")?.value;
         const amount = Number(el("tx-amount")?.value || 0);
         const transactionDate = el("tx-date")?.value;
@@ -1161,6 +1168,7 @@ function wireTxForm() {
           notes: notes
         };
         
+        console.log("Enviando transacción:", body);
         await api.post("/transactions", body);
         showToast("Transacción guardada", "success");
         
