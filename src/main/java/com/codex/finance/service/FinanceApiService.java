@@ -937,6 +937,12 @@ public class FinanceApiService {
  // ==================== CREDIT CARD INSTALLMENT (Compra a meses) ====================
     @Transactional
     public List<ContractDtos.InstallmentResponse> createCreditCardPurchase(String userId, ContractDtos.CreditCardPurchaseRequest request) {
+        System.out.println("=== CREATE CREDIT CARD PURCHASE DEBUG ===");
+        System.out.println("Request Account ID: " + request.accountId());
+        System.out.println("Request Name: " + request.name());
+        System.out.println("Request Total Amount: " + request.totalAmount());
+        System.out.println("Request Months: " + request.months());
+        
         UUID uuid = UUID.fromString(userId);
         UUID accountUuid = UUID.fromString(request.accountId());
         
@@ -946,9 +952,49 @@ public class FinanceApiService {
             throw new ApiException(HttpStatus.NOT_FOUND, "account not found");
         }
         Object[] unwrappedAccount = mapper.unwrap(accountRow);
-        String accountType = mapper.toString(unwrappedAccount[2]);
+        
+        System.out.println("=== ACCOUNT ROW DETAILS ===");
+        System.out.println("Row length: " + unwrappedAccount.length);
+        for (int i = 0; i < unwrappedAccount.length; i++) {
+            System.out.println("  Index " + i + ": " + unwrappedAccount[i] + " (type: " + 
+                (unwrappedAccount[i] == null ? "null" : unwrappedAccount[i].getClass().getSimpleName()) + ")");
+        }
+        
+        // Intentar obtener el tipo desde diferentes índices
+        String accountType = null;
+        // Índice 2 es account_type según la query
+        if (unwrappedAccount.length > 2) {
+            accountType = mapper.toString(unwrappedAccount[2]);
+            System.out.println("Account Type from index 2: '" + accountType + "'");
+        }
+        
+        // Si no funciona, buscar en otros índices
+        if (accountType == null || (!"credit".equals(accountType) && !"debit".equals(accountType))) {
+            for (int i = 0; i < unwrappedAccount.length; i++) {
+                String val = mapper.toString(unwrappedAccount[i]);
+                if ("credit".equals(val) || "debit".equals(val) || "savings".equals(val)) {
+                    accountType = val;
+                    System.out.println("Found account type at index " + i + ": '" + accountType + "'");
+                    break;
+                }
+            }
+        }
+        
         if (!"credit".equals(accountType)) {
-            throw new ApiException(HttpStatus.BAD_REQUEST, "installments only supported for credit cards");
+            throw new ApiException(HttpStatus.BAD_REQUEST, 
+                "installments only supported for credit cards. Account ID: " + request.accountId() + 
+                ", Type found: '" + accountType + "', Row length: " + unwrappedAccount.length);
+        }
+        
+        // Obtener el balance - puede estar en índice 5 o 6 dependiendo de la query
+        BigDecimal currentBalance = BigDecimal.ZERO;
+        if (unwrappedAccount.length > 5) {
+            currentBalance = mapper.toBigDecimal(unwrappedAccount[5]);
+            System.out.println("Current Balance from index 5: " + currentBalance);
+        }
+        if (currentBalance.compareTo(BigDecimal.ZERO) == 0 && unwrappedAccount.length > 6) {
+            currentBalance = mapper.toBigDecimal(unwrappedAccount[6]);
+            System.out.println("Current Balance from index 6: " + currentBalance);
         }
         
         // Calcular el pago mensual
@@ -959,15 +1005,14 @@ public class FinanceApiService {
         // Calcular monto mensual con o sin interés
         BigDecimal monthlyAmount;
         if (interestRate.compareTo(BigDecimal.ZERO) > 0) {
-            // Con interés - fórmula de interés compuesto
             BigDecimal rate = interestRate.divide(BigDecimal.valueOf(100)).divide(BigDecimal.valueOf(12), 10, java.math.RoundingMode.HALF_UP);
             BigDecimal factor = rate.add(BigDecimal.ONE).pow(months);
             monthlyAmount = totalAmount.multiply(rate).multiply(factor)
                     .divide(factor.subtract(BigDecimal.ONE), 2, java.math.RoundingMode.HALF_UP);
         } else {
-            // Sin interés
             monthlyAmount = totalAmount.divide(BigDecimal.valueOf(months), 2, java.math.RoundingMode.HALF_UP);
         }
+        System.out.println("Monthly Amount: " + monthlyAmount);
         
         // Crear la deuda asociada
         String debtName = request.name() != null ? request.name() : "Compra a " + months + " meses";
@@ -982,24 +1027,24 @@ public class FinanceApiService {
         );
         Object[] unwrappedDebt = mapper.unwrap(newDebt);
         UUID debtUuid = UUID.fromString(mapper.toString(unwrappedDebt[0]));
+        System.out.println("Debt created with ID: " + debtUuid);
         
         // Crear las partialidades (una por cada mes)
         List<ContractDtos.InstallmentResponse> installments = new ArrayList<>();
         LocalDate dueDate = request.firstDueDate();
         
         for (int i = 1; i <= months; i++) {
+            System.out.println("Creating installment " + i + " for date: " + dueDate);
             installmentRepo.createCreditCardInstallment(
                 uuid, debtUuid, accountUuid, i, monthlyAmount, dueDate,
                 totalAmount, interestRate, false
             );
-            
-            // Avanzar al siguiente mes
             dueDate = dueDate.plusMonths(1);
         }
         
         // Actualizar el saldo de la tarjeta de crédito (aumentar la deuda)
-        BigDecimal currentBalance = mapper.toBigDecimal(unwrappedAccount[5]);
         BigDecimal newBalance = currentBalance.add(totalAmount);
+        System.out.println("Updating balance from " + currentBalance + " to " + newBalance);
         accountRepo.updateBalance(accountUuid, uuid, newBalance);
         
         // Obtener todas las partialidades creadas
@@ -1008,8 +1053,7 @@ public class FinanceApiService {
             installments.add(mapper.mapToInstallmentResponse(row));
         }
         
-        // Usar logger en lugar de showToast
-        System.out.println("Compra a " + months + " meses registrada. Pago mensual: " + monthlyAmount);
+        System.out.println("=== CREDIT CARD PURCHASE COMPLETED ===");
         return installments;
     }
     

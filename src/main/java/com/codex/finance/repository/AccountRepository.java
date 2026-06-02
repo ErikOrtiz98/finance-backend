@@ -91,11 +91,11 @@ public interface AccountRepository extends JpaRepository<Account, UUID> {
     List<Map<String, Object>> findDeleted(@Param("userId") UUID userId, @Param("since") Instant since);
     
     @Modifying
-    @Query(value = "UPDATE accounts SET balance = :newBalance, updated_at = NOW() " +
+    @Query(value = "UPDATE accounts SET current_balance = :newBalance, updated_at = NOW() " +
            "WHERE id = :id AND user_id = :userId AND deleted_at IS NULL", nativeQuery = true)
     int updateBalance(@Param("id") UUID id, @Param("userId") UUID userId, @Param("newBalance") BigDecimal newBalance);
     
-    @Query(value = "SELECT a.id, a.user_id, a.name, a.account_type, a.bank_name, " +
+    @Query(value = "SELECT a.id, a.user_id, a.account_type, a.name, a.bank_name, " +
     	       "a.current_balance, a.credit_limit, a.statement_close_day, a.payment_due_day, " +
     	       "a.is_active, COALESCE(a.metadata->>'currency', 'MXN') as currency, " +
     	       "a.created_at, a.updated_at, a.deleted_at, " +

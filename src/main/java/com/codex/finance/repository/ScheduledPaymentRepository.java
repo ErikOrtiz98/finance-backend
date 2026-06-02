@@ -81,27 +81,27 @@ public interface ScheduledPaymentRepository extends JpaRepository<ScheduledPayme
     List<Map<String, Object>> findDeleted(@Param("userId") UUID userId, @Param("since") Instant since);
     
     @Query(value = "SELECT 'recurring' AS type, sp.id, sp.name, sp.next_date AS dueDate, sp.amount " +
-           "FROM scheduled_payments sp WHERE sp.user_id = :userId AND sp.deleted_at IS NULL " +
-           "AND sp.next_date BETWEEN CURRENT_DATE AND CURRENT_DATE + 7 " +
-           "ORDER BY sp.next_date ASC", nativeQuery = true)
-    List<Object[]> getUpcomingRecurringPayments(@Param("userId") UUID userId);
- // Agregar estos métodos al ScheduledPaymentRepository existente
+    	       "FROM scheduled_payments sp WHERE sp.user_id = :userId AND sp.deleted_at IS NULL " +
+    	       "AND sp.payment_type = 'expense' " +
+    	       "AND sp.next_date BETWEEN CURRENT_DATE AND CURRENT_DATE + 7 " +
+    	       "ORDER BY sp.next_date ASC", nativeQuery = true)
+    	List<Object[]> getUpcomingRecurringPayments(@Param("userId") UUID userId);
 
     @Query(value = "SELECT sp.id, sp.user_id, sp.name, sp.amount, sp.currency, sp.frequency, " +
-           "sp.next_due_date, sp.end_date, sp.category_id, sp.payment_type, " +
-           "c.name as category_name, c.color, c.icon, " +
-           "sp.created_at, sp.updated_at, sp.deleted_at, " +
-           "CASE WHEN sp.deleted_at IS NULL THEN 'synced' ELSE 'deleted' END AS syncStatus, " +
-           "COALESCE(sp.row_version, 1) AS version " +
-           "FROM scheduled_payments sp " +
-           "LEFT JOIN categories c ON c.id = sp.category_id " +
-           "WHERE sp.user_id = :userId AND sp.deleted_at IS NULL " +
-           "ORDER BY sp.next_due_date ASC", nativeQuery = true)
-    List<Object[]> listRecurringPaymentsWithDetails(@Param("userId") UUID userId);
+    	       "sp.next_date, sp.end_date, sp.category_id, sp.payment_type, " +
+    	       "c.name as category_name, c.color, c.icon, " +
+    	       "sp.created_at, sp.updated_at, sp.deleted_at, " +
+    	       "CASE WHEN sp.deleted_at IS NULL THEN 'synced' ELSE 'deleted' END AS syncStatus, " +
+    	       "COALESCE(sp.row_version, 1) AS version " +
+    	       "FROM scheduled_payments sp " +
+    	       "LEFT JOIN categories c ON c.id = sp.category_id " +
+    	       "WHERE sp.user_id = :userId AND sp.deleted_at IS NULL " +
+    	       "ORDER BY sp.next_date ASC", nativeQuery = true)
+    	List<Object[]> listRecurringPaymentsWithDetails(@Param("userId") UUID userId);
     
     @Modifying
     @Query(value = "INSERT INTO scheduled_payments (id, user_id, name, amount, currency, frequency, " +
-           "next_due_date, end_date, category_id, payment_type, created_at, updated_at, row_version) " +
+           "next_date, end_date, category_id, payment_type, created_at, updated_at, row_version) " +
            "VALUES (gen_random_uuid(), :userId, :name, :amount, :currency, CAST(:frequency AS payment_frequency), " +
            ":nextDueDate, :endDate, :categoryId, CAST(:paymentType AS payment_type), NOW(), NOW(), 1)", nativeQuery = true)
     void createRecurringPaymentWithDetails(@Param("userId") UUID userId,
@@ -120,7 +120,7 @@ public interface ScheduledPaymentRepository extends JpaRepository<ScheduledPayme
            "amount = COALESCE(:amount, amount), " +
            "currency = COALESCE(:currency, currency), " +
            "frequency = COALESCE(CAST(:frequency AS payment_frequency), frequency), " +
-           "next_due_date = COALESCE(:nextDueDate, next_due_date), " +
+           "next_date = COALESCE(:nextDueDate, next_date), " +
            "end_date = COALESCE(:endDate, end_date), " +
            "category_id = COALESCE(:categoryId, category_id), " +
            "payment_type = COALESCE(CAST(:paymentType AS payment_type), payment_type), " +
@@ -137,17 +137,17 @@ public interface ScheduledPaymentRepository extends JpaRepository<ScheduledPayme
                                            @Param("categoryId") UUID categoryId,
                                            @Param("paymentType") String paymentType);
     
-    @Query(value = "SELECT sp.id, sp.name, sp.amount, sp.frequency, sp.next_due_date, sp.end_date, " +
-           "c.name as category_name " +
-           "FROM scheduled_payments sp " +
-           "LEFT JOIN categories c ON c.id = sp.category_id " +
-           "WHERE sp.user_id = :userId AND sp.deleted_at IS NULL " +
-           "AND sp.payment_type = 'expense' " +
-           "AND sp.next_due_date <= :endDate " +
-           "AND (sp.end_date IS NULL OR sp.end_date >= :startDate) " +
-           "ORDER BY sp.next_due_date ASC", nativeQuery = true)
-    List<Object[]> getUpcomingRecurringPaymentsInRange(@Param("userId") UUID userId, 
-                                                        @Param("startDate") LocalDate startDate,
-                                                        @Param("endDate") LocalDate endDate);
+    @Query(value = "SELECT sp.id, sp.name, sp.amount, sp.frequency, sp.next_date, sp.end_date, " +
+    	       "c.name as category_name " +
+    	       "FROM scheduled_payments sp " +
+    	       "LEFT JOIN categories c ON c.id = sp.category_id " +
+    	       "WHERE sp.user_id = :userId AND sp.deleted_at IS NULL " +
+    	       "AND sp.payment_type = 'expense' " +
+    	       "AND sp.next_date <= :endDate " +
+    	       "AND (sp.end_date IS NULL OR sp.end_date >= :startDate) " +
+    	       "ORDER BY sp.next_date ASC", nativeQuery = true)
+    	List<Object[]> getUpcomingRecurringPaymentsInRange(@Param("userId") UUID userId, 
+    	                                                    @Param("startDate") LocalDate startDate,
+    	                                                    @Param("endDate") LocalDate endDate);
     
 }
