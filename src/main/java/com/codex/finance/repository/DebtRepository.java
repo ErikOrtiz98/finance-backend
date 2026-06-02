@@ -16,17 +16,17 @@ import java.util.UUID;
 @Repository
 public interface DebtRepository extends JpaRepository<Debt, UUID> {
     
-	@Query(value = "SELECT d.id, d.user_id AS userId, d.name, " +
-		       "d.remaining_balance AS principalBalance, d.installment, " +
-		       "COALESCE(d.metadata->>'frequency', 'monthly') AS frequency, " +
-		       "COALESCE((d.metadata->>'nextDueDate')::date, NULL) AS nextDueDate, " +
-		       "COALESCE(d.metadata->>'notes', '') AS notes, d.created_at AS createdAt, " +
-		       "d.updated_at AS updatedAt, d.deleted_at AS deletedAt, " +
-		       "CASE WHEN d.deleted_at IS NULL THEN 'synced' ELSE 'deleted' END AS syncStatus, " +
-		       "COALESCE(d.row_version, 1) AS version " +
-		       "FROM debts d WHERE d.user_id = :userId AND d.deleted_at IS NULL " +
-		       "ORDER BY d.created_at DESC", nativeQuery = true)
-		List<Object[]> listDebts(@Param("userId") UUID userId);
+    @Query(value = "SELECT d.id, d.user_id AS userId, d.name, " +
+           "d.remaining_balance AS principalBalance, d.fixed_payment AS installment, " +
+           "COALESCE(d.metadata->>'frequency', 'monthly') AS frequency, " +
+           "COALESCE((d.metadata->>'nextDueDate')::date, NULL) AS nextDueDate, " +
+           "COALESCE(d.metadata->>'notes', '') AS notes, d.created_at AS createdAt, " +
+           "d.updated_at AS updatedAt, d.deleted_at AS deletedAt, " +
+           "CASE WHEN d.deleted_at IS NULL THEN 'synced' ELSE 'deleted' END AS syncStatus, " +
+           "COALESCE(d.row_version, 1) AS version " +
+           "FROM debts d WHERE d.user_id = :userId AND d.deleted_at IS NULL " +
+           "ORDER BY d.created_at DESC", nativeQuery = true)
+    List<Object[]> listDebts(@Param("userId") UUID userId);
     
     @Modifying
     @Query(value = "INSERT INTO debts (user_id, name, debt_type, original_amount, remaining_balance, " +
@@ -83,31 +83,31 @@ public interface DebtRepository extends JpaRepository<Debt, UUID> {
     List<Map<String, Object>> findDeleted(@Param("userId") UUID userId, @Param("since") Instant since);
     
     @Query(value = "SELECT 'debt' AS type, d.id, d.name, " +
-    	       "COALESCE((d.metadata->>'nextDueDate')::date, CURRENT_DATE) AS dueDate, " +
-    	       "COALESCE(d.installment, d.remaining_balance) AS amount " +
-    	       "FROM debts d WHERE d.user_id = :userId AND d.deleted_at IS NULL " +
-    	       "ORDER BY dueDate ASC", nativeQuery = true)
-    	List<Object[]> getUpcomingDebts(@Param("userId") UUID userId);
+           "COALESCE((d.metadata->>'nextDueDate')::date, CURRENT_DATE) AS dueDate, " +
+           "COALESCE(d.fixed_payment, d.remaining_balance) AS amount " +
+           "FROM debts d WHERE d.user_id = :userId AND d.deleted_at IS NULL " +
+           "ORDER BY dueDate ASC", nativeQuery = true)
+    List<Object[]> getUpcomingDebts(@Param("userId") UUID userId);
     
     @Query(value = "SELECT d.id, d.user_id AS userId, d.name, " +
-    	       "d.remaining_balance AS principalBalance, d.fixed_payment AS installment, " +
-    	       "COALESCE(d.metadata->>'frequency', 'monthly') AS frequency, " +
-    	       "COALESCE((d.metadata->>'nextDueDate')::date, NULL) AS nextDueDate, " +
-    	       "COALESCE(d.metadata->>'notes', '') AS notes, d.created_at AS createdAt, " +
-    	       "d.updated_at AS updatedAt, d.deleted_at AS deletedAt " +
-    	       "FROM debts d WHERE d.user_id = :userId AND d.id = :id AND d.deleted_at IS NULL", nativeQuery = true)
-    	Object[] getDebtById(@Param("userId") UUID userId, @Param("id") UUID id);
+           "d.remaining_balance AS principalBalance, d.fixed_payment AS installment, " +
+           "COALESCE(d.metadata->>'frequency', 'monthly') AS frequency, " +
+           "COALESCE((d.metadata->>'nextDueDate')::date, NULL) AS nextDueDate, " +
+           "COALESCE(d.metadata->>'notes', '') AS notes, d.created_at AS createdAt, " +
+           "d.updated_at AS updatedAt, d.deleted_at AS deletedAt " +
+           "FROM debts d WHERE d.user_id = :userId AND d.id = :id AND d.deleted_at IS NULL", nativeQuery = true)
+    Object[] getDebtById(@Param("userId") UUID userId, @Param("id") UUID id);
     
-    
+    // CORREGIDO: usar fixed_payment en lugar de installment
     @Query(value = "SELECT d.id, d.name, " +
-    	       "COALESCE(d.metadata->>'frequency', 'monthly') AS frequency, " +
-    	       "COALESCE((d.metadata->>'nextDueDate')::date, CURRENT_DATE) AS next_due_date, " +
-    	       "COALESCE(d.installment, d.remaining_balance) AS installment " +
-    	       "FROM debts d " +
-    	       "WHERE d.user_id = :userId AND d.deleted_at IS NULL " +
-    	       "AND (d.metadata->>'nextDueDate')::date BETWEEN :startDate AND :endDate " +
-    	       "ORDER BY next_due_date ASC", nativeQuery = true)
-    	List<Object[]> getUpcomingDebtsInRange(@Param("userId") UUID userId, 
-    	                                        @Param("startDate") LocalDate startDate,
-    	                                        @Param("endDate") LocalDate endDate);
+           "COALESCE(d.metadata->>'frequency', 'monthly') AS frequency, " +
+           "COALESCE((d.metadata->>'nextDueDate')::date, CURRENT_DATE) AS next_due_date, " +
+           "COALESCE(d.fixed_payment, d.remaining_balance) AS amount " +
+           "FROM debts d " +
+           "WHERE d.user_id = :userId AND d.deleted_at IS NULL " +
+           "AND (d.metadata->>'nextDueDate')::date BETWEEN :startDate AND :endDate " +
+           "ORDER BY next_due_date ASC", nativeQuery = true)
+    List<Object[]> getUpcomingDebtsInRange(@Param("userId") UUID userId, 
+                                            @Param("startDate") LocalDate startDate,
+                                            @Param("endDate") LocalDate endDate);
 }

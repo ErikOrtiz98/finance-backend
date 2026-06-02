@@ -371,6 +371,7 @@ public class FinanceApiService {
     public ContractDtos.InstallmentResponse markInstallmentAsPaid(String userId, String id) {
         UUID uuid = UUID.fromString(userId);
         UUID installmentUuid = UUID.fromString(id);
+        
         Object[] installmentRow = installmentRepo.getInstallmentById(uuid, installmentUuid);
         if (installmentRow == null) {
             throw new ApiException(HttpStatus.NOT_FOUND, "installment not found");
@@ -384,6 +385,7 @@ public class FinanceApiService {
             throw new ApiException(HttpStatus.NOT_FOUND, "installment not found or already paid");
         }
         
+        // Actualizar el saldo restante de la deuda
         Object[] debtRow = debtRepo.getDebtById(uuid, debtId);
         if (debtRow != null) {
             Object[] unwrappedDebt = mapper.unwrap(debtRow);
@@ -392,9 +394,16 @@ public class FinanceApiService {
             if (newRemaining.compareTo(BigDecimal.ZERO) < 0) {
                 newRemaining = BigDecimal.ZERO;
             }
-            debtRepo.updateDebt(debtId, uuid, mapper.toString(unwrappedDebt[2]), newRemaining,
-                    mapper.toBigDecimal(unwrappedDebt[4]), mapper.toString(unwrappedDebt[5]),
-                    mapper.toString(unwrappedDebt[6]), mapper.toString(unwrappedDebt[7]));
+            
+            // CORREGIDO: fixed_payment está en índice 4, NO installment
+            debtRepo.updateDebt(debtId, uuid, 
+                mapper.toString(unwrappedDebt[2]), // name
+                newRemaining, // principalBalance
+                mapper.toBigDecimal(unwrappedDebt[4]), // fixed_payment
+                mapper.toString(unwrappedDebt[5]), // frequency
+                mapper.toString(unwrappedDebt[6]), // nextDueDate
+                mapper.toString(unwrappedDebt[7])  // notes
+            );
         }
         
         Object[] row = installmentRepo.getInstallmentById(uuid, installmentUuid);
