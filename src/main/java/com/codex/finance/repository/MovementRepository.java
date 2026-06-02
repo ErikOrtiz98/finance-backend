@@ -131,15 +131,15 @@ public interface MovementRepository extends JpaRepository<Movement, UUID> {
     	Object[] getSummaryAll(@Param("userId") UUID userId);
 
     @Query(value = "SELECT " +
-            "COALESCE(SUM(CASE WHEN movement_type = 'income' THEN amount ELSE 0 END), 0) AS income, " +
-            "COALESCE(SUM(CASE WHEN movement_type IN ('expense', 'payment', 'payment') THEN amount ELSE 0 END), 0) AS expenses, " +
-            "COALESCE(SUM(CASE WHEN movement_type = 'payment' THEN amount ELSE 0 END), 0) AS debtPayments, " +
-            "0 AS fixedPayments " +
-            "FROM movements WHERE user_id = :userId AND deleted_at IS NULL " +
-            "AND movement_date >= :from AND movement_date <= :to", nativeQuery = true)
-     Object[] getSummaryByDateRange(@Param("userId") UUID userId, 
-                                    @Param("from") LocalDate from, 
-                                    @Param("to") LocalDate to);
+    	       "COALESCE(SUM(CASE WHEN movement_type = 'income' THEN amount ELSE 0 END), 0) AS income, " +
+    	       "COALESCE(SUM(CASE WHEN movement_type IN ('expense', 'payment') THEN amount ELSE 0 END), 0) AS expenses, " +
+    	       "COALESCE(SUM(CASE WHEN movement_type = 'payment' THEN amount ELSE 0 END), 0) AS debtPayments, " +
+    	       "0 AS fixedPayments " +
+    	       "FROM movements WHERE user_id = :userId AND deleted_at IS NULL " +
+    	       "AND movement_date >= :from AND movement_date <= :to", nativeQuery = true)
+    	Object[] getSummaryByDateRange(@Param("userId") UUID userId, 
+    	                               @Param("from") LocalDate from, 
+    	                               @Param("to") LocalDate to);
 
     	@Query(value = "SELECT COALESCE(SUM(CASE WHEN movement_type = 'income' THEN amount ELSE 0 END), 0) AS income, " +
     	       "COALESCE(SUM(CASE WHEN movement_type = 'expense' THEN amount ELSE 0 END), 0) AS expenses, " +
@@ -172,7 +172,7 @@ public interface MovementRepository extends JpaRepository<Movement, UUID> {
 
         @Query(value = "SELECT COALESCE(SUM(CASE WHEN m.movement_type = 'income' THEN m.amount ELSE 0 END), 0) as total_income, " +
                "COALESCE(SUM(CASE WHEN m.movement_type IN ('expense', 'payment') THEN m.amount ELSE 0 END), 0) as total_expenses, " +
-               "COALESCE(SUM(CASE WHEN m.movement_type = 'debt_payment' THEN m.amount ELSE 0 END), 0) as debt_payments, " +
+               "COALESCE(SUM(CASE WHEN m.movement_type = 'payment' THEN m.amount ELSE 0 END), 0) as debt_payments, " +
                "COALESCE(SUM(CASE WHEN m.movement_type = 'fixed_payment' THEN m.amount ELSE 0 END), 0) as fixed_payments " +
                "FROM movements m " +
                "WHERE m.user_id = :userId " +
@@ -185,7 +185,7 @@ public interface MovementRepository extends JpaRepository<Movement, UUID> {
         
         @Query(value = "SELECT COALESCE(SUM(CASE WHEN m.movement_type = 'income' THEN m.amount ELSE 0 END), 0) as total_income, " +
                "COALESCE(SUM(CASE WHEN m.movement_type IN ('expense', 'payment') THEN m.amount ELSE 0 END), 0) as total_expenses, " +
-               "COALESCE(SUM(CASE WHEN m.movement_type = 'debt_payment' THEN m.amount ELSE 0 END), 0) as debt_payments, " +
+               "COALESCE(SUM(CASE WHEN m.movement_type = 'payment' THEN m.amount ELSE 0 END), 0) as debt_payments, " +
                "COALESCE(SUM(CASE WHEN m.movement_type = 'fixed_payment' THEN m.amount ELSE 0 END), 0) as fixed_payments " +
                "FROM movements m " +
                "WHERE m.user_id = :userId " +
