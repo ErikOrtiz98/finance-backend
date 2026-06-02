@@ -170,6 +170,14 @@
             <svg viewBox="0 0 20 20"><circle cx="10" cy="7" r="3.5" stroke="currentColor" stroke-width="1.5" fill="none"/><path d="M3 18c0-3.866 3.134-7 7-7s7 3.134 7 7" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" fill="none"/></svg>
             Mi perfil
           </button>
+		  <!-- NUEVO BOTÓN DE AYUDA -->
+		  <button class="nav-item" data-section="help">
+		    <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5">
+		      <circle cx="10" cy="10" r="8" stroke="currentColor" fill="none"/>
+		      <path d="M10 13v1M10 7a2 2 0 0 0-2 2c0 1.5 2 2 2 2s2-.5 2-2a2 2 0 0 0-2-2z" stroke="currentColor" fill="none" stroke-linecap="round"/>
+		    </svg>
+		    Ayuda / Manual
+		  </button>
 		  <button class="nav-item" id="btn-install-app" style="display:none">
 		    <svg viewBox="0 0 20 20"><path d="M10 2v12M6 10l4 4 4-4M4 16h12" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" fill="none"/></svg>
 		    Instalar App
@@ -687,7 +695,299 @@
           </div>
           <div id="biweekly-list" class="biweekly-grid"></div>
         </section>
+		<!-- ── MANUAL / AYUDA ── -->
+		<section class="page-section hidden" id="section-help">
+		  <div class="manual-container">
+		    <div class="manual-header">
+		      <h1 class="manual-title">📚 Manual de Usuario</h1>
+		      <p class="manual-subtitle">Sistema de Finanzas Personales - Guía completa</p>
+		    </div>
+		    
+		    <div class="manual-toc">
+		      <h3>📖 Contenido</h3>
+		      <div class="toc-grid">
+		        <a href="#introduccion" class="toc-item">1. Introducción</a>
+		        <a href="#primeros-pasos" class="toc-item">2. Primeros Pasos</a>
+		        <a href="#dashboard" class="toc-item">3. Dashboard</a>
+		        <a href="#cuentas" class="toc-item">4. Cuentas y Tarjetas</a>
+		        <a href="#transacciones" class="toc-item">5. Transacciones</a>
+		        <a href="#recurrentes" class="toc-item">6. Pagos Recurrentes</a>
+		        <a href="#deudas" class="toc-item">7. Deudas y Préstamos</a>
+		        <a href="#compras-meses" class="toc-item">8. Compras a Meses (MSI)</a>
+		        <a href="#partialidades" class="toc-item">9. Partialidades</a>
+		        <a href="#metas" class="toc-item">10. Metas Financieras</a>
+		        <a href="#presupuestos" class="toc-item">11. Presupuestos</a>
+		        <a href="#organizacion" class="toc-item">12. Organización Quincenal</a>
+		        <a href="#reportes" class="toc-item">13. Reportes y Estadísticas</a>
+		        <a href="#perfil" class="toc-item">14. Perfil y Configuración</a>
+		        <a href="#respaldo" class="toc-item">15. Respaldo de Datos</a>
+		        <a href="#solucion" class="toc-item">16. Solución de Problemas</a>
+		        <a href="#glosario" class="toc-item">17. Glosario</a>
+		      </div>
+		    </div>
 
+		    <div class="manual-content">
+		      <!-- 1. INTRODUCCIÓN -->
+		      <div id="introduccion" class="manual-section">
+		        <h2>1. Introducción</h2>
+		        <p>El Sistema de Finanzas Personales es una aplicación que te permite controlar tus ingresos, gastos, tarjetas de crédito, deudas y metas financieras de manera centralizada.</p>
+		        <h3>Características principales</h3>
+		        <ul>
+		          <li>✅ Control de ingresos y gastos</li>
+		          <li>✅ Gestión de tarjetas de crédito</li>
+		          <li>✅ Compras a meses sin intereses (MSI)</li>
+		          <li>✅ Pagos recurrentes</li>
+		          <li>✅ Metas financieras</li>
+		          <li>✅ Presupuestos por categoría</li>
+		          <li>✅ Organización quincenal de pagos</li>
+		          <li>✅ Indicador de sobreendeudamiento</li>
+		        </ul>
+		      </div>
+
+		      <!-- 2. PRIMEROS PASOS -->
+		      <div id="primeros-pasos" class="manual-section">
+		        <h2>2. Primeros Pasos</h2>
+		        <h3>Crear una cuenta</h3>
+		        <ol>
+		          <li>Haz clic en <strong>"Regístrate"</strong></li>
+		          <li>Completa: nombre de usuario, correo y contraseña (mínimo 8 caracteres)</li>
+		          <li>Haz clic en <strong>"Crear cuenta"</strong></li>
+		        </ol>
+		        <h3>Configurar tu perfil</h3>
+		        <ol>
+		          <li>Ve a <strong>"Mi perfil"</strong> en el menú lateral</li>
+		          <li>Configura: Ingreso mensual, Moneda, Ciclo base, Días de pago</li>
+		          <li>Haz clic en <strong>"Guardar perfil"</strong></li>
+		        </ol>
+		      </div>
+
+		      <!-- 3. DASHBOARD -->
+		      <div id="dashboard" class="manual-section">
+		        <h2>3. Dashboard - Visión General</h2>
+		        <h3>Tarjetas de resumen</h3>
+		        <table class="manual-table">
+		          <tr><th>Indicador</th><th>Descripción</th></tr>
+		          <tr><td>Ingreso del periodo</td><td>Tus ingresos en la quincena/mes actual</td></tr>
+		          <tr><td>Total Gastos</td><td>Suma de todos tus gastos</td></tr>
+		          <tr><td>Balance estimado</td><td>Ingresos - Gastos</td></tr>
+		          <tr><td>Pago de deudas</td><td>Solo pagos a deudas y tarjetas</td></tr>
+		        </table>
+		        <h3>Indicador de Endeudamiento</h3>
+		        <ul>
+		          <li>🟢 <strong>Bajo (0-30%)</strong>: Saludable</li>
+		          <li>🟡 <strong>Medio (30-50%)</strong>: Precaución</li>
+		          <li>🟠 <strong>Alto (50-70%)</strong>: Alerta</li>
+		          <li>🔴 <strong>Crítico (>70%)</strong>: Urgente</li>
+		        </ul>
+		      </div>
+
+		      <!-- 4. CUENTAS Y TARJETAS -->
+		      <div id="cuentas" class="manual-section">
+		        <h2>4. Cuentas y Tarjetas</h2>
+		        <h3>Tipos de cuentas</h3>
+		        <table class="manual-table">
+		          <tr><th>Tipo</th><th>Uso</th></tr>
+		          <tr><td>Débito</td><td>Dinero disponible (nómina)</td></tr>
+		          <tr><td>Crédito</td><td>Tarjetas de crédito</td></tr>
+		          <tr><td>Efectivo</td><td>Dinero en físico</td></tr>
+		          <tr><td>Ahorro</td><td>Cuentas de ahorro</td></tr>
+		        </table>
+		        <h3>Agregar una cuenta</h3>
+		        <ol>
+		          <li>Ve a <strong>"Cuentas / Tarjetas"</strong></li>
+		          <li>Haz clic en <strong>"+ Nueva cuenta"</strong></li>
+		          <li>Completa los campos y haz clic en <strong>"Guardar"</strong></li>
+		        </ol>
+		      </div>
+
+		      <!-- 5. TRANSACCIONES -->
+		      <div id="transacciones" class="manual-section">
+		        <h2>5. Gestión de Transacciones</h2>
+		        <h3>Agregar una transacción</h3>
+		        <ol>
+		          <li>Ve a <strong>"Transacciones"</strong></li>
+		          <li>Haz clic en <strong>"+ Nueva"</strong></li>
+		          <li>Completa: Concepto, Monto, Tipo, Categoría, Cuenta, Fecha</li>
+		          <li>Haz clic en <strong>"Guardar"</strong></li>
+		        </ol>
+		        <h3>Tipos de transacción</h3>
+		        <ul>
+		          <li><strong>Gasto</strong>: Dinero que sale</li>
+		          <li><strong>Ingreso</strong>: Dinero que entra</li>
+		          <li><strong>Transferencia</strong>: Entre cuentas</li>
+		          <li><strong>Pago</strong>: Pago a tarjeta de crédito</li>
+		        </ul>
+		      </div>
+
+		      <!-- 6. PAGOS RECURRENTES -->
+		      <div id="recurrentes" class="manual-section">
+		        <h2>6. Pagos Recurrentes</h2>
+		        <p>Son gastos o ingresos que se repiten periódicamente (Netflix, renta, Spotify, salario).</p>
+		        <h3>Agregar pago recurrente</h3>
+		        <ol>
+		          <li>Ve a <strong>"Pagos recurrentes"</strong></li>
+		          <li>Haz clic en <strong>"+ Nuevo"</strong></li>
+		          <li>Completa: Nombre, Monto, Tipo, Frecuencia, Próximo vencimiento</li>
+		          <li>Haz clic en <strong>"Guardar"</strong></li>
+		        </ol>
+		      </div>
+
+		      <!-- 7. DEUDAS Y PRÉSTAMOS -->
+		      <div id="deudas" class="manual-section">
+		        <h2>7. Deudas y Préstamos</h2>
+		        <h3>Agregar una deuda</h3>
+		        <ol>
+		          <li>Ve a <strong>"Deudas / Préstamos"</strong></li>
+		          <li>Haz clic en <strong>"+ Nueva deuda"</strong></li>
+		          <li>Completa: Nombre, Frecuencia, Saldo restante, Pago mínimo, Próximo pago</li>
+		          <li>Haz clic en <strong>"Guardar"</strong></li>
+		        </ol>
+		      </div>
+
+		      <!-- 8. COMPRAS A MESES -->
+		      <div id="compras-meses" class="manual-section">
+		        <h2>8. Compras a Meses (MSI)</h2>
+		        <p>Te permite registrar compras a meses con tu tarjeta de crédito.</p>
+		        <h3>Requisitos</h3>
+		        <ul>
+		          <li>Tener una <strong>tarjeta de crédito</strong> registrada</li>
+		        </ul>
+		        <h3>Cómo comprar a meses</h3>
+		        <ol>
+		          <li>Ve a <strong>"Cuentas / Tarjetas"</strong></li>
+		          <li>Haz clic en <strong>"+ Compra a meses"</strong></li>
+		          <li>Completa: Tarjeta, Nombre, Monto total, Meses, Interés, Primer pago</li>
+		          <li>Haz clic en <strong>"Guardar"</strong></li>
+		        </ol>
+		        <p><strong>Ejemplo:</strong> Compra de $24,000 a 12 meses sin intereses → Pago mensual de $2,000</p>
+		      </div>
+
+		      <!-- 9. PARTIALIDADES -->
+		      <div id="partialidades" class="manual-section">
+		        <h2>9. Partialidades</h2>
+		        <p>Son los pagos individuales de una compra a meses o de una deuda dividida.</p>
+		        <h3>Pagar una partialidad</h3>
+		        <ol>
+		          <li>Ve a <strong>"Partialidades"</strong></li>
+		          <li>Busca la partialidad pendiente</li>
+		          <li>Haz clic en <strong>"Pagar"</strong></li>
+		        </ol>
+		      </div>
+
+		      <!-- 10. METAS FINANCIERAS -->
+		      <div id="metas" class="manual-section">
+		        <h2>10. Metas Financieras</h2>
+		        <h3>Agregar una meta</h3>
+		        <ol>
+		          <li>Ve a <strong>"Metas Financieras"</strong></li>
+		          <li>Haz clic en <strong>"+ Nueva meta"</strong></li>
+		          <li>Completa: Nombre, Monto objetivo, Progreso actual, Fecha objetivo</li>
+		          <li>Haz clic en <strong>"Guardar"</strong></li>
+		        </ol>
+		        <h3>Agregar progreso</h3>
+		        <ol>
+		          <li>En la meta, haz clic en <strong>"+ Agregar progreso"</strong></li>
+		          <li>Ingresa el monto y confirma</li>
+		        </ol>
+		      </div>
+
+		      <!-- 11. PRESUPUESTOS -->
+		      <div id="presupuestos" class="manual-section">
+		        <h2>11. Presupuestos</h2>
+		        <h3>Crear un presupuesto</h3>
+		        <ol>
+		          <li>Ve a <strong>"Presupuestos"</strong></li>
+		          <li>Haz clic en <strong>"+ Nuevo presupuesto"</strong></li>
+		          <li>Completa: Categoría, Monto límite, Alerta (%), Periodo</li>
+		          <li>Haz clic en <strong>"Guardar"</strong></li>
+		        </ol>
+		      </div>
+
+		      <!-- 12. ORGANIZACIÓN QUINCENAL -->
+		      <div id="organizacion" class="manual-section">
+		        <h2>12. Organización Quincenal</h2>
+		        <p>Vista que organiza tus pagos por quincena para saber cuánto dinero te queda disponible.</p>
+		        <ul>
+		          <li><strong>Primera quincena</strong>: días 1-15</li>
+		          <li><strong>Segunda quincena</strong>: días 16-31</li>
+		        </ul>
+		        <p><strong>Beneficios:</strong> Sabes si te alcanza antes de gastar, evitas sobregiros, planificas mejor.</p>
+		      </div>
+
+		      <!-- 13. REPORTES Y ESTADÍSTICAS -->
+		      <div id="reportes" class="manual-section">
+		        <h2>13. Reportes y Estadísticas</h2>
+		        <h3>Reportes mensuales</h3>
+		        <ol>
+		          <li>Ve a <strong>"Reportes Mensuales"</strong></li>
+		          <li>Selecciona el año</li>
+		          <li>Verás ingresos, gastos, ahorro y top gastos por mes</li>
+		        </ol>
+		        <h3>Estadísticas</h3>
+		        <p>Muestra resumen del periodo, gasto por categoría y próximos vencimientos.</p>
+		      </div>
+
+		      <!-- 14. PERFIL Y CONFIGURACIÓN -->
+		      <div id="perfil" class="manual-section">
+		        <h2>14. Perfil y Configuración</h2>
+		        <p>En <strong>"Mi perfil"</strong> puedes configurar:</p>
+		        <ul>
+		          <li>Ingreso mensual</li>
+		          <li>Moneda principal (MXN/USD)</li>
+		          <li>Ciclo base (Quincenal/Mensual)</li>
+		          <li>Días de pago</li>
+		        </ul>
+		      </div>
+
+		      <!-- 15. RESPALDO DE DATOS -->
+		      <div id="respaldo" class="manual-section">
+		        <h2>15. Respaldo de Datos</h2>
+		        <h3>Exportar</h3>
+		        <ol>
+		          <li>Ve a <strong>"Mi perfil"</strong></li>
+		          <li>Haz clic en <strong>"Exportar respaldo"</strong></li>
+		          <li>Se descargará un archivo JSON</li>
+		        </ol>
+		        <h3>Importar</h3>
+		        <ol>
+		          <li>Ve a <strong>"Mi perfil"</strong></li>
+		          <li>Haz clic en <strong>"Importar respaldo"</strong></li>
+		          <li>Selecciona el archivo JSON</li>
+		        </ol>
+		      </div>
+
+		      <!-- 16. SOLUCIÓN DE PROBLEMAS -->
+		      <div id="solucion" class="manual-section">
+		        <h2>16. Solución de Problemas</h2>
+		        <table class="manual-table">
+		          <tr><th>Problema</th><th>Solución</th></tr>
+		          <tr><td>No puedo iniciar sesión</td><td>Verifica correo/contraseña</td></tr>
+		          <tr><td>Los números no coinciden</td><td>Revisa transacciones duplicadas</td></tr>
+		          <tr><td>La tarjeta no aparece en compras a meses</td><td>Verifica que sea tipo Crédito</td></tr>
+		          <tr><td>Error al pagar partialidad</td><td>Verifica que tengas cuenta de débito</td></tr>
+		        </table>
+		      </div>
+
+		      <!-- 17. GLOSARIO -->
+		      <div id="glosario" class="manual-section">
+		        <h2>17. Glosario de Términos</h2>
+		        <table class="manual-table">
+		          <tr><th>Término</th><th>Significado</th></tr>
+		          <tr><td>Partialidad</td><td>Cada pago mensual de una compra a meses</td></tr>
+		          <tr><td>MSI</td><td>Meses Sin Intereses</td></tr>
+		          <tr><td>Saldo disponible</td><td>Límite de crédito - Saldo actual</td></tr>
+		          <tr><td>Día de corte</td><td>Fin del periodo de facturación</td></tr>
+		          <tr><td>Día de pago</td><td>Fecha límite para pagar tu tarjeta</td></tr>
+		        </table>
+		      </div>
+		    </div>
+
+		    <div class="manual-footer">
+		      <p>📅 Manual actualizado: Junio 2026</p>
+		      <p>💡 ¿Necesitas ayuda adicional? Contacta a soporte técnico</p>
+		    </div>
+		  </div>
+		</section>
         <!-- ── PROFILE ── -->
         <section class="page-section hidden" id="section-profile">
           <div class="profile-wrap">

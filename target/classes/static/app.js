@@ -282,6 +282,7 @@ const SECTION_TITLES = {
   categories: "Categorías",
   profile: "Mi perfil",
   biweekly: "Organización Quincenal",
+  help: "Ayuda / Manual",
 };
 
 function navigateTo(section) {
@@ -319,6 +320,7 @@ async function loadSection(section) {
       case "categories": await loadCategories(); break;
       case "profile": await loadProfile(); break;
       case "biweekly": await loadBiweeklySchedule(); break;
+	  case "help": /* No necesita cargar datos, solo mostrar HTML */ break;
     }
   } catch (e) {
     console.error("Error loading section:", e);
