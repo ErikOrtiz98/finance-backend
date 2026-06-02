@@ -706,8 +706,13 @@ function renderRecurring() {
 async function loadDebts() {
   setLoading(true);
   try {
-    state.debts = await api.get("/debts") || [];
+    const debts = await api.get("/debts");
+    state.debts = debts || [];
+    console.log("Deudas cargadas:", state.debts);
     renderDebts();
+  } catch (error) {
+    console.error("Error loading debts:", error);
+    showToast("Error al cargar deudas", "error");
   } finally {
     setLoading(false);
   }
@@ -747,7 +752,11 @@ function renderDebts() {
         ${activeDebts.map(d => {
           const remaining = d.remainingBalance || d.principalBalance || 0;
           const total = d.principalBalance || remaining;
-          const pct = total > 0 ? Math.round(((total - remaining) / total) * 100) : 0;
+          // Calcular porcentaje CORRECTAMENTE
+          const paidAmount = total - remaining;
+          const pct = total > 0 ? Math.round((paidAmount / total) * 100) : 0;
+          
+          console.log(`Deuda: ${d.name}, Total: ${total}, Restante: ${remaining}, Pagado: ${paidAmount}, Porcentaje: ${pct}%`);
           
           return `
             <div class="data-row" style="flex-direction:column;align-items:stretch;gap:.75rem">
@@ -764,7 +773,12 @@ function renderDebts() {
                 </div>
               </div>
               <div style="display:grid;gap:.25rem">
-                <div class="bar-track"><div class="bar-fill" style="width:${pct}%;background:linear-gradient(90deg,var(--green),var(--blue))"></div></div>
+                <div class="bar-track"><div class="bar-fill" style="width:${Math.min(pct, 100)}%;background:linear-gradient(90deg,var(--green),var(--blue))"></div></div>
+                <div style="display:flex;justify-content:space-between;font-size:0.7rem;color:var(--text-muted)">
+                  <span>Pagado: ${fmt(paidAmount, cur)}</span>
+                  <span>${pct}% completado</span>
+                  <span>Restante: ${fmt(remaining, cur)}</span>
+                </div>
               </div>
             </div>
           `;
@@ -782,17 +796,24 @@ function renderDebts() {
       </div>
       <div class="debt-section-content">
         ${paidDebts.map(d => {
+          const total = d.principalBalance || 0;
           return `
             <div class="data-row debt-paid" style="flex-direction:column;align-items:stretch;gap:.75rem">
               <div style="display:flex;align-items:center;gap:1rem;flex-wrap:wrap">
                 <div class="data-row-icon">✅</div>
                 <div class="data-row-info" style="flex:1">
                   <div class="data-row-name">${d.name} <span class="badge badge-green">Saldada</span></div>
-                  <div class="data-row-meta">Liquidada el ${d.updatedAt ? new Date(d.updatedAt).toLocaleDateString() : '—'}</div>
+                  <div class="data-row-meta">Deuda liquidada - Total: ${fmt(total, cur)}</div>
                 </div>
                 <div class="data-row-amount income">✓ $0.00</div>
                 <div class="data-row-actions">
                   <button class="btn-danger-sm" data-action="del-debt" data-id="${d.id}">Eliminar</button>
+                </div>
+              </div>
+              <div style="display:grid;gap:.25rem">
+                <div class="bar-track"><div class="bar-fill" style="width:100%;background:var(--green)"></div></div>
+                <div style="display:flex;justify-content:flex-end;font-size:0.7rem;color:var(--green)">
+                  100% completado
                 </div>
               </div>
             </div>
@@ -2915,41 +2936,39 @@ document.addEventListener("click", async (e) => {
       showToast("Presupuesto eliminado", "success");
       await loadBudgets();
     }
-    if (action === "pay-inst") {
-      if (!confirm("¿Marcar esta partialidad como pagada?")) return;
-      try {
-        const installment = state.installments.find(i => i.id == id);
-        if (!installment) throw new Error("No se encontró la partialidad");
-        
-        const debt = state.debts.find(d => d.id === installment.debtId);
-        if (!debt) throw new Error("No se encontró la deuda asociada");
-        
-        const currentRemaining = debt.remainingBalance || debt.principalBalance || 0;
-        const newRemaining = currentRemaining - installment.amount;
-        
-        if (newRemaining < 0) {
-          showToast("El monto de la partialidad excede el saldo restante", "error");
-          return;
-        }
-        
-        await api.post(`/installments/${id}/pay`, {});
-        
-        await api.patch(`/debts/${debt.id}`, {
-          remainingBalance: newRemaining,
-          principalBalance: debt.principalBalance,
-          installment: debt.installment,
-          frequency: debt.frequency,
-          nextDueDate: debt.nextDueDate,
-          notes: debt.notes
-        });
-        
-        showToast(`Partialidad pagada. Saldo restante: ${fmt(newRemaining, state.user?.currency || "MXN")}`, "success");
-        await loadInstallments();
-        await loadDebts();
-      } catch (err) {
-        showToast(err.message, "error");
-      }
-    }
+	if (action === "pay-inst") {
+	  if (!confirm("¿Marcar esta partialidad como pagada?")) return;
+	  try {
+	    const installment = state.installments.find(i => i.id == id);
+	    if (!installment) throw new Error("No se encontró la partialidad");
+	    
+	    const debt = state.debts.find(d => d.id === installment.debtId);
+	    if (!debt) throw new Error("No se encontró la deuda asociada");
+	    
+	    const currentRemaining = debt.remainingBalance || debt.principalBalance || 0;
+	    const newRemaining = currentRemaining - installment.amount;
+	    
+	    if (newRemaining < 0) {
+	      showToast("El monto de la partialidad excede el saldo restante", "error");
+	      return;
+	    }
+	    
+	    await api.post(`/installments/${id}/pay`, {});
+	    
+	    // Recargar deudas para actualizar la barra de progreso
+	    await loadDebts();      // <-- IMPORTANTE: recargar deudas
+	    await loadInstallments(); // <-- IMPORTANTE: recargar partialidades
+	    
+	    showToast(`Partialidad pagada. Saldo restante: ${fmt(newRemaining, state.user?.currency || "MXN")}`, "success");
+	    
+	    // Si estamos en la sección de deudas, recargar
+	    if (state.activeSection === "debts") {
+	      await loadDebts();
+	    }
+	  } catch (err) {
+	    showToast(err.message, "error");
+	  }
+	}
     if (action === "del-inst") {
       if (!confirm("¿Eliminar esta partialidad?")) return;
       await api.delete(`/installments/${id}`);
