@@ -556,24 +556,34 @@ public class FinanceApiService {
     // ==================== SUMMARY ====================
     @Transactional(readOnly = true)
     public ContractDtos.SummaryResponse summary(String userId, String range, LocalDate from, LocalDate to, String accountId) {
-    	UUID uuid = UUID.fromString(userId);
-        String currency = profileRepo.getUserCurrency(uuid);
+        System.out.println("=== SUMMARY DEBUG ===");
+        System.out.println("Range recibido: '" + range + "'");
+        System.out.println("Range es null? " + (range == null));
+        System.out.println("Range longitud: " + (range == null ? "null" : range.length()));
         
-        // Validar el range antes de usarlo
-        if (range != null && !range.isEmpty()) {
-            String validRange = range.toLowerCase().trim();
-            if (!validRange.equals("biweekly") && !validRange.equals("monthly") && !validRange.equals("custom")) {
-                // Si el valor no es válido, usar monthly por defecto
-                System.out.println("Invalid range value: " + range + ", using monthly");
-                range = "monthly";
+        // Sanitizar el range ANTES de usarlo
+        String sanitizedRange = range;
+        if (sanitizedRange != null) {
+            sanitizedRange = sanitizedRange.toLowerCase().trim();
+            System.out.println("Range sanitizado: '" + sanitizedRange + "'");
+            
+            // Validar que sea uno de los valores permitidos
+            if (!sanitizedRange.equals("biweekly") && !sanitizedRange.equals("monthly") && !sanitizedRange.equals("custom")) {
+                System.out.println("⚠️ Range inválido: '" + sanitizedRange + "', usando 'monthly' como default");
+                sanitizedRange = "monthly";
             }
         } else {
-            range = "monthly";
+            sanitizedRange = "monthly";
         }
         
-        LocalDate[] window = resolveWindow(range, from, to);
+        UUID uuid = UUID.fromString(userId);
+        String currency = profileRepo.getUserCurrency(uuid);
+        
+        LocalDate[] window = resolveWindow(sanitizedRange, from, to);
         LocalDate startDate = window[0];
         LocalDate endDate = window[1];
+        
+        System.out.println("Fechas: " + startDate + " a " + endDate);
         
         BigDecimal realIncome = BigDecimal.ZERO;
         BigDecimal totalExpenses = BigDecimal.ZERO;  
@@ -671,51 +681,60 @@ public class FinanceApiService {
     // ==================== NUEVO: SOBREENDEUDAMIENTO ====================
     @Transactional(readOnly = true)
     public ContractDtos.DebtRatioResponse getDebtRatio(String userId) {
-        UUID uuid = UUID.fromString(userId);
-        String currency = profileRepo.getUserCurrency(uuid);
-        LocalDate today = LocalDate.now();
-        LocalDate monthStart = today.withDayOfMonth(1);
-        LocalDate monthEnd = today.withDayOfMonth(today.lengthOfMonth());
-        
-        Object[] summaryRow = movementRepo.getSummaryByDateRange(uuid, monthStart, monthEnd);
-        if (summaryRow != null) {
-            summaryRow = mapper.unwrap(summaryRow);
-        }
-        
-        BigDecimal totalIncome = summaryRow != null ? mapper.toBigDecimal(summaryRow[0]) : BigDecimal.ZERO;
-        BigDecimal totalDebtPayments = summaryRow != null ? mapper.toBigDecimal(summaryRow[2]) : BigDecimal.ZERO;
-        
-        if (totalIncome.compareTo(BigDecimal.ZERO) == 0) {
-            Object[] profileRow = profileRepo.getProfile(uuid);
-            if (profileRow != null) {
-                profileRow = mapper.unwrap(profileRow);
-                if (profileRow.length > 6 && profileRow[6] != null) {
-                    totalIncome = mapper.toBigDecimal(profileRow[6]);
-                }
-            }
-        }
-        
-        BigDecimal ratio = totalIncome.compareTo(BigDecimal.ZERO) > 0 
-            ? totalDebtPayments.multiply(BigDecimal.valueOf(100)).divide(totalIncome, 2, java.math.RoundingMode.HALF_UP)
-            : BigDecimal.valueOf(100);
-        
-        String riskLevel;
-        String recommendation;
-        if (ratio.compareTo(BigDecimal.valueOf(30)) <= 0) {
-            riskLevel = "bajo";
-            recommendation = "Tu nivel de endeudamiento es saludable. Sigue así.";
-        } else if (ratio.compareTo(BigDecimal.valueOf(50)) <= 0) {
-            riskLevel = "medio";
-            recommendation = "Considera reducir tus deudas antes de adquirir nuevas.";
-        } else if (ratio.compareTo(BigDecimal.valueOf(70)) <= 0) {
-            riskLevel = "alto";
-            recommendation = "Tus deudas consumen gran parte de tus ingresos. Prioriza pagar las de mayor interés.";
-        } else {
-            riskLevel = "crítico";
-            recommendation = "¡Alerta! Tus deudas superan tu capacidad de pago. Busca asesoría financiera.";
-        }
-        
-        return new ContractDtos.DebtRatioResponse(totalIncome, totalDebtPayments, ratio, riskLevel, recommendation, currency);
+    	System.out.println("=== DEBT RATIO DEBUG ===");
+    	System.out.println("UserId: " + userId);
+
+    	try {
+    		UUID uuid = UUID.fromString(userId);
+    		String currency = profileRepo.getUserCurrency(uuid);
+    		LocalDate today = LocalDate.now();
+    		LocalDate monthStart = today.withDayOfMonth(1);
+    		LocalDate monthEnd = today.withDayOfMonth(today.lengthOfMonth());
+
+    		Object[] summaryRow = movementRepo.getSummaryByDateRange(uuid, monthStart, monthEnd);
+    		if (summaryRow != null) {
+    			summaryRow = mapper.unwrap(summaryRow);
+    		}
+
+    		BigDecimal totalIncome = summaryRow != null ? mapper.toBigDecimal(summaryRow[0]) : BigDecimal.ZERO;
+    		BigDecimal totalDebtPayments = summaryRow != null ? mapper.toBigDecimal(summaryRow[2]) : BigDecimal.ZERO;
+
+    		if (totalIncome.compareTo(BigDecimal.ZERO) == 0) {
+    			Object[] profileRow = profileRepo.getProfile(uuid);
+    			if (profileRow != null) {
+    				profileRow = mapper.unwrap(profileRow);
+    				if (profileRow.length > 6 && profileRow[6] != null) {
+    					totalIncome = mapper.toBigDecimal(profileRow[6]);
+    				}
+    			}
+    		}
+
+    		BigDecimal ratio = totalIncome.compareTo(BigDecimal.ZERO) > 0 
+    				? totalDebtPayments.multiply(BigDecimal.valueOf(100)).divide(totalIncome, 2, java.math.RoundingMode.HALF_UP)
+    						: BigDecimal.valueOf(100);
+
+    		String riskLevel;
+    		String recommendation;
+    		if (ratio.compareTo(BigDecimal.valueOf(30)) <= 0) {
+    			riskLevel = "bajo";
+    			recommendation = "Tu nivel de endeudamiento es saludable. Sigue así.";
+    		} else if (ratio.compareTo(BigDecimal.valueOf(50)) <= 0) {
+    			riskLevel = "medio";
+    			recommendation = "Considera reducir tus deudas antes de adquirir nuevas.";
+    		} else if (ratio.compareTo(BigDecimal.valueOf(70)) <= 0) {
+    			riskLevel = "alto";
+    			recommendation = "Tus deudas consumen gran parte de tus ingresos. Prioriza pagar las de mayor interés.";
+    		} else {
+    			riskLevel = "crítico";
+    			recommendation = "¡Alerta! Tus deudas superan tu capacidad de pago. Busca asesoría financiera.";
+    		}
+
+    		return new ContractDtos.DebtRatioResponse(totalIncome, totalDebtPayments, ratio, riskLevel, recommendation, currency);
+    	} catch (Exception e) {
+    		System.err.println("Error en getDebtRatio: " + e.getMessage());
+    		e.printStackTrace();
+    		throw e;
+    	}
     }
 
     // ==================== NUEVO: ORGANIZACIÓN QUINCENAL ====================
@@ -839,7 +858,8 @@ public class FinanceApiService {
         if (from != null || to != null) return new LocalDate[]{from, to};
         LocalDate today = LocalDate.now();
         
-        // Normalizar el valor de range (convertir a minúsculas y manejar valores posibles)
+        System.out.println("resolveWindow - range recibido: '" + range + "'");
+        
         String normalizedRange = range == null ? "monthly" : range.toLowerCase().trim();
         
         switch (normalizedRange) {
@@ -854,8 +874,7 @@ public class FinanceApiService {
             case "custom":
                 return new LocalDate[]{today.minusDays(30), today};
             default:
-                // Si no es ninguno de los valores esperados, usar monthly por defecto
-                System.out.println("Warning: Unknown range value '" + range + "', using 'monthly' as default");
+                System.out.println("⚠️ Valor de range no reconocido: '" + normalizedRange + "', usando monthly");
                 return new LocalDate[]{today.withDayOfMonth(1), today.withDayOfMonth(today.lengthOfMonth())};
         }
     }

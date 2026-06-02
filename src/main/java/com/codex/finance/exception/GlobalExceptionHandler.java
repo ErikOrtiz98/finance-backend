@@ -155,4 +155,15 @@ public class GlobalExceptionHandler {
         }
         return "No se pudo completar la autenticación.";
     }
+    @ExceptionHandler(org.springframework.dao.DataIntegrityViolationException.class)
+    public ResponseEntity<Map<String, Object>> handleDataIntegrityViolation(DataIntegrityViolationException ex) {
+        String message = ex.getMessage();
+        if (message != null && message.contains("enum")) {
+            return ResponseEntity.badRequest().body(Map.of(
+                "error", "validation_failed",
+                "message", "Valor no válido para el campo seleccionado. Verifica los datos."
+            ));
+        }
+        return ResponseEntity.badRequest().body(Map.of("error", "data_integrity", "message", ex.getMessage()));
+    }
 }
