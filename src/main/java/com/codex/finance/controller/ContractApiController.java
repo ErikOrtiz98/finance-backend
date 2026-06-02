@@ -371,5 +371,23 @@ public class ContractApiController {
     public Map<String, String> health() {
         return Map.of("status", "ok");
     }
+ // ==================== NUEVOS ENDPOINTS ====================
+
+    @GetMapping("/stats/debt-ratio")
+    public ContractDtos.DebtRatioResponse getDebtRatio(@AuthenticationPrincipal Jwt jwt) {
+        return service.getDebtRatio(jwt.getSubject());
+    }
+    
+    @GetMapping("/stats/biweekly-schedule")
+    public List<ContractDtos.BiweeklyScheduleResponse> getBiweeklySchedule(@AuthenticationPrincipal Jwt jwt) {
+        return service.getBiweeklySchedule(jwt.getSubject());
+    }
+    
+    @PostMapping("/installments/credit-card")
+    public ContractDtos.InstallmentResponse createCreditCardInstallment(
+            @AuthenticationPrincipal Jwt jwt,
+            @Valid @RequestBody ContractDtos.UpsertInstallmentRequest request) {
+        return service.createCreditCardInstallment(jwt.getSubject(), request);
+    }
 }
 

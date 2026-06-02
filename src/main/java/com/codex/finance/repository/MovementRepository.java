@@ -167,4 +167,32 @@ public interface MovementRepository extends JpaRepository<Movement, UUID> {
     		       "ORDER BY month DESC", nativeQuery = true)
     	List<Object[]> getMonthlyReport(@Param("userId") UUID userId, 
     		                            @Param("startDate") LocalDate startDate);
+    	// Agregar estos métodos al MovementRepository existente
+
+        @Query(value = "SELECT COALESCE(SUM(CASE WHEN m.movement_type = 'income' THEN m.amount ELSE 0 END), 0) as total_income, " +
+               "COALESCE(SUM(CASE WHEN m.movement_type IN ('expense', 'withdrawal') THEN m.amount ELSE 0 END), 0) as total_expenses, " +
+               "COALESCE(SUM(CASE WHEN m.movement_type = 'debt_payment' THEN m.amount ELSE 0 END), 0) as debt_payments, " +
+               "COALESCE(SUM(CASE WHEN m.movement_type = 'fixed_payment' THEN m.amount ELSE 0 END), 0) as fixed_payments " +
+               "FROM movements m " +
+               "WHERE m.user_id = :userId " +
+               "AND m.movement_date BETWEEN :startDate AND :endDate " +
+               "AND m.deleted_at IS NULL " +
+               "AND m.account_id IN (SELECT id FROM accounts WHERE user_id = :userId AND type = 'debit')", nativeQuery = true)
+        Object[] getSummaryByDateRangeFromDebitAccount(@Param("userId") UUID userId, 
+                                                        @Param("startDate") LocalDate startDate,
+                                                        @Param("endDate") LocalDate endDate);
+        
+        @Query(value = "SELECT COALESCE(SUM(CASE WHEN m.movement_type = 'income' THEN m.amount ELSE 0 END), 0) as total_income, " +
+               "COALESCE(SUM(CASE WHEN m.movement_type IN ('expense', 'withdrawal') THEN m.amount ELSE 0 END), 0) as total_expenses, " +
+               "COALESCE(SUM(CASE WHEN m.movement_type = 'debt_payment' THEN m.amount ELSE 0 END), 0) as debt_payments, " +
+               "COALESCE(SUM(CASE WHEN m.movement_type = 'fixed_payment' THEN m.amount ELSE 0 END), 0) as fixed_payments " +
+               "FROM movements m " +
+               "WHERE m.user_id = :userId " +
+               "AND m.movement_date BETWEEN :startDate AND :endDate " +
+               "AND m.deleted_at IS NULL " +
+               "AND m.account_id = :accountId", nativeQuery = true)
+        Object[] getSummaryByDateRangeAndAccount(@Param("userId") UUID userId, 
+                                                  @Param("startDate") LocalDate startDate,
+                                                  @Param("endDate") LocalDate endDate,
+                                                  @Param("accountId") UUID accountId);
 }

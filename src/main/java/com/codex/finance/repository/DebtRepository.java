@@ -8,6 +8,7 @@ import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 import java.math.BigDecimal;
 import java.time.Instant;
+import java.time.LocalDate;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -96,4 +97,15 @@ public interface DebtRepository extends JpaRepository<Debt, UUID> {
     	       "d.updated_at AS updatedAt, d.deleted_at AS deletedAt " +
     	       "FROM debts d WHERE d.user_id = :userId AND d.id = :id AND d.deleted_at IS NULL", nativeQuery = true)
     	Object[] getDebtById(@Param("userId") UUID userId, @Param("id") UUID id);
+    
+// Agregar este método:
+    
+    @Query(value = "SELECT d.id, d.name, d.frequency, d.next_due_date, d.installment " +
+           "FROM debts d " +
+           "WHERE d.user_id = :userId AND d.deleted_at IS NULL " +
+           "AND d.next_due_date BETWEEN :startDate AND :endDate " +
+           "ORDER BY d.next_due_date ASC", nativeQuery = true)
+    List<Object[]> getUpcomingDebtsInRange(@Param("userId") UUID userId, 
+                                            @Param("startDate") LocalDate startDate,
+                                            @Param("endDate") LocalDate endDate);
 }

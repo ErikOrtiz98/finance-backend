@@ -221,6 +221,8 @@ let state = {
   summary: null,
   categoryStats: [],
   upcoming: null,
+  debtRatio: null,
+  biweeklySchedule: null,
   activePeriod: "biweekly",
   activeSection: "dashboard",
 };
@@ -271,7 +273,7 @@ const SECTION_TITLES = {
   transactions: "Transacciones",
   accounts: "Cuentas y Tarjetas",
   recurring: "Pagos recurrentes",
-  debts: "Deudas y préstamos",
+  debts: "Deudas / Préstamos",
   installments: "Partialidades",
   goals: "Metas Financieras",
   budgets: "Presupuestos",
@@ -279,6 +281,7 @@ const SECTION_TITLES = {
   analytics: "Estadísticas",
   categories: "Categorías",
   profile: "Mi perfil",
+  biweekly: "Organización Quincenal",
 };
 
 function navigateTo(section) {
@@ -315,6 +318,7 @@ async function loadSection(section) {
       case "analytics": await loadAnalytics(); break;
       case "categories": await loadCategories(); break;
       case "profile": await loadProfile(); break;
+      case "biweekly": await loadBiweeklySchedule(); break;
     }
   } catch (e) {
     console.error("Error loading section:", e);
@@ -322,28 +326,65 @@ async function loadSection(section) {
   }
 }
 
-// ─── DASHBOARD ─────────────────────────────────────────────
+// ─── DASHBOARD (con gráfica de sobreendeudamiento) ─────────
 async function loadDashboard() {
   setLoading(true);
   try {
     const range = state.activePeriod;
-    const [summary, upcoming, catStats] = await Promise.all([
+    const [summary, upcoming, catStats, debtRatio] = await Promise.all([
       api.get(`/stats/summary?range=${range}`),
       api.get("/stats/upcoming"),
       api.get("/stats/categories"),
+      api.get("/stats/debt-ratio"),
     ]);
     state.summary = summary;
     state.upcoming = upcoming;
     state.categoryStats = catStats || [];
+    state.debtRatio = debtRatio;
 
     renderKPIs();
     renderUpcoming("upcoming-list", state.upcoming?.next7Days || []);
     renderCategoryBars("category-bars", state.categoryStats);
+    renderDebtRatioGauge("debt-ratio-gauge", state.debtRatio);
   } catch (error) {
     console.error("Dashboard error:", error);
   } finally {
     setLoading(false);
   }
+}
+
+function renderDebtRatioGauge(containerId, debtRatio) {
+  const c = el(containerId);
+  if (!c) return;
+  if (!debtRatio) {
+    c.innerHTML = `<div class="empty-state"><div class="empty-state-icon">📊</div>Cargando indicador...</div>`;
+    return;
+  }
+  
+  const ratio = Number(debtRatio.debtToIncomeRatio) || 0;
+  const riskLevel = debtRatio.riskLevel || "medio";
+  let barColor = "#34d399";
+  if (riskLevel === "alto") barColor = "#fbbf24";
+  if (riskLevel === "crítico") barColor = "#f87171";
+  
+  c.innerHTML = `
+    <div class="debt-gauge">
+      <div class="gauge-header">
+        <span class="gauge-label">📊 Índice de Endeudamiento</span>
+        <span class="gauge-value ${riskLevel}">${ratio}%</span>
+      </div>
+      <div class="gauge-track">
+        <div class="gauge-fill" style="width: ${Math.min(ratio, 100)}%; background: ${barColor}"></div>
+      </div>
+      <div class="gauge-stats">
+        <div class="gauge-stat"><span>Ingresos:</span> <strong>${fmt(debtRatio.totalIncome, debtRatio.currency)}</strong></div>
+        <div class="gauge-stat"><span>Pagos de deudas:</span> <strong>${fmt(debtRatio.totalDebtPayments, debtRatio.currency)}</strong></div>
+      </div>
+      <div class="gauge-recommendation ${riskLevel}">
+        💡 ${debtRatio.recommendation || "Mantén un control saludable de tus finanzas."}
+      </div>
+    </div>
+  `;
 }
 
 function renderKPIs() {
@@ -407,6 +448,67 @@ function renderCategoryBars(containerId, items) {
   }).join("");
 }
 
+// ─── ORGANIZACIÓN QUINCENAL ───────────────────────────────
+async function loadBiweeklySchedule() {
+  setLoading(true);
+  try {
+    const schedule = await api.get("/stats/biweekly-schedule");
+    state.biweeklySchedule = schedule || [];
+    renderBiweeklySchedule();
+  } catch (error) {
+    console.error("Error loading biweekly schedule:", error);
+    showToast("Error al cargar organización quincenal", "error");
+  } finally {
+    setLoading(false);
+  }
+}
+
+function renderBiweeklySchedule() {
+  const c = el("biweekly-list");
+  if (!c) return;
+  const cur = state.user?.currency || "MXN";
+  
+  if (!state.biweeklySchedule || state.biweeklySchedule.length === 0) {
+    c.innerHTML = `<div class="empty-state"><div class="empty-state-icon">📅</div>No hay pagos programados para este mes</div>`;
+    return;
+  }
+  
+  c.innerHTML = state.biweeklySchedule.map(period => `
+    <div class="biweekly-card ${period.remainingAfterPayments < 0 ? 'negative' : ''}">
+      <div class="biweekly-header">
+        <h4>${period.periodName}</h4>
+        <span class="biweekly-dates">${new Date(period.startDate).toLocaleDateString()} - ${new Date(period.endDate).toLocaleDateString()}</span>
+      </div>
+      <div class="biweekly-summary">
+        <div class="summary-item">
+          <span>💰 Ingreso disponible:</span>
+          <strong>${fmt(period.availableIncome, cur)}</strong>
+        </div>
+        <div class="summary-item">
+          <span>📋 Total pagos:</span>
+          <strong class="${period.totalAmount > period.availableIncome ? 'text-danger' : ''}">${fmt(period.totalAmount, cur)}</strong>
+        </div>
+        <div class="summary-item">
+          <span>⚖️ Restante:</span>
+          <strong class="${period.remainingAfterPayments < 0 ? 'text-danger' : 'text-success'}">${fmt(period.remainingAfterPayments, cur)}</strong>
+        </div>
+      </div>
+      <div class="biweekly-payments">
+        <div class="payments-header">Pagos programados:</div>
+        <div class="payments-list">
+          ${period.payments.map(p => `
+            <div class="payment-row">
+              <div class="payment-name">${p.name}</div>
+              <div class="payment-date">${relativeDate(p.dueDate)}</div>
+              <div class="payment-amount">${fmt(p.amount, cur)}</div>
+            </div>
+          `).join("")}
+        </div>
+      </div>
+    </div>
+  `).join("");
+}
+
 // ─── TRANSACTIONS ───────────────────────────────────────────
 async function loadTransactions() {
   setLoading(true);
@@ -442,8 +544,21 @@ function renderTransactions() {
   
   c.innerHTML = sorted.map(tx => {
     const isExpense = tx.type === "expense" || tx.type === "withdrawal";
+    const isPaymentToCredit = tx.type === "payment";
     const cat = state.categories.find(c => c.id === tx.categoryId);
     const acc = state.accounts.find(a => a.id === tx.accountId);
+    const isCreditAccount = acc?.type === "credit";
+    
+    let amountClass = "expense";
+    let amountPrefix = "-";
+    if (tx.type === "income") {
+      amountClass = "income";
+      amountPrefix = "+";
+    } else if (isPaymentToCredit && isCreditAccount) {
+      amountClass = "income";
+      amountPrefix = "↓";
+    }
+    
     return `
       <div class="data-row">
         <div class="data-row-icon">${cat?.icon || (isExpense ? "💸" : "💰")}</div>
@@ -451,8 +566,8 @@ function renderTransactions() {
           <div class="data-row-name">${tx.description || tx.name}</div>
           <div class="data-row-meta">${cat?.name || "—"} · ${acc?.name || "—"} · ${relativeDate(tx.transactionDate)}</div>
         </div>
-        <div class="data-row-amount ${isExpense ? "expense" : "income"}">
-          ${isExpense ? "-" : "+"}${fmt(tx.amount, cur)}
+        <div class="data-row-amount ${amountClass}">
+          ${amountPrefix}${fmt(tx.amount, cur)}
         </div>
         <div class="data-row-actions">
           <button class="btn-edit-sm" data-action="edit-tx" data-id="${tx.id}">Editar</button>
@@ -507,7 +622,7 @@ function renderAccounts() {
   }).join("");
 }
 
-// ─── RECURRING ─────────────────────────────────────────────
+// ─── RECURRING (con fecha fin y tipo ingreso) ─────────────
 async function loadRecurring() {
   setLoading(true);
   try {
@@ -538,20 +653,28 @@ function renderRecurring() {
     return;
   }
   
-  c.innerHTML = state.recurring.map(r => `
-    <div class="data-row">
-      <div class="data-row-icon">🔄</div>
-      <div class="data-row-info">
-        <div class="data-row-name">${r.name}</div>
-        <div class="data-row-meta">${freqMap[r.frequency] || r.frequency} · próximo: ${relativeDate(r.nextDueDate)}</div>
+  c.innerHTML = state.recurring.map(r => {
+    const isIncome = r.paymentType === "income";
+    return `
+      <div class="data-row">
+        <div class="data-row-icon">${isIncome ? "💰" : "🔄"}</div>
+        <div class="data-row-info">
+          <div class="data-row-name">${r.name}</div>
+          <div class="data-row-meta">
+            ${freqMap[r.frequency] || r.frequency} · ${isIncome ? "Ingreso" : "Gasto"} · 
+            próximo: ${relativeDate(r.nextDueDate)}${r.endDate ? ` · hasta: ${new Date(r.endDate).toLocaleDateString()}` : ""}
+          </div>
+        </div>
+        <div class="data-row-amount ${isIncome ? "income" : "expense"}">
+          ${isIncome ? "+" : "-"}${fmt(r.amount, cur)}
+        </div>
+        <div class="data-row-actions">
+          <button class="btn-edit-sm" data-action="edit-rec" data-id="${r.id}">Editar</button>
+          <button class="btn-danger-sm" data-action="del-rec" data-id="${r.id}">Eliminar</button>
+        </div>
       </div>
-      <div class="data-row-amount expense">${fmt(r.amount, cur)}</div>
-      <div class="data-row-actions">
-        <button class="btn-edit-sm" data-action="edit-rec" data-id="${r.id}">Editar</button>
-        <button class="btn-danger-sm" data-action="del-rec" data-id="${r.id}">Eliminar</button>
-      </div>
-    </div>
-  `).join("");
+    `;
+  }).join("");
 }
 
 // ─── DEBTS ─────────────────────────────────────────────────
@@ -605,20 +728,32 @@ function renderDebts() {
 async function loadInstallments() {
   setLoading(true);
   try {
-    const [installments, debts] = await Promise.all([
+    const [installments, debts, accounts] = await Promise.all([
       api.get("/installments"),
       api.get("/debts"),
+      api.get("/accounts"),
     ]);
     state.installments = installments || [];
     state.debts = debts || [];
+    state.accounts = accounts || [];
     renderInstallments();
     populateDebtSelect("inst-debt", state.debts);
+    populateAccountSelectForInstallments("inst-account", state.accounts);
   } catch (error) {
     console.error("Error loading installments:", error);
     showToast("Error al cargar partialidades", "error");
   } finally {
     setLoading(false);
   }
+}
+
+function populateAccountSelectForInstallments(selectId, accounts) {
+  const select = el(selectId);
+  if (!select) return;
+  const creditAccounts = accounts.filter(a => a.type === "credit");
+  const cur = state.user?.currency || "MXN";
+  select.innerHTML = `<option value="">Seleccionar tarjeta de crédito (opcional)</option>` +
+    creditAccounts.map(a => `<option value="${a.id}">${a.name} - Saldo: ${fmt(a.balance, cur)}</option>`).join("");
 }
 
 function renderInstallments() {
@@ -636,14 +771,19 @@ function renderInstallments() {
   c.innerHTML = sorted.map(inst => {
     const isPaid = inst.paid;
     const debt = state.debts.find(d => d.id === inst.debtId);
+    const account = state.accounts.find(a => a.id === inst.accountId);
     return `
       <div class="data-row" style="${isPaid ? 'opacity:0.7' : ''}">
         <div class="data-row-icon">${isPaid ? "✅" : "📅"}</div>
         <div class="data-row-info">
-          <div class="data-row-name">Partialidad #${inst.number} - ${debt?.name || "Deuda"}</div>
+          <div class="data-row-name">
+            Partialidad #${inst.number} - ${debt?.name || "Deuda"}
+            ${account ? `<span class="badge badge-blue">${account.name}</span>` : ""}
+          </div>
           <div class="data-row-meta">
             Vence: ${relativeDate(inst.dueDate)} · 
             ${isPaid ? `Pagada el ${inst.paidAt ? new Date(inst.paidAt).toLocaleDateString() : ''}` : "Pendiente"}
+            ${inst.originalPurchaseAmount ? ` · Compra original: ${fmt(inst.originalPurchaseAmount, cur)}` : ""}
           </div>
         </div>
         <div class="data-row-amount ${isPaid ? "income" : "expense"}">
@@ -1014,7 +1154,6 @@ function wireTxForm() {
           notes: notes
         };
         
-        console.log("Enviando transacción:", body);
         await api.post("/transactions", body);
         showToast("Transacción guardada", "success");
         
@@ -1120,8 +1259,14 @@ function wireRecurringForm() {
   const cancelBtn = el("btn-cancel-recurring");
   const saveBtn = el("btn-save-recurring");
   const nextDue = el("rec-next-due");
-  const recAccountGroup = el("rec-account")?.closest(".field-group");
-  if (recAccountGroup) recAccountGroup.classList.add("hidden");
+  const paymentTypeSelect = el("rec-payment-type");
+  const endDateGroup = el("rec-end-date-group");
+  
+  if (paymentTypeSelect && endDateGroup) {
+    paymentTypeSelect.addEventListener("change", () => {
+      endDateGroup.classList.toggle("hidden", paymentTypeSelect.value === "expense");
+    });
+  }
   
   if (addBtn) {
     const newAddBtn = addBtn.cloneNode(true);
@@ -1147,6 +1292,8 @@ function wireRecurringForm() {
       
       try {
         const frequency = el("rec-frequency")?.value?.toLowerCase();
+        const paymentType = el("rec-payment-type")?.value || "expense";
+        const endDate = el("rec-end-date")?.value || null;
         
         const body = {
           name: el("rec-name")?.value.trim(),
@@ -1154,7 +1301,9 @@ function wireRecurringForm() {
           currency: state.user?.currency || "MXN",
           frequency: frequency,
           nextDueDate: el("rec-next-due")?.value,
+          endDate: endDate,
           categoryId: el("rec-category")?.value || null,
+          paymentType: paymentType
         };
         
         if (!body.name || !body.amount) {
@@ -1180,10 +1329,6 @@ function wireDebtForm() {
   const cancelBtn = el("btn-cancel-debt");
   const saveBtn = el("btn-save-debt");
   const dueDate = el("debt-due-date");
-  const debtTotalGroup = el("debt-total")?.closest(".field-group");
-  const debtInterestGroup = el("debt-interest")?.closest(".field-group");
-  if (debtTotalGroup) debtTotalGroup.classList.add("hidden");
-  if (debtInterestGroup) debtInterestGroup.classList.add("hidden");
   
   if (addBtn) {
     const newAddBtn = addBtn.cloneNode(true);
@@ -1238,6 +1383,29 @@ function wireInstallmentForm() {
   const cancelBtn = el("btn-cancel-installment");
   const saveBtn = el("btn-save-installment");
   const dueDate = el("inst-due-date");
+  const typeSelect = el("inst-type");
+  const debtGroup = el("inst-debt-group");
+  const accountGroup = el("inst-account-group");
+  const numberGroup = el("inst-number-group");
+  const amountGroup = el("inst-amount-group");
+  const totalGroup = el("inst-total-group");
+  const monthsGroup = el("inst-months-group");
+  const interestGroup = el("inst-interest-group");
+  const paidGroup = el("inst-paid-group");
+  
+  if (typeSelect && debtGroup && accountGroup) {
+    typeSelect.addEventListener("change", () => {
+      const isCreditCard = typeSelect.value === "credit_card";
+      if (debtGroup) debtGroup.classList.toggle("hidden", isCreditCard);
+      if (accountGroup) accountGroup.classList.toggle("hidden", !isCreditCard);
+      if (numberGroup) numberGroup.classList.toggle("hidden", isCreditCard);
+      if (amountGroup) amountGroup.classList.toggle("hidden", isCreditCard);
+      if (totalGroup) totalGroup.classList.toggle("hidden", !isCreditCard);
+      if (monthsGroup) monthsGroup.classList.toggle("hidden", !isCreditCard);
+      if (interestGroup) interestGroup.classList.toggle("hidden", !isCreditCard);
+      if (paidGroup) paidGroup.classList.toggle("hidden", isCreditCard);
+    });
+  }
   
   if (addBtn) {
     const newAddBtn = addBtn.cloneNode(true);
@@ -1262,23 +1430,60 @@ function wireInstallmentForm() {
       newSaveBtn.dataset.saving = "true";
       
       try {
-        const body = {
-          debtId: el("inst-debt")?.value,
-          number: parseInt(el("inst-number")?.value, 10),
-          amount: Number(el("inst-amount")?.value || 0),
-          dueDate: el("inst-due-date")?.value,
-          paid: el("inst-paid")?.value === "true"
-        };
-        if (!body.debtId || !body.number || !body.amount) {
-          showToast("Completa todos los campos", "error");
-          return;
+        const type = typeSelect?.value;
+        let body;
+        
+        if (type === "credit_card") {
+          const totalAmount = Number(el("inst-total-amount")?.value || 0);
+          const months = parseInt(el("inst-months")?.value, 10);
+          if (!months || months <= 0) {
+            showToast("Ingresa el número de meses", "error");
+            return;
+          }
+          const monthlyAmount = totalAmount / months;
+          const interestRate = Number(el("inst-interest-rate")?.value || 0);
+          const accountId = el("inst-account")?.value;
+          
+          if (!accountId) {
+            showToast("Selecciona una tarjeta de crédito", "error");
+            return;
+          }
+          
+          body = {
+            accountId: accountId,
+            number: 1,
+            amount: monthlyAmount,
+            dueDate: dueDate?.value,
+            paid: false,
+            originalPurchaseAmount: totalAmount,
+            interestRate: interestRate
+          };
+          
+          await api.post("/installments/credit-card", body);
+          showToast(`Compra a ${months} meses registrada`, "success");
+        } else {
+          body = {
+            debtId: el("inst-debt")?.value,
+            number: parseInt(el("inst-number")?.value, 10),
+            amount: Number(el("inst-amount")?.value || 0),
+            dueDate: dueDate?.value,
+            paid: el("inst-paid")?.value === "true"
+          };
+          
+          if (!body.debtId || !body.number || !body.amount) {
+            showToast("Completa todos los campos", "error");
+            return;
+          }
+          
+          await api.post("/installments", body);
+          showToast("Partialidad guardada", "success");
         }
-        await api.post("/installments", body);
-        showToast("Partialidad guardada", "success");
+        
         hideForm("installment-form-wrap", "btn-add-installment", "+ Nueva partialidad");
         document.querySelectorAll("#installment-form-wrap input, #installment-form-wrap select").forEach(i => i.value = "");
         if (dueDate) dueDate.value = todayIso();
         await loadInstallments();
+        await loadDebts();
       } catch (e) {
         showToast(e.message, "error");
       } finally {
@@ -1433,6 +1638,345 @@ function wireProfileForm() {
   }
 }
 
+// ─── GOAL FORM ────────────────────────────────────────────────
+function wireGoalForm() {
+  const addBtn = el("btn-add-goal");
+  const cancelBtn = el("btn-cancel-goal");
+  const saveBtn = el("btn-save-goal");
+  
+  if (addBtn) {
+    const newAddBtn = addBtn.cloneNode(true);
+    addBtn.parentNode.replaceChild(newAddBtn, addBtn);
+    newAddBtn.addEventListener("click", () => {
+      const form = el("goal-form-wrap");
+      if (form) {
+        form.classList.toggle("hidden");
+        newAddBtn.textContent = form.classList.contains("hidden") ? "+ Nueva meta" : "✕ Cancelar";
+      }
+    });
+  }
+  
+  if (cancelBtn) {
+    const newCancelBtn = cancelBtn.cloneNode(true);
+    cancelBtn.parentNode.replaceChild(newCancelBtn, cancelBtn);
+    newCancelBtn.addEventListener("click", () => {
+      const form = el("goal-form-wrap");
+      if (form) form.classList.add("hidden");
+      const add = el("btn-add-goal");
+      if (add) add.textContent = "+ Nueva meta";
+      document.querySelectorAll("#goal-form-wrap input, #goal-form-wrap select").forEach(i => i.value = "");
+    });
+  }
+  
+  if (saveBtn) {
+    const newSaveBtn = saveBtn.cloneNode(true);
+    saveBtn.parentNode.replaceChild(newSaveBtn, saveBtn);
+    
+    newSaveBtn.addEventListener("click", async () => {
+      if (newSaveBtn.dataset.saving === "true") return;
+      newSaveBtn.dataset.saving = "true";
+      
+      try {
+        const body = {
+          name: el("goal-name")?.value.trim(),
+          targetAmount: Number(el("goal-target")?.value || 0),
+          currentProgress: Number(el("goal-progress")?.value || 0),
+          targetDate: el("goal-date")?.value || null,
+          status: el("goal-status")?.value || "active"
+        };
+        
+        if (!body.name || !body.targetAmount) {
+          showToast("Completa nombre y monto objetivo", "error");
+          return;
+        }
+        
+        if (body.currentProgress > body.targetAmount) {
+          showToast("El progreso no puede exceder la meta", "error");
+          return;
+        }
+        
+        await api.post("/financial-goals", body);
+        showToast("Meta guardada", "success");
+        
+        const form = el("goal-form-wrap");
+        if (form) form.classList.add("hidden");
+        const add = el("btn-add-goal");
+        if (add) add.textContent = "+ Nueva meta";
+        
+        document.querySelectorAll("#goal-form-wrap input, #goal-form-wrap select").forEach(i => i.value = "");
+        await loadGoals();
+      } catch (e) {
+        showToast(e.message, "error");
+      } finally {
+        newSaveBtn.dataset.saving = "false";
+      }
+    });
+  }
+}
+
+// ─── BUDGET FORM ──────────────────────────────────────────────
+function wireBudgetForm() {
+  const addBtn = el("btn-add-budget");
+  const cancelBtn = el("btn-cancel-budget");
+  const saveBtn = el("btn-save-budget");
+  
+  if (addBtn) {
+    const newAddBtn = addBtn.cloneNode(true);
+    addBtn.parentNode.replaceChild(newAddBtn, addBtn);
+    newAddBtn.addEventListener("click", () => {
+      const form = el("budget-form-wrap");
+      if (form) {
+        form.classList.toggle("hidden");
+        newAddBtn.textContent = form.classList.contains("hidden") ? "+ Nuevo presupuesto" : "✕ Cancelar";
+      }
+      populateCategorySelect("budget-category", state.categories);
+    });
+  }
+  
+  if (cancelBtn) {
+    const newCancelBtn = cancelBtn.cloneNode(true);
+    cancelBtn.parentNode.replaceChild(newCancelBtn, cancelBtn);
+    newCancelBtn.addEventListener("click", () => {
+      const form = el("budget-form-wrap");
+      if (form) form.classList.add("hidden");
+      const add = el("btn-add-budget");
+      if (add) add.textContent = "+ Nuevo presupuesto";
+    });
+  }
+  
+  if (saveBtn) {
+    const newSaveBtn = saveBtn.cloneNode(true);
+    saveBtn.parentNode.replaceChild(newSaveBtn, saveBtn);
+    
+    newSaveBtn.addEventListener("click", async () => {
+      if (newSaveBtn.dataset.saving === "true") return;
+      newSaveBtn.dataset.saving = "true";
+      
+      try {
+        const alertValue = Number(el("budget-alert")?.value || 80);
+        const body = {
+          categoryId: el("budget-category")?.value,
+          period: "monthly",
+          periodStart: el("budget-start")?.value,
+          periodEnd: el("budget-end")?.value,
+          amountLimit: Number(el("budget-limit")?.value || 0),
+          alertThreshold: alertValue / 100
+        };
+        if (!body.categoryId || !body.amountLimit) {
+          showToast("Completa categoría y monto límite", "error");
+          return;
+        }
+        await api.post("/budgets", body);
+        showToast("Presupuesto guardado", "success");
+        
+        const form = el("budget-form-wrap");
+        if (form) form.classList.add("hidden");
+        const add = el("btn-add-budget");
+        if (add) add.textContent = "+ Nuevo presupuesto";
+        
+        document.querySelectorAll("#budget-form-wrap input, #budget-form-wrap select").forEach(i => i.value = "");
+        await loadBudgets();
+      } catch (e) {
+        showToast(e.message, "error");
+      } finally {
+        newSaveBtn.dataset.saving = "false";
+      }
+    });
+  }
+}
+
+// ─── BUDGETS ────────────────────────────────────────────────
+async function loadBudgets() {
+  setLoading(true);
+  try {
+    const [budgets, categories] = await Promise.all([
+      api.get("/budgets"),
+      api.get("/categories"),
+    ]);
+    state.budgets = budgets || [];
+    state.categories = categories || [];
+    renderBudgets();
+    populateCategorySelect("budget-category", state.categories);
+  } catch (error) {
+    console.error("Error loading budgets:", error);
+  } finally {
+    setLoading(false);
+  }
+}
+
+function renderBudgets() {
+  const c = el("budgets-list");
+  if (!c) return;
+  const cur = state.user?.currency || "MXN";
+  if (!state.budgets || state.budgets.length === 0) {
+    c.innerHTML = `<div class="empty-state"><div class="empty-state-icon">💰</div>Sin presupuestos activos</div>`;
+    return;
+  }
+  c.innerHTML = state.budgets.map(b => {
+    const percent = b.usagePercentage || 0;
+    let fillClass = "normal";
+    if (percent >= 90) fillClass = "danger";
+    else if (percent >= 75) fillClass = "warning";
+    return `
+      <div class="budget-item ${b.isAlert ? 'alert' : ''}">
+        <div class="budget-header">
+          <span class="budget-category">${b.categoryName}</span>
+          <span class="budget-amount">${fmt(b.spentAmount, cur)} / ${fmt(b.amountLimit, cur)}</span>
+        </div>
+        <div class="budget-bar"><div class="budget-fill ${fillClass}" style="width:${percent}%"></div></div>
+        <div style="display:flex;justify-content:space-between;margin-top:0.5rem">
+          <span style="font-size:0.75rem">${percent}% usado</span>
+          ${b.isAlert ? '<span style="color:var(--red);font-size:0.75rem">⚠️ Alerta de presupuesto</span>' : ''}
+        </div>
+        <div class="account-actions" style="margin-top:1rem">
+          <button class="btn-edit-sm" data-action="edit-budget" data-id="${b.id}">Editar</button>
+          <button class="btn-danger-sm" data-action="del-budget" data-id="${b.id}">Eliminar</button>
+        </div>
+      </div>
+    `;
+  }).join("");
+}
+
+// ─── FINANCIAL GOALS ─────────────────────────────────────────
+async function loadGoals() {
+  setLoading(true);
+  try {
+    const goals = await api.get("/financial-goals");
+    state.goals = goals || [];
+    renderGoals();
+  } catch (error) {
+    console.error("Error loading goals:", error);
+  } finally {
+    setLoading(false);
+  }
+}
+
+function renderGoals() {
+  const c = el("goals-list");
+  if (!c) return;
+  const cur = state.user?.currency || "MXN";
+  if (!state.goals || state.goals.length === 0) {
+    c.innerHTML = `<div class="empty-state"><div class="empty-state-icon">🎯</div>Sin metas registradas</div>`;
+    return;
+  }
+  c.innerHTML = state.goals.map(goal => {
+    const progressPercent = goal.progressPercentage || 0;
+    const isAchieved = goal.status === 'achieved' || goal.currentProgress >= goal.targetAmount;
+    return `
+      <div class="goal-card">
+        <div class="goal-name">${goal.name}</div>
+        <div class="goal-amount">${fmt(goal.currentProgress, cur)} / ${fmt(goal.targetAmount, cur)}</div>
+        <div class="goal-progress-bar"><div class="goal-progress-fill" style="width:${Math.min(progressPercent, 100)}%"></div></div>
+        <div class="goal-date">
+          ${goal.targetDate ? `Meta: ${new Date(goal.targetDate).toLocaleDateString()}` : 'Sin fecha límite'}
+        </div>
+        <div><span class="goal-status status-${goal.status === 'active' ? 'active' : 'paused'}">${goal.status === 'active' ? 'Activa' : 'Pausada'}</span></div>
+        <div class="account-actions" style="margin-top:1rem; gap:0.5rem; flex-wrap:wrap">
+          ${!isAchieved && goal.status === 'active' ? `<button class="btn-success-sm" data-action="add-progress-goal" data-id="${goal.id}">+ Agregar progreso</button>` : ''}
+          <button class="btn-edit-sm" data-action="edit-goal" data-id="${goal.id}">Editar</button>
+          <button class="btn-danger-sm" data-action="del-goal" data-id="${goal.id}">Eliminar</button>
+        </div>
+        ${isAchieved ? '<div style="margin-top:0.5rem;color:var(--green);font-size:0.8rem">🎉 Meta alcanzada</div>' : ''}
+      </div>
+    `;
+  }).join("");
+}
+
+function buildAddProgressModal(goal) {
+  const cur = state.user?.currency || "MXN";
+  openModal(`Agregar progreso a "${goal.name}"`, `
+    <div class="form-grid">
+      <div class="field-group field-full">
+        <label class="field-label">Monto a agregar</label>
+        <input id="progress-amount" class="field-input" type="number" step="0.01" placeholder="0.00" />
+        <small class="text-muted" style="margin-top:0.5rem">Progreso actual: ${fmt(goal.currentProgress, cur)}<br>
+        Meta: ${fmt(goal.targetAmount, cur)}</small>
+      </div>
+    </div>
+  `, async () => {
+    const amount = Number(el("progress-amount")?.value || 0);
+    if (amount <= 0) {
+      showToast("Ingresa un monto válido", "error");
+      return;
+    }
+    
+    const newProgress = goal.currentProgress + amount;
+    if (newProgress > goal.targetAmount) {
+      showToast(`El progreso no puede exceder la meta de ${fmt(goal.targetAmount, cur)}`, "error");
+      return;
+    }
+    
+    await api.patch(`/financial-goals/${goal.id}`, {
+      name: goal.name,
+      targetAmount: goal.targetAmount,
+      currentProgress: newProgress,
+      targetDate: goal.targetDate,
+      status: newProgress >= goal.targetAmount ? "achieved" : goal.status
+    });
+    
+    showToast(`¡Progreso actualizado! Ahora tienes ${fmt(newProgress, cur)}`, "success");
+    closeModal();
+    await loadGoals();
+  });
+}
+
+// ─── REPORTS ────────────────────────────────────────────────
+async function loadReports() {
+  setLoading(true);
+  try {
+    const year = el("report-year")?.value || new Date().getFullYear();
+    const reports = await api.get(`/reports/monthly?year=${year}`);
+    state.reports = reports || [];
+    renderReports();
+  } catch (error) {
+    console.error("Error loading reports:", error);
+  } finally {
+    setLoading(false);
+  }
+}
+
+function renderReports() {
+  const c = el("reports-list");
+  if (!c) return;
+  const cur = state.user?.currency || "MXN";
+  if (!state.reports || state.reports.length === 0) {
+    c.innerHTML = `<div class="empty-state"><div class="empty-state-icon">📊</div>Sin datos para mostrar</div>`;
+    return;
+  }
+  c.innerHTML = state.reports.map(report => `
+    <div class="report-card">
+      <div class="report-month">${report.yearMonth}</div>
+      <div class="report-stats">
+        <div class="report-stat report-stat-income">
+          <div class="report-stat-label">Ingresos</div>
+          <div class="report-stat-value">${fmt(report.totalIncome, cur)}</div>
+        </div>
+        <div class="report-stat report-stat-expense">
+          <div class="report-stat-label">Gastos</div>
+          <div class="report-stat-value">${fmt(report.totalExpenses, cur)}</div>
+        </div>
+        <div class="report-stat report-stat-savings">
+          <div class="report-stat-label">Ahorro</div>
+          <div class="report-stat-value">${fmt(report.totalSavings, cur)}</div>
+        </div>
+      </div>
+      ${report.topExpenses && report.topExpenses.length > 0 ? `
+        <div style="margin-top:1rem">
+          <div style="font-size:0.75rem;color:var(--text-muted);margin-bottom:0.5rem">Top gastos</div>
+          <div class="bars">
+            ${report.topExpenses.slice(0, 3).map(cat => `
+              <div class="bar-row">
+                <div class="bar-meta"><span>${cat.categoryName}</span><span>${fmt(cat.amount, cur)} (${cat.percentage}%)</span></div>
+                <div class="bar-track"><div class="bar-fill" style="width:${cat.percentage}%"></div></div>
+              </div>
+            `).join("")}
+          </div>
+        </div>
+      ` : ''}
+    </div>
+  `).join("");
+}
+
 // ─── MODAL BUILDERS ─────────────────────────────────────────
 function buildEditInstallmentModal(inst) {
   const cur = state.user?.currency || "MXN";
@@ -1500,7 +2044,6 @@ function buildEditInstallmentModal(inst) {
   });
 }
 
-// ─── AUTH VIEWS ────────────────────────────────────────────
 function buildEditTransactionModal(tx) {
   const cur = state.user?.currency || "MXN";
   const typeLabels = {
@@ -1732,6 +2275,10 @@ function buildEditRecurringModal(rec) {
     ["yearly", "Anual"],
     ["custom", "Personalizado"],
   ].map(([value, label]) => `<option value="${value}" ${String(rec.frequency || "").toLowerCase() === value ? "selected" : ""}>${label}</option>`).join("");
+  const paymentTypeOptions = [
+    ["expense", "Gasto"],
+    ["income", "Ingreso"],
+  ].map(([value, label]) => `<option value="${value}" ${rec.paymentType === value ? "selected" : ""}>${label}</option>`).join("");
 
   openModal("Editar pago recurrente", `
     <div class="form-grid">
@@ -1751,12 +2298,20 @@ function buildEditRecurringModal(rec) {
         </select>
       </div>
       <div class="field-group">
+        <label class="field-label">Tipo</label>
+        <select id="m-rec-payment-type" class="field-input">${paymentTypeOptions}</select>
+      </div>
+      <div class="field-group">
         <label class="field-label">Frecuencia</label>
         <select id="m-rec-frequency" class="field-input">${frequencyOptions}</select>
       </div>
       <div class="field-group">
         <label class="field-label">Próximo vencimiento</label>
         <input id="m-rec-next-due" class="field-input" type="date" value="${escapeHtml(toDateInputValue(rec.nextDueDate))}" />
+      </div>
+      <div id="m-rec-end-date-group" class="field-group">
+        <label class="field-label">Fecha final (opcional)</label>
+        <input id="m-rec-end-date" class="field-input" type="date" value="${escapeHtml(toDateInputValue(rec.endDate))}" />
       </div>
       <div class="field-group field-full">
         <label class="field-label">Categoría</label>
@@ -1768,8 +2323,10 @@ function buildEditRecurringModal(rec) {
       name: el("m-rec-name")?.value.trim(),
       amount: Number(el("m-rec-amount")?.value || 0),
       currency: el("m-rec-currency")?.value || cur,
+      paymentType: el("m-rec-payment-type")?.value || "expense",
       frequency: el("m-rec-frequency")?.value,
       nextDueDate: el("m-rec-next-due")?.value,
+      endDate: el("m-rec-end-date")?.value || null,
       categoryId: el("m-rec-category")?.value || null,
     };
     if (!body.name || !body.amount || !body.frequency || !body.nextDueDate) {
@@ -1781,6 +2338,14 @@ function buildEditRecurringModal(rec) {
     closeModal();
     await loadRecurring();
   });
+  
+  const typeSelect = el("m-rec-payment-type");
+  const endDateGroup = document.getElementById("m-rec-end-date-group");
+  if (typeSelect && endDateGroup) {
+    typeSelect.addEventListener("change", () => {
+      endDateGroup.classList.toggle("hidden", typeSelect.value === "expense");
+    });
+  }
 }
 
 function buildEditDebtModal(debt) {
@@ -1953,6 +2518,7 @@ function buildEditBudgetModal(budget) {
   });
 }
 
+// ─── AUTH VIEWS ────────────────────────────────────────────
 function showAuth() {
   const authView = el("auth-view");
   const appView = el("app-view");
@@ -2251,360 +2817,6 @@ document.addEventListener("click", async (e) => {
   }
 });
 
-// ─── FINANCIAL GOALS ─────────────────────────────────────────
-async function loadGoals() {
-  setLoading(true);
-  try {
-    const goals = await api.get("/financial-goals");
-    state.goals = goals || [];
-    renderGoals();
-  } catch (error) {
-    console.error("Error loading goals:", error);
-  } finally {
-    setLoading(false);
-  }
-}
-
-function renderGoals() {
-  const c = el("goals-list");
-  if (!c) return;
-  const cur = state.user?.currency || "MXN";
-  if (!state.goals || state.goals.length === 0) {
-    c.innerHTML = `<div class="empty-state"><div class="empty-state-icon">🎯</div>Sin metas registradas</div>`;
-    return;
-  }
-  c.innerHTML = state.goals.map(goal => {
-    const progressPercent = goal.progressPercentage || 0;
-    const isAchieved = goal.status === 'achieved' || goal.currentProgress >= goal.targetAmount;
-    return `
-      <div class="goal-card">
-        <div class="goal-name">${goal.name}</div>
-        <div class="goal-amount">${fmt(goal.currentProgress, cur)} / ${fmt(goal.targetAmount, cur)}</div>
-        <div class="goal-progress-bar"><div class="goal-progress-fill" style="width:${Math.min(progressPercent, 100)}%"></div></div>
-        <div class="goal-date">
-          ${goal.targetDate ? `Meta: ${new Date(goal.targetDate).toLocaleDateString()}` : 'Sin fecha límite'}
-        </div>
-        <div><span class="goal-status status-${goal.status === 'active' ? 'active' : 'paused'}">${goal.status === 'active' ? 'Activa' : 'Pausada'}</span></div>
-        <div class="account-actions" style="margin-top:1rem; gap:0.5rem; flex-wrap:wrap">
-          ${!isAchieved && goal.status === 'active' ? `<button class="btn-success-sm" data-action="add-progress-goal" data-id="${goal.id}">+ Agregar progreso</button>` : ''}
-          <button class="btn-edit-sm" data-action="edit-goal" data-id="${goal.id}">Editar</button>
-          <button class="btn-danger-sm" data-action="del-goal" data-id="${goal.id}">Eliminar</button>
-        </div>
-        ${isAchieved ? '<div style="margin-top:0.5rem;color:var(--green);font-size:0.8rem">🎉 Meta alcanzada</div>' : ''}
-      </div>
-    `;
-  }).join("");
-}
-
-function buildAddProgressModal(goal) {
-  const cur = state.user?.currency || "MXN";
-  openModal(`Agregar progreso a "${goal.name}"`, `
-    <div class="form-grid">
-      <div class="field-group field-full">
-        <label class="field-label">Monto a agregar</label>
-        <input id="progress-amount" class="field-input" type="number" step="0.01" placeholder="0.00" />
-        <small class="text-muted" style="margin-top:0.5rem">Progreso actual: ${fmt(goal.currentProgress, cur)}<br>
-        Meta: ${fmt(goal.targetAmount, cur)}</small>
-      </div>
-    </div>
-  `, async () => {
-    const amount = Number(el("progress-amount")?.value || 0);
-    if (amount <= 0) {
-      showToast("Ingresa un monto válido", "error");
-      return;
-    }
-    
-    const newProgress = goal.currentProgress + amount;
-    if (newProgress > goal.targetAmount) {
-      showToast(`El progreso no puede exceder la meta de ${fmt(goal.targetAmount, cur)}`, "error");
-      return;
-    }
-    
-    await api.patch(`/financial-goals/${goal.id}`, {
-      name: goal.name,
-      targetAmount: goal.targetAmount,
-      currentProgress: newProgress,
-      targetDate: goal.targetDate,
-      status: newProgress >= goal.targetAmount ? "achieved" : goal.status
-    });
-    
-    showToast(`¡Progreso actualizado! Ahora tienes ${fmt(newProgress, cur)}`, "success");
-    closeModal();
-    await loadGoals();
-  });
-}
-
-// ─── BUDGETS ────────────────────────────────────────────────
-async function loadBudgets() {
-  setLoading(true);
-  try {
-    const [budgets, categories] = await Promise.all([
-      api.get("/budgets"),
-      api.get("/categories"),
-    ]);
-    state.budgets = budgets || [];
-    state.categories = categories || [];
-    renderBudgets();
-    populateCategorySelect("budget-category", state.categories);
-  } catch (error) {
-    console.error("Error loading budgets:", error);
-  } finally {
-    setLoading(false);
-  }
-}
-
-function renderBudgets() {
-  const c = el("budgets-list");
-  if (!c) return;
-  const cur = state.user?.currency || "MXN";
-  if (!state.budgets || state.budgets.length === 0) {
-    c.innerHTML = `<div class="empty-state"><div class="empty-state-icon">💰</div>Sin presupuestos activos</div>`;
-    return;
-  }
-  c.innerHTML = state.budgets.map(b => {
-    const percent = b.usagePercentage || 0;
-    let fillClass = "normal";
-    if (percent >= 90) fillClass = "danger";
-    else if (percent >= 75) fillClass = "warning";
-    return `
-      <div class="budget-item ${b.isAlert ? 'alert' : ''}">
-        <div class="budget-header">
-          <span class="budget-category">${b.categoryName}</span>
-          <span class="budget-amount">${fmt(b.spentAmount, cur)} / ${fmt(b.amountLimit, cur)}</span>
-        </div>
-        <div class="budget-bar"><div class="budget-fill ${fillClass}" style="width:${percent}%"></div></div>
-        <div style="display:flex;justify-content:space-between;margin-top:0.5rem">
-          <span style="font-size:0.75rem">${percent}% usado</span>
-          ${b.isAlert ? '<span style="color:var(--red);font-size:0.75rem">⚠️ Alerta de presupuesto</span>' : ''}
-        </div>
-        <div class="account-actions" style="margin-top:1rem">
-          <button class="btn-edit-sm" data-action="edit-budget" data-id="${b.id}">Editar</button>
-          <button class="btn-danger-sm" data-action="del-budget" data-id="${b.id}">Eliminar</button>
-        </div>
-      </div>
-    `;
-  }).join("");
-}
-
-// ─── REPORTS ────────────────────────────────────────────────
-async function loadReports() {
-  setLoading(true);
-  try {
-    const year = el("report-year")?.value || new Date().getFullYear();
-    const reports = await api.get(`/reports/monthly?year=${year}`);
-    state.reports = reports || [];
-    renderReports();
-  } catch (error) {
-    console.error("Error loading reports:", error);
-  } finally {
-    setLoading(false);
-  }
-}
-
-function renderReports() {
-  const c = el("reports-list");
-  if (!c) return;
-  const cur = state.user?.currency || "MXN";
-  if (!state.reports || state.reports.length === 0) {
-    c.innerHTML = `<div class="empty-state"><div class="empty-state-icon">📊</div>Sin datos para mostrar</div>`;
-    return;
-  }
-  c.innerHTML = state.reports.map(report => `
-    <div class="report-card">
-      <div class="report-month">${report.yearMonth}</div>
-      <div class="report-stats">
-        <div class="report-stat report-stat-income">
-          <div class="report-stat-label">Ingresos</div>
-          <div class="report-stat-value">${fmt(report.totalIncome, cur)}</div>
-        </div>
-        <div class="report-stat report-stat-expense">
-          <div class="report-stat-label">Gastos</div>
-          <div class="report-stat-value">${fmt(report.totalExpenses, cur)}</div>
-        </div>
-        <div class="report-stat report-stat-savings">
-          <div class="report-stat-label">Ahorro</div>
-          <div class="report-stat-value">${fmt(report.totalSavings, cur)}</div>
-        </div>
-      </div>
-      ${report.topExpenses && report.topExpenses.length > 0 ? `
-        <div style="margin-top:1rem">
-          <div style="font-size:0.75rem;color:var(--text-muted);margin-bottom:0.5rem">Top gastos</div>
-          <div class="bars">
-            ${report.topExpenses.slice(0, 3).map(cat => `
-              <div class="bar-row">
-                <div class="bar-meta"><span>${cat.categoryName}</span><span>${fmt(cat.amount, cur)} (${cat.percentage}%)</span></div>
-                <div class="bar-track"><div class="bar-fill" style="width:${cat.percentage}%"></div></div>
-              </div>
-            `).join("")}
-          </div>
-        </div>
-      ` : ''}
-    </div>
-  `).join("");
-}
-
-// ─── GOAL FORM ────────────────────────────────────────────────
-function wireGoalForm() {
-  const addBtn = el("btn-add-goal");
-  const cancelBtn = el("btn-cancel-goal");
-  const saveBtn = el("btn-save-goal");
-  
-  if (addBtn) {
-    const newAddBtn = addBtn.cloneNode(true);
-    addBtn.parentNode.replaceChild(newAddBtn, addBtn);
-    
-    newAddBtn.addEventListener("click", () => {
-      const form = el("goal-form-wrap");
-      if (form) {
-        form.classList.toggle("hidden");
-        newAddBtn.textContent = form.classList.contains("hidden") ? "+ Nueva meta" : "✕ Cancelar";
-      }
-    });
-  }
-  
-  if (cancelBtn) {
-    const newCancelBtn = cancelBtn.cloneNode(true);
-    cancelBtn.parentNode.replaceChild(newCancelBtn, cancelBtn);
-    
-    newCancelBtn.addEventListener("click", () => {
-      const form = el("goal-form-wrap");
-      if (form) form.classList.add("hidden");
-      const add = el("btn-add-goal");
-      if (add) add.textContent = "+ Nueva meta";
-      document.querySelectorAll("#goal-form-wrap input, #goal-form-wrap select").forEach(i => i.value = "");
-    });
-  }
-  
-  if (saveBtn) {
-    const newSaveBtn = saveBtn.cloneNode(true);
-    saveBtn.parentNode.replaceChild(newSaveBtn, saveBtn);
-    
-    newSaveBtn.addEventListener("click", async () => {
-      if (newSaveBtn.dataset.saving === "true") return;
-      newSaveBtn.dataset.saving = "true";
-      
-      try {
-        const nameInput = el("goal-name");
-        const targetInput = el("goal-target");
-        const progressInput = el("goal-progress");
-        const dateInput = el("goal-date");
-        const statusSelect = el("goal-status");
-        
-        const body = {
-          name: nameInput?.value.trim(),
-          targetAmount: Number(targetInput?.value || 0),
-          currentProgress: Number(progressInput?.value || 0),
-          targetDate: dateInput?.value || null,
-          status: statusSelect?.value || "active"
-        };
-        
-        if (!body.name || !body.targetAmount) {
-          showToast("Completa nombre y monto objetivo", "error");
-          return;
-        }
-        
-        if (body.currentProgress > body.targetAmount) {
-          showToast("El progreso no puede exceder la meta", "error");
-          return;
-        }
-        
-        await api.post("/financial-goals", body);
-        showToast("Meta guardada", "success");
-        
-        const form = el("goal-form-wrap");
-        if (form) form.classList.add("hidden");
-        const add = el("btn-add-goal");
-        if (add) add.textContent = "+ Nueva meta";
-        
-        if (nameInput) nameInput.value = "";
-        if (targetInput) targetInput.value = "";
-        if (progressInput) progressInput.value = "";
-        if (dateInput) dateInput.value = "";
-        if (statusSelect) statusSelect.value = "active";
-        
-        await loadGoals();
-      } catch (e) {
-        showToast(e.message, "error");
-      } finally {
-        newSaveBtn.dataset.saving = "false";
-      }
-    });
-  }
-}
-
-// ─── BUDGET FORM ──────────────────────────────────────────────
-function wireBudgetForm() {
-  const addBtn = el("btn-add-budget");
-  const cancelBtn = el("btn-cancel-budget");
-  const saveBtn = el("btn-save-budget");
-  
-  if (addBtn) {
-    const newAddBtn = addBtn.cloneNode(true);
-    addBtn.parentNode.replaceChild(newAddBtn, addBtn);
-    
-    newAddBtn.addEventListener("click", () => {
-      const form = el("budget-form-wrap");
-      if (form) {
-        form.classList.toggle("hidden");
-        newAddBtn.textContent = form.classList.contains("hidden") ? "+ Nuevo presupuesto" : "✕ Cancelar";
-      }
-      populateCategorySelect("budget-category", state.categories);
-    });
-  }
-  
-  if (cancelBtn) {
-    const newCancelBtn = cancelBtn.cloneNode(true);
-    cancelBtn.parentNode.replaceChild(newCancelBtn, cancelBtn);
-    
-    newCancelBtn.addEventListener("click", () => {
-      const form = el("budget-form-wrap");
-      if (form) form.classList.add("hidden");
-      const add = el("btn-add-budget");
-      if (add) add.textContent = "+ Nuevo presupuesto";
-    });
-  }
-  
-  if (saveBtn) {
-    const newSaveBtn = saveBtn.cloneNode(true);
-    saveBtn.parentNode.replaceChild(newSaveBtn, saveBtn);
-    
-    newSaveBtn.addEventListener("click", async () => {
-      if (newSaveBtn.dataset.saving === "true") return;
-      newSaveBtn.dataset.saving = "true";
-      
-      try {
-        const alertValue = Number(el("budget-alert")?.value || 80);
-        const body = {
-          categoryId: el("budget-category")?.value,
-          period: "monthly",
-          periodStart: el("budget-start")?.value,
-          periodEnd: el("budget-end")?.value,
-          amountLimit: Number(el("budget-limit")?.value || 0),
-          alertThreshold: alertValue / 100
-        };
-        if (!body.categoryId || !body.amountLimit) {
-          showToast("Completa categoría y monto límite", "error");
-          return;
-        }
-        await api.post("/budgets", body);
-        showToast("Presupuesto guardado", "success");
-        
-        const form = el("budget-form-wrap");
-        if (form) form.classList.add("hidden");
-        const add = el("btn-add-budget");
-        if (add) add.textContent = "+ Nuevo presupuesto";
-        
-        document.querySelectorAll("#budget-form-wrap input, #budget-form-wrap select").forEach(i => i.value = "");
-        await loadBudgets();
-      } catch (e) {
-        showToast(e.message, "error");
-      } finally {
-        newSaveBtn.dataset.saving = "false";
-      }
-    });
-  }
-}
-
 function syncCreditOnlyFields(scope, type) {
   const root = scope || document;
   root.querySelectorAll(".credit-only").forEach(field => {
@@ -2682,4 +2894,5 @@ async function init() {
   }
 }
 
+// Iniciar la aplicación
 init();

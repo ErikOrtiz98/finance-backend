@@ -89,4 +89,17 @@ public interface AccountRepository extends JpaRepository<Account, UUID> {
            "AND deleted_at IS NOT NULL AND deleted_at >= COALESCE(:since, deleted_at) " +
            "ORDER BY deleted_at DESC", nativeQuery = true)
     List<Map<String, Object>> findDeleted(@Param("userId") UUID userId, @Param("since") Instant since);
+    
+    @Modifying
+    @Query(value = "UPDATE accounts SET balance = :newBalance, updated_at = NOW() " +
+           "WHERE id = :id AND user_id = :userId AND deleted_at IS NULL", nativeQuery = true)
+    int updateBalance(@Param("id") UUID id, @Param("userId") UUID userId, @Param("newBalance") BigDecimal newBalance);
+    
+    @Query(value = "SELECT a.id, a.user_id, a.name, a.type, a.institution, a.balance, a.credit_limit, " +
+           "a.closing_day, a.due_day, a.active, a.currency, a.created_at, a.updated_at, a.deleted_at, " +
+           "CASE WHEN a.deleted_at IS NULL THEN 'synced' ELSE 'deleted' END AS syncStatus " +
+           "FROM accounts a " +
+           "WHERE a.user_id = :userId AND a.id = :id AND a.deleted_at IS NULL", nativeQuery = true)
+    Object[] getAccountById(@Param("id") UUID id, @Param("userId") UUID userId);
+    
 }

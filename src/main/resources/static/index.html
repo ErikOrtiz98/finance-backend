@@ -135,6 +135,11 @@
             <svg viewBox="0 0 20 20"><circle cx="10" cy="10" r="3" fill="currentColor"/><path d="M10 3v2M10 15v2M3 10h2M15 10h2" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
             Categorías
           </button>
+          <!-- NUEVO BOTÓN: Organización Quincenal -->
+          <button class="nav-item" data-section="biweekly">
+            <svg viewBox="0 0 20 20"><rect x="2" y="4" width="16" height="12" rx="1" fill="none" stroke="currentColor" stroke-width="1.5"/><path d="M6 8h8M6 12h5" stroke="currentColor" stroke-width="1.5"/></svg>
+            Organización Quincenal
+          </button>
         </div>
 
         <div class="sidebar-footer">
@@ -201,6 +206,12 @@
               <strong class="kpi-value" id="kpi-debt">$0.00</strong>
               <small class="kpi-note">Tarjetas + préstamos</small>
             </div>
+          </div>
+
+          <!-- NUEVO: Indicador de Endeudamiento -->
+          <div class="dash-card">
+            <h3 class="card-title">Indicador de Endeudamiento</h3>
+            <div id="debt-ratio-gauge"></div>
           </div>
 
           <div class="dash-grid">
@@ -366,11 +377,18 @@
             <div class="form-grid">
               <div class="field-group">
                 <label class="field-label">Nombre</label>
-                <input id="rec-name" class="field-input" type="text" placeholder="Netflix, Renta..." />
+                <input id="rec-name" class="field-input" type="text" placeholder="Netflix, Renta, Salario..." />
               </div>
               <div class="field-group">
                 <label class="field-label">Monto</label>
                 <input id="rec-amount" class="field-input" type="number" step="0.01" placeholder="0.00" />
+              </div>
+              <div class="field-group">
+                <label class="field-label">Tipo</label>
+                <select id="rec-payment-type" class="field-input">
+                  <option value="expense">Gasto</option>
+                  <option value="income">Ingreso</option>
+                </select>
               </div>
               <div class="field-group">
                 <label class="field-label">Frecuencia</label>
@@ -387,13 +405,13 @@
                 <label class="field-label">Próximo vencimiento</label>
                 <input id="rec-next-due" class="field-input" type="date" />
               </div>
+              <div id="rec-end-date-group" class="field-group hidden">
+                <label class="field-label">Fecha final (opcional)</label>
+                <input id="rec-end-date" class="field-input" type="date" />
+              </div>
               <div class="field-group">
                 <label class="field-label">Categoría</label>
                 <select id="rec-category" class="field-input"></select>
-              </div>
-              <div class="field-group">
-                <label class="field-label">Cuenta a cargar</label>
-                <select id="rec-account" class="field-input"></select>
               </div>
             </div>
             <div class="form-actions">
@@ -427,10 +445,6 @@
                 </select>
               </div>
               <div class="field-group">
-                <label class="field-label">Saldo total</label>
-                <input id="debt-total" class="field-input" type="number" step="0.01" placeholder="0.00" />
-              </div>
-              <div class="field-group">
                 <label class="field-label">Saldo restante</label>
                 <input id="debt-remaining" class="field-input" type="number" step="0.01" placeholder="0.00" />
               </div>
@@ -441,10 +455,6 @@
               <div class="field-group">
                 <label class="field-label">Próximo pago</label>
                 <input id="debt-due-date" class="field-input" type="date" />
-              </div>
-              <div class="field-group">
-                <label class="field-label">Interés anual (%)</label>
-                <input id="debt-interest" class="field-input" type="number" step="0.01" placeholder="0.00" />
               </div>
             </div>
             <div class="form-actions">
@@ -464,22 +474,45 @@
           <div id="installment-form-wrap" class="inline-form hidden">
             <div class="form-grid">
               <div class="field-group">
+                <label class="field-label">Tipo</label>
+                <select id="inst-type" class="field-input">
+                  <option value="debt">Partialidad de deuda</option>
+                  <option value="credit_card">Compra a meses (Tarjeta crédito)</option>
+                </select>
+              </div>
+              <div id="inst-debt-group" class="field-group">
                 <label class="field-label">Deuda</label>
                 <select id="inst-debt" class="field-input"></select>
               </div>
-              <div class="field-group">
+              <div id="inst-account-group" class="field-group hidden">
+                <label class="field-label">Tarjeta de crédito</label>
+                <select id="inst-account" class="field-input"></select>
+              </div>
+              <div id="inst-number-group" class="field-group">
                 <label class="field-label">Número</label>
                 <input id="inst-number" class="field-input" type="number" min="1" placeholder="1" />
               </div>
-              <div class="field-group">
-                <label class="field-label">Monto</label>
+              <div id="inst-amount-group" class="field-group">
+                <label class="field-label">Monto mensual</label>
                 <input id="inst-amount" class="field-input" type="number" step="0.01" placeholder="0.00" />
+              </div>
+              <div id="inst-total-group" class="field-group hidden">
+                <label class="field-label">Monto total de compra</label>
+                <input id="inst-total-amount" class="field-input" type="number" step="0.01" placeholder="0.00" />
+              </div>
+              <div id="inst-months-group" class="field-group hidden">
+                <label class="field-label">Número de meses</label>
+                <input id="inst-months" class="field-input" type="number" min="1" max="48" placeholder="12" />
+              </div>
+              <div id="inst-interest-group" class="field-group hidden">
+                <label class="field-label">Tasa de interés (%)</label>
+                <input id="inst-interest-rate" class="field-input" type="number" step="0.01" placeholder="0" />
               </div>
               <div class="field-group">
                 <label class="field-label">Fecha de vencimiento</label>
                 <input id="inst-due-date" class="field-input" type="date" />
               </div>
-              <div class="field-group">
+              <div id="inst-paid-group" class="field-group">
                 <label class="field-label">Pagada</label>
                 <select id="inst-paid" class="field-input">
                   <option value="false">No</option>
@@ -621,6 +654,14 @@
             </div>
           </div>
           <div id="categories-list" class="categories-grid"></div>
+        </section>
+
+        <!-- ── ORGANIZACIÓN QUINCENAL (NUEVA SECCIÓN) ── -->
+        <section class="page-section hidden" id="section-biweekly">
+          <div class="section-header">
+            <h3 class="card-title">Organización de Pagos por Quincena</h3>
+          </div>
+          <div id="biweekly-list" class="biweekly-grid"></div>
         </section>
 
         <!-- ── PROFILE ── -->

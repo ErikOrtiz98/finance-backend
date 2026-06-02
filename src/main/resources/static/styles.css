@@ -850,3 +850,156 @@ a { color: inherit; text-decoration: none; }
 .report-stat-income .report-stat-value { color: var(--green); }
 .report-stat-expense .report-stat-value { color: var(--red); }
 .report-stat-savings .report-stat-value { color: var(--gold-lt); }
+
+/* ─── DEBT RATIO GAUGE ──────────────────────────────────── */
+.debt-gauge {
+  padding: 0.5rem 0;
+}
+.gauge-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  margin-bottom: 0.75rem;
+}
+.gauge-label {
+  font-size: 0.85rem;
+  color: var(--text-muted);
+}
+.gauge-value {
+  font-size: 1.5rem;
+  font-family: var(--font-display);
+  font-weight: 600;
+}
+.gauge-value.bajo { color: var(--green); }
+.gauge-value.medio { color: var(--gold); }
+.gauge-value.alto { color: var(--amber); }
+.gauge-value.crítico { color: var(--red); }
+.gauge-track {
+  height: 12px;
+  background: var(--surface2);
+  border-radius: 99px;
+  overflow: hidden;
+  margin-bottom: 1rem;
+}
+.gauge-fill {
+  height: 100%;
+  border-radius: 99px;
+  transition: width 0.5s ease;
+}
+.gauge-stats {
+  display: flex;
+  gap: 1rem;
+  margin-bottom: 1rem;
+  font-size: 0.85rem;
+}
+.gauge-stat {
+  flex: 1;
+  display: flex;
+  justify-content: space-between;
+  background: var(--surface2);
+  padding: 0.5rem 0.75rem;
+  border-radius: var(--radius-xs);
+}
+.gauge-recommendation {
+  font-size: 0.85rem;
+  padding: 0.75rem;
+  border-radius: var(--radius-xs);
+  background: var(--surface2);
+}
+.gauge-recommendation.bajo { border-left: 3px solid var(--green); }
+.gauge-recommendation.medio { border-left: 3px solid var(--gold); }
+.gauge-recommendation.alto { border-left: 3px solid var(--amber); }
+.gauge-recommendation.crítico { border-left: 3px solid var(--red); }
+
+/* ─── BIWEEKLY SCHEDULE ─────────────────────────────────── */
+.biweekly-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(400px, 1fr));
+  gap: 1rem;
+}
+.biweekly-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  overflow: hidden;
+}
+.biweekly-card.negative {
+  border-left: 3px solid var(--red);
+}
+.biweekly-header {
+  background: var(--surface2);
+  padding: 1rem;
+  border-bottom: 1px solid var(--border);
+}
+.biweekly-header h4 {
+  font-family: var(--font-display);
+  font-size: 1.1rem;
+  margin-bottom: 0.25rem;
+}
+.biweekly-dates {
+  font-size: 0.8rem;
+  color: var(--text-muted);
+}
+.biweekly-summary {
+  padding: 1rem;
+  display: flex;
+  gap: 1rem;
+  flex-wrap: wrap;
+  border-bottom: 1px solid var(--border);
+}
+.summary-item {
+  flex: 1;
+  display: flex;
+  justify-content: space-between;
+  font-size: 0.85rem;
+}
+.summary-item .text-danger { color: var(--red); }
+.summary-item .text-success { color: var(--green); }
+.biweekly-payments {
+  padding: 1rem;
+}
+.payments-header {
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  margin-bottom: 0.75rem;
+}
+.payments-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+.payment-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0.5rem;
+  background: var(--surface2);
+  border-radius: var(--radius-xs);
+  font-size: 0.85rem;
+}
+.payment-name {
+  font-weight: 500;
+}
+.payment-date {
+  color: var(--text-muted);
+  font-size: 0.75rem;
+}
+.payment-amount {
+  font-family: var(--font-display);
+}
+
+/* ─── BADGES ────────────────────────────────────────────── */
+.badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.15rem 0.55rem;
+  border-radius: 99px;
+  font-size: 0.7rem;
+  font-weight: 500;
+  margin-left: 0.5rem;
+}
+.badge-blue {
+  background: var(--blue-dim);
+  color: var(--blue);
+}

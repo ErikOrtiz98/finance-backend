@@ -237,15 +237,6 @@ public final class ContractDtos {
 			) {
 	}
 
-	public record UpsertRecurringPaymentRequest(
-			@NotBlank String name,
-			@NotNull BigDecimal amount,
-			@NotBlank String currency,
-			@NotBlank String frequency,
-			@NotNull LocalDate nextDueDate,
-			String categoryId
-			) {
-	}
 
 	public record SyncEntityChange(
 			@NotBlank String entity,
@@ -339,32 +330,6 @@ public final class ContractDtos {
 			Instant migrationCompletedAt
 			) {
 	}
-	// Installment Response
-	public record InstallmentResponse(
-	    String id,
-	    String debtId,
-	    Integer number,
-	    BigDecimal amount,
-	    LocalDate dueDate,
-	    Boolean paid,
-	    Instant paidAt,
-	    String paymentMovementId,
-	    Instant createdAt,
-	    Instant updatedAt,
-	    Instant deletedAt,
-	    SyncStatus syncStatus,
-	    long version
-	) { }
-
-	// Upsert Installment Request
-	public record UpsertInstallmentRequest(
-	    @NotBlank String debtId,
-	    @NotNull Integer number,
-	    @NotNull BigDecimal amount,
-	    @NotNull LocalDate dueDate,
-	    Boolean paid,
-	    String paymentMovementId
-	) { }
 
 	// List Installments Request
 	public record InstallmentFilters(
@@ -430,4 +395,77 @@ public final class ContractDtos {
 	    BigDecimal totalSavings,
 	    List<CategoryStatResponse> topExpenses
 	) { }
+	// Agregar estos records al final de ContractDtos.java
+
+    // Para recurrencias con fecha fin
+    public record UpsertRecurringPaymentRequest(
+        String name,
+        BigDecimal amount,
+        String currency,
+        String frequency,
+        LocalDate nextDueDate,
+        LocalDate endDate,
+        String categoryId,
+        String paymentType  // "expense" o "income"
+    ) {}
+    
+    // Para sobreendeudamiento
+    public record DebtRatioResponse(
+        BigDecimal totalIncome,
+        BigDecimal totalDebtPayments,
+        BigDecimal debtToIncomeRatio,  // porcentaje
+        String riskLevel,  // "bajo", "medio", "alto", "crítico"
+        String recommendation,
+        String currency
+    ) {}
+    
+    // Para organización quincenal
+    public record BiweeklyPaymentItem(
+        String paymentId,
+        String name,
+        BigDecimal amount,
+        LocalDate dueDate,
+        String frequency,
+        String paymentType
+    ) {}
+    
+    public record BiweeklyScheduleResponse(
+        String periodName,  // "Primera quincena" o "Segunda quincena"
+        LocalDate startDate,
+        LocalDate endDate,
+        List<BiweeklyPaymentItem> payments,
+        BigDecimal totalAmount,
+        BigDecimal availableIncome,
+        BigDecimal remainingAfterPayments
+    ) {}
+    
+    // Para installments con tarjeta de crédito
+    public record UpsertInstallmentRequest(
+        String debtId,
+        String accountId,  // nuevo: para tarjetas de crédito
+        Integer number,
+        BigDecimal amount,
+        LocalDate dueDate,
+        Boolean paid,
+        BigDecimal originalPurchaseAmount,
+        BigDecimal interestRate
+    ) {}
+    
+ // En ContractDtos.java, reemplazar el InstallmentResponse existente:
+
+    public record InstallmentResponse(
+        String id,
+        String debtId,
+        Integer number,
+        BigDecimal amount,
+        LocalDate dueDate,
+        Boolean paid,
+        Instant paidAt,
+        String paymentMovementId,
+        Instant createdAt,
+        Instant updatedAt,
+        Instant deletedAt,
+        SyncStatus syncStatus,
+        long version
+    ) {}
 }
