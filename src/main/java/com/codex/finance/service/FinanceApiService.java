@@ -392,7 +392,7 @@ public class FinanceApiService {
 	    }
 	    Object[] unwrappedInstallment = mapper.unwrap(installmentRow);
 	    UUID debtId = UUID.fromString(mapper.toString(unwrappedInstallment[1])); // debt_id
-	    BigDecimal amount = mapper.toBigDecimal(unwrappedInstallment[3]); // amount
+	    BigDecimal amount = mapper.toBigDecimal(unwrappedInstallment[3]); // amount de la partialidad
 	    
 	    // Marcar como pagada
 	    int updated = installmentRepo.markAsPaid(uuid, installmentUuid);
@@ -400,30 +400,33 @@ public class FinanceApiService {
 	        throw new ApiException(HttpStatus.NOT_FOUND, "installment not found or already paid");
 	    }
 	    
-	    // Actualizar el saldo restante de la deuda
+	    // Actualizar SOLO el saldo restante de la deuda (NO el principalBalance)
 	    Object[] debtRow = debtRepo.getDebtById(uuid, debtId);
 	    if (debtRow != null) {
 	        Object[] unwrappedDebt = mapper.unwrap(debtRow);
 	        BigDecimal currentRemaining = mapper.toBigDecimal(unwrappedDebt[3]); // remaining_balance
+	        BigDecimal principalBalance = mapper.toBigDecimal(unwrappedDebt[2]); // principalBalance (NO DEBE CAMBIAR)
+	        BigDecimal fixedPayment = mapper.toBigDecimal(unwrappedDebt[4]); // fixed_payment (NO DEBE CAMBIAR)
 	        BigDecimal newRemaining = currentRemaining.subtract(amount);
+	        
 	        if (newRemaining.compareTo(BigDecimal.ZERO) < 0) {
 	            newRemaining = BigDecimal.ZERO;
 	        }
 	        
-	        System.out.println("=== PAYMENT DEBUG ===");
+	        System.out.println("=== MARK INSTALLMENT AS PAID DEBUG ===");
+	        System.out.println("Principal Balance (NO CAMBIA): " + principalBalance);
 	        System.out.println("Current remaining: " + currentRemaining);
+	        System.out.println("Fixed payment (NO CAMBIA): " + fixedPayment);
 	        System.out.println("Payment amount: " + amount);
 	        System.out.println("New remaining: " + newRemaining);
 	        
-	        // Actualizar la deuda
-	        debtRepo.updateDebt(debtId, uuid, 
-	            mapper.toString(unwrappedDebt[2]), // name
-	            newRemaining, // principalBalance (remaining_balance)
-	            mapper.toBigDecimal(unwrappedDebt[4]), // fixed_payment
-	            mapper.toString(unwrappedDebt[5]), // frequency
-	            mapper.toString(unwrappedDebt[6]), // nextDueDate
-	            mapper.toString(unwrappedDebt[7])  // notes
-	        );
+	        // Actualizar SOLO remaining_balance, mantener principalBalance y fixed_payment
+	        String sql = "UPDATE debts SET remaining_balance = :newRemaining, updated_at = NOW() " +
+	                     "WHERE id = :id AND user_id = :userId";
+	        jdbcTemplate.update(sql, 
+	            java.util.Map.of("newRemaining", newRemaining, 
+	                           "id", debtId, 
+	                           "userId", uuid));
 	    }
 	    
 	    Object[] row = installmentRepo.getInstallmentById(uuid, installmentUuid);

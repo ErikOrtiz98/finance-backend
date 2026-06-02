@@ -728,104 +728,91 @@ function renderDebts() {
     return;
   }
   
-  // Separar deudas activas y saldadas
+  // Separar activas y saldadas
   const activeDebts = state.debts.filter(d => {
-    const remaining = d.remainingBalance || d.principalBalance || 0;
+    const remaining = d.remainingBalance || 0;
     return remaining > 0;
   });
   
   const paidDebts = state.debts.filter(d => {
-    const remaining = d.remainingBalance || d.principalBalance || 0;
+    const remaining = d.remainingBalance || 0;
     return remaining <= 0;
   });
   
   let html = '';
   
-  // Sección de deudas activas
+  // Deudas activas
   if (activeDebts.length > 0) {
     html += `<div class="debt-section">
       <div class="debt-section-header">
         <h4>📋 Deudas Activas</h4>
         <span class="debt-count">${activeDebts.length} pendiente${activeDebts.length !== 1 ? 's' : ''}</span>
       </div>
-      <div class="debt-section-content">
-        ${activeDebts.map(d => {
-          const remaining = d.remainingBalance || d.principalBalance || 0;
-          const total = d.principalBalance || remaining;
-          // Calcular porcentaje CORRECTAMENTE
-          const paidAmount = total - remaining;
-          const pct = total > 0 ? Math.round((paidAmount / total) * 100) : 0;
-          
-          console.log(`Deuda: ${d.name}, Total: ${total}, Restante: ${remaining}, Pagado: ${paidAmount}, Porcentaje: ${pct}%`);
-          
-          return `
-            <div class="data-row" style="flex-direction:column;align-items:stretch;gap:.75rem">
-              <div style="display:flex;align-items:center;gap:1rem;flex-wrap:wrap">
-                <div class="data-row-icon">📋</div>
-                <div class="data-row-info" style="flex:1">
-                  <div class="data-row-name">${d.name}</div>
-                  <div class="data-row-meta">Próximo pago: ${relativeDate(d.nextDueDate)} · Pago: ${fmt(d.installment || d.minimumPayment || 0, cur)}/${d.frequency || "mensual"}</div>
-                </div>
-                <div class="data-row-amount expense">${fmt(remaining, cur)}</div>
-                <div class="data-row-actions">
-                  <button class="btn-edit-sm" data-action="edit-debt" data-id="${d.id}">Editar</button>
-                  <button class="btn-danger-sm" data-action="del-debt" data-id="${d.id}">Eliminar</button>
+      ${activeDebts.map(d => {
+        const total = d.principalBalance || 0;           // NO CAMBIA
+        const remaining = d.remainingBalance || 0;       // SÍ CAMBIA
+        const paidAmount = total - remaining;
+        const pct = total > 0 ? Math.round((paidAmount / total) * 100) : 0;
+        const paymentAmount = d.installment || d.minimumPayment || 0;  // NO CAMBIA
+        
+        return `
+          <div class="data-row" style="flex-direction:column;align-items:stretch;gap:.75rem">
+            <div style="display:flex;align-items:center;gap:1rem;flex-wrap:wrap">
+              <div class="data-row-icon">📋</div>
+              <div class="data-row-info" style="flex:1">
+                <div class="data-row-name">${d.name}</div>
+                <div class="data-row-meta">
+                  Próximo pago: ${relativeDate(d.nextDueDate)} · Pago mínimo: ${fmt(paymentAmount, cur)}
                 </div>
               </div>
-              <div style="display:grid;gap:.25rem">
-                <div class="bar-track"><div class="bar-fill" style="width:${Math.min(pct, 100)}%;background:linear-gradient(90deg,var(--green),var(--blue))"></div></div>
-                <div style="display:flex;justify-content:space-between;font-size:0.7rem;color:var(--text-muted)">
-                  <span>Pagado: ${fmt(paidAmount, cur)}</span>
-                  <span>${pct}% completado</span>
-                  <span>Restante: ${fmt(remaining, cur)}</span>
-                </div>
+              <div class="data-row-amount expense">${fmt(remaining, cur)}</div>
+              <div class="data-row-actions">
+                <button class="btn-edit-sm" data-action="edit-debt" data-id="${d.id}">Editar</button>
+                <button class="btn-danger-sm" data-action="del-debt" data-id="${d.id}">Eliminar</button>
               </div>
             </div>
-          `;
-        }).join('')}
-      </div>
+            <div style="display:grid;gap:.25rem">
+              <div class="bar-track"><div class="bar-fill" style="width:${Math.min(pct, 100)}%;background:linear-gradient(90deg,var(--green),var(--blue))"></div></div>
+              <div style="display:flex;justify-content:space-between;font-size:0.7rem;color:var(--text-muted)">
+                <span>Pagado: ${fmt(paidAmount, cur)}</span>
+                <span>${pct}% completado</span>
+                <span>Restante: ${fmt(remaining, cur)}</span>
+              </div>
+            </div>
+          </div>
+        `;
+      }).join('')}
     </div>`;
   }
   
-  // Sección de deudas saldadas
+  // Deudas saldadas (opcional)
   if (paidDebts.length > 0) {
     html += `<div class="debt-section paid-section">
       <div class="debt-section-header">
         <h4>✅ Deudas Saldadas</h4>
         <span class="debt-count">${paidDebts.length} saldada${paidDebts.length !== 1 ? 's' : ''}</span>
       </div>
-      <div class="debt-section-content">
-        ${paidDebts.map(d => {
-          const total = d.principalBalance || 0;
-          return `
-            <div class="data-row debt-paid" style="flex-direction:column;align-items:stretch;gap:.75rem">
-              <div style="display:flex;align-items:center;gap:1rem;flex-wrap:wrap">
-                <div class="data-row-icon">✅</div>
-                <div class="data-row-info" style="flex:1">
-                  <div class="data-row-name">${d.name} <span class="badge badge-green">Saldada</span></div>
-                  <div class="data-row-meta">Deuda liquidada - Total: ${fmt(total, cur)}</div>
-                </div>
-                <div class="data-row-amount income">✓ $0.00</div>
-                <div class="data-row-actions">
-                  <button class="btn-danger-sm" data-action="del-debt" data-id="${d.id}">Eliminar</button>
-                </div>
-              </div>
-              <div style="display:grid;gap:.25rem">
-                <div class="bar-track"><div class="bar-fill" style="width:100%;background:var(--green)"></div></div>
-                <div style="display:flex;justify-content:flex-end;font-size:0.7rem;color:var(--green)">
-                  100% completado
-                </div>
-              </div>
+      ${paidDebts.map(d => {
+        const total = d.principalBalance || 0;
+        return `
+          <div class="data-row debt-paid">
+            <div class="data-row-icon">✅</div>
+            <div class="data-row-info">
+              <div class="data-row-name">${d.name} <span class="badge badge-green">Saldada</span></div>
+              <div class="data-row-meta">Total: ${fmt(total, cur)}</div>
             </div>
-          `;
-        }).join('')}
-      </div>
+            <div class="data-row-amount income">✓ $0.00</div>
+            <div class="data-row-actions">
+              <button class="btn-danger-sm" data-action="del-debt" data-id="${d.id}">Eliminar</button>
+            </div>
+          </div>
+        `;
+      }).join('')}
     </div>`;
   }
   
   c.innerHTML = html;
 }
-
 // ─── INSTALLMENTS ─────────────────────────────────────────────
 async function loadInstallments() {
   setLoading(true);
@@ -2204,14 +2191,29 @@ function renderReports() {
 // ─── MODAL BUILDERS ─────────────────────────────────────────
 function buildEditInstallmentModal(inst) {
   const cur = state.user?.currency || "MXN";
+  
+  console.log("=== EDIT INSTALLMENT DEBUG ===");
+  console.log("Installment a editar:", inst);
+  console.log("debtId de installment:", inst.debtId);
+  console.log("Deudas disponibles:", state.debts);
+  console.log("IDs de deudas:", state.debts.map(d => ({ id: d.id, name: d.name })));
+  
+  // Verificar si la deuda existe
+  const existingDebt = state.debts.find(d => String(d.id) === String(inst.debtId));
+  if (!existingDebt) {
+    console.warn("⚠️ La deuda con ID", inst.debtId, "no existe en state.debts");
+  }
+  
   const debtOptions = buildSelectOptions(
     state.debts,
     "Seleccionar deuda",
-    inst.debtId,
+    inst.debtId,  // Este es el valor que debería seleccionarse
     (d) => d.id,
-    (d) => `${d.name} - ${fmt(d.principalBalance || 0, cur)}`
+    (d) => `${d.name} - Saldo: ${fmt(d.remainingBalance || d.principalBalance || 0, cur)}`
   );
-
+  
+  console.log("Opciones de deuda generadas:", debtOptions);
+  
   openModal("Editar parcialidad", `
     <div class="form-grid">
       <div class="field-group field-full">
@@ -2243,6 +2245,9 @@ function buildEditInstallmentModal(inst) {
     const number = parseInt(el("m-inst-number")?.value, 10);
     const amount = Number(el("m-inst-amount")?.value || 0);
     const dueDate = el("m-inst-due-date")?.value;
+    const paid = el("m-inst-paid")?.value === "true";
+
+    console.log("Valores a guardar:", { debtId, number, amount, dueDate, paid });
 
     if (!debtId) {
       showToast("Selecciona una deuda", "error");
@@ -2253,18 +2258,23 @@ function buildEditInstallmentModal(inst) {
       return;
     }
 
-    await api.patch(`/installments/${inst.id}`, {
-      debtId,
-      number,
-      amount,
-      dueDate,
-      paid: el("m-inst-paid")?.value === "true",
-      paymentMovementId: inst.paymentMovementId || null,
-    });
-    showToast("Parcialidad actualizada", "success");
-    closeModal();
-    await loadInstallments();
-    await loadDebts();
+    try {
+      await api.patch(`/installments/${inst.id}`, {
+        debtId,
+        number,
+        amount,
+        dueDate,
+        paid,
+        paymentMovementId: inst.paymentMovementId || null,
+      });
+      showToast("Parcialidad actualizada", "success");
+      closeModal();
+      await loadInstallments();
+      await loadDebts();
+    } catch (e) {
+      console.error("Error al actualizar:", e);
+      showToast(e.message, "error");
+    }
   });
 }
 
