@@ -874,13 +874,6 @@ function buildSelectOptions(items, placeholder, selectedValue, getValue, getLabe
   return `<option value="">${escapeHtml(placeholder)}</option>${options}`;
 }
 
-function syncCreditOnlyFields(scope, type) {
-  const root = scope || document;
-  root.querySelectorAll(".credit-only").forEach(field => {
-    field.classList.toggle("hidden", type !== "credit");
-  });
-}
-
 // ─── WIRING ────────────────────────────────────────────────
 function wireNav() {
   document.querySelectorAll(".nav-item[data-section]").forEach(btn => {
