@@ -723,30 +723,86 @@ function renderDebts() {
     return;
   }
   
-  c.innerHTML = state.debts.map(d => {
+  // Separar deudas activas y saldadas
+  const activeDebts = state.debts.filter(d => {
     const remaining = d.remainingBalance || d.principalBalance || 0;
-    const total = d.principalBalance || remaining;
-    const pct = total > 0 ? Math.round(((total - remaining) / total) * 100) : 0;
-    return `
-      <div class="data-row" style="flex-direction:column;align-items:stretch;gap:.75rem">
-        <div style="display:flex;align-items:center;gap:1rem">
-          <div class="data-row-icon">📋</div>
-          <div class="data-row-info">
-            <div class="data-row-name">${d.name}</div>
-            <div class="data-row-meta">Próximo pago: ${relativeDate(d.nextDueDate)} · Pago: ${fmt(d.installment || d.minimumPayment || 0, cur)}/${d.frequency || "mensual"}</div>
-          </div>
-          <div class="data-row-amount expense">${fmt(remaining, cur)}</div>
-          <div class="data-row-actions">
-            <button class="btn-edit-sm" data-action="edit-debt" data-id="${d.id}">Editar</button>
-            <button class="btn-danger-sm" data-action="del-debt" data-id="${d.id}">Eliminar</button>
-          </div>
-        </div>
-        <div style="display:grid;gap:.25rem">
-          <div class="bar-track"><div class="bar-fill" style="width:${pct}%;background:linear-gradient(90deg,var(--green),var(--blue))"></div></div>
-        </div>
+    return remaining > 0;
+  });
+  
+  const paidDebts = state.debts.filter(d => {
+    const remaining = d.remainingBalance || d.principalBalance || 0;
+    return remaining <= 0;
+  });
+  
+  let html = '';
+  
+  // Sección de deudas activas
+  if (activeDebts.length > 0) {
+    html += `<div class="debt-section">
+      <div class="debt-section-header">
+        <h4>📋 Deudas Activas</h4>
+        <span class="debt-count">${activeDebts.length} pendiente${activeDebts.length !== 1 ? 's' : ''}</span>
       </div>
-    `;
-  }).join("");
+      <div class="debt-section-content">
+        ${activeDebts.map(d => {
+          const remaining = d.remainingBalance || d.principalBalance || 0;
+          const total = d.principalBalance || remaining;
+          const pct = total > 0 ? Math.round(((total - remaining) / total) * 100) : 0;
+          
+          return `
+            <div class="data-row" style="flex-direction:column;align-items:stretch;gap:.75rem">
+              <div style="display:flex;align-items:center;gap:1rem;flex-wrap:wrap">
+                <div class="data-row-icon">📋</div>
+                <div class="data-row-info" style="flex:1">
+                  <div class="data-row-name">${d.name}</div>
+                  <div class="data-row-meta">Próximo pago: ${relativeDate(d.nextDueDate)} · Pago: ${fmt(d.installment || d.minimumPayment || 0, cur)}/${d.frequency || "mensual"}</div>
+                </div>
+                <div class="data-row-amount expense">${fmt(remaining, cur)}</div>
+                <div class="data-row-actions">
+                  <button class="btn-edit-sm" data-action="edit-debt" data-id="${d.id}">Editar</button>
+                  <button class="btn-danger-sm" data-action="del-debt" data-id="${d.id}">Eliminar</button>
+                </div>
+              </div>
+              <div style="display:grid;gap:.25rem">
+                <div class="bar-track"><div class="bar-fill" style="width:${pct}%;background:linear-gradient(90deg,var(--green),var(--blue))"></div></div>
+              </div>
+            </div>
+          `;
+        }).join('')}
+      </div>
+    </div>`;
+  }
+  
+  // Sección de deudas saldadas
+  if (paidDebts.length > 0) {
+    html += `<div class="debt-section paid-section">
+      <div class="debt-section-header">
+        <h4>✅ Deudas Saldadas</h4>
+        <span class="debt-count">${paidDebts.length} saldada${paidDebts.length !== 1 ? 's' : ''}</span>
+      </div>
+      <div class="debt-section-content">
+        ${paidDebts.map(d => {
+          return `
+            <div class="data-row debt-paid" style="flex-direction:column;align-items:stretch;gap:.75rem">
+              <div style="display:flex;align-items:center;gap:1rem;flex-wrap:wrap">
+                <div class="data-row-icon">✅</div>
+                <div class="data-row-info" style="flex:1">
+                  <div class="data-row-name">${d.name} <span class="badge badge-green">Saldada</span></div>
+                  <div class="data-row-meta">Liquidada el ${d.updatedAt ? new Date(d.updatedAt).toLocaleDateString() : '—'}</div>
+                </div>
+                <div class="data-row-amount income">✓ $0.00</div>
+                <div class="data-row-actions">
+                  <button class="btn-danger-sm" data-action="del-debt" data-id="${d.id}">Eliminar</button>
+                </div>
+              </div>
+            </div>
+          `;
+        }).join('')}
+      </div>
+    </div>`;
+  }
+  
+  c.innerHTML = html;
 }
 
 // ─── INSTALLMENTS ─────────────────────────────────────────────
