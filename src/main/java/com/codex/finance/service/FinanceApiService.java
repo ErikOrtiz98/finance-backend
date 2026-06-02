@@ -689,17 +689,53 @@ public class FinanceApiService {
 
 	@Transactional(readOnly = true)
 	public ContractDtos.UpcomingResponse upcoming(String userId) {
-		UUID uuid = UUID.fromString(userId);
-		List<ContractDtos.UpcomingItemResponse> items = new ArrayList<>();
-		items.addAll(scheduledPaymentRepo.getUpcomingRecurringPayments(uuid).stream()
-				.map(r -> new ContractDtos.UpcomingItemResponse(mapper.toString(r[0]), mapper.toString(r[1]),
-						mapper.toString(r[2]), mapper.toLocalDate(r[3]), mapper.toBigDecimal(r[4])))
-				.collect(Collectors.toList()));
-		items.addAll(debtRepo.getUpcomingDebts(uuid).stream()
-				.map(r -> new ContractDtos.UpcomingItemResponse(mapper.toString(r[0]), mapper.toString(r[1]),
-						mapper.toString(r[2]), mapper.toLocalDate(r[3]), mapper.toBigDecimal(r[4])))
-				.collect(Collectors.toList()));
-		return new ContractDtos.UpcomingResponse(items);
+	    UUID uuid = UUID.fromString(userId);
+	    List<ContractDtos.UpcomingItemResponse> items = new ArrayList<>();
+	    
+	    // Pagos recurrentes (gastos e ingresos)
+	    List<Object[]> recurringRows = scheduledPaymentRepo.getUpcomingRecurringPayments(uuid);
+	    if (recurringRows != null) {
+	        for (Object[] row : recurringRows) {
+	            // La estructura depende de tu query
+	            // Asumiendo que row[0]=type, row[1]=id, row[2]=name, row[3]=dueDate, row[4]=amount
+	            items.add(new ContractDtos.UpcomingItemResponse(
+	                "recurring",
+	                mapper.toString(row[1]),
+	                mapper.toString(row[2]),
+	                mapper.toLocalDate(row[3]),
+	                mapper.toBigDecimal(row[4])
+	            ));
+	        }
+	    }
+	    
+	    // Deudas
+	    List<Object[]> debtRows = debtRepo.getUpcomingDebts(uuid);
+	    if (debtRows != null) {
+	        for (Object[] row : debtRows) {
+	            items.add(new ContractDtos.UpcomingItemResponse(
+	                "debt",
+	                mapper.toString(row[1]),
+	                mapper.toString(row[2]),
+	                mapper.toLocalDate(row[3]),
+	                mapper.toBigDecimal(row[4])
+	            ));
+	        }
+	    }
+	    
+	    // Ordenar por fecha
+	    items.sort(Comparator.comparing(ContractDtos.UpcomingItemResponse::dueDate));
+	    
+	    // Limitar a los próximos 7 días (opcional)
+	    LocalDate today = LocalDate.now();
+	    LocalDate next7Days = today.plusDays(7);
+	    
+	    List<ContractDtos.UpcomingItemResponse> next7DaysItems = items.stream()
+	        .filter(item -> item.dueDate() != null && 
+	               (item.dueDate().isEqual(today) || 
+	                (item.dueDate().isAfter(today) && item.dueDate().isBefore(next7Days.plusDays(1)))))
+	        .collect(Collectors.toList());
+	    
+	    return new ContractDtos.UpcomingResponse(next7DaysItems);
 	}
 
 	// ==================== NUEVO: SOBREENDEUDAMIENTO ====================

@@ -73,11 +73,16 @@ public interface ScheduledPaymentRepository extends JpaRepository<ScheduledPayme
 			+ "ORDER BY deleted_at DESC", nativeQuery = true)
 	List<Map<String, Object>> findDeleted(@Param("userId") UUID userId, @Param("since") Instant since);
 
-	@Query(value = "SELECT 'recurring' AS type, sp.id, sp.name, sp.next_date AS dueDate, sp.amount "
-			+ "FROM scheduled_payments sp WHERE sp.user_id = :userId AND sp.deleted_at IS NULL "
-			+ "AND sp.payment_type = 'expense' " + "AND sp.next_date BETWEEN CURRENT_DATE AND CURRENT_DATE + 7 "
-			+ "ORDER BY sp.next_date ASC", nativeQuery = true)
-	List<Object[]> getUpcomingRecurringPayments(@Param("userId") UUID userId);
+	@Query(value = "SELECT 'recurring' AS type, sp.id, sp.name, sp.next_date AS dueDate, sp.amount " +
+		       "FROM scheduled_payments sp " +
+		       "WHERE sp.user_id = :userId " +
+		       "AND sp.deleted_at IS NULL " +
+		       "AND sp.active = true " +
+		       "AND sp.payment_type = 'expense' " +
+		       "AND sp.next_date >= CURRENT_DATE " +
+		       "ORDER BY sp.next_date ASC " +
+		       "LIMIT 20", nativeQuery = true)
+		List<Object[]> getUpcomingRecurringPayments(@Param("userId") UUID userId);
 
 	@Query(value = "SELECT sp.id, sp.user_id, sp.name, sp.amount, sp.currency, sp.frequency, "
 			+ "sp.next_date, sp.end_date, sp.category_id, sp.payment_type, "

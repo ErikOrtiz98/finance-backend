@@ -417,15 +417,22 @@ function renderUpcoming(containerId, items) {
     return;
   }
   const cur = state.user?.currency || "MXN";
-  c.innerHTML = items.slice(0, 6).map(item => `
-    <div class="upcoming-item">
-      <div>
-        <div class="item-name">${item.name}</div>
-        <div class="item-due">${relativeDate(item.dueDate)}</div>
+  c.innerHTML = items.map(item => {
+    // Ícono según el tipo
+    let icon = "📅";
+    if (item.type === "recurring") icon = "🔄";
+    if (item.type === "debt") icon = "📋";
+    
+    return `
+      <div class="upcoming-item">
+        <div>
+          <div class="item-name">${icon} ${item.name}</div>
+          <div class="item-due">${relativeDate(item.dueDate)}</div>
+        </div>
+        <div class="item-amount expense">${fmt(item.amount, cur)}</div>
       </div>
-      <div class="item-amount">${fmt(item.amount, cur)}</div>
-    </div>
-  `).join("");
+    `;
+  }).join("");
 }
 
 function renderCategoryBars(containerId, items) {
