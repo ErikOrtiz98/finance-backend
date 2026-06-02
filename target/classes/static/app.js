@@ -728,14 +728,14 @@ function renderDebts() {
     return;
   }
   
-  // Separar activas y saldadas
+  // CORREGIDO: Usar remainingBalance o principalBalance
   const activeDebts = state.debts.filter(d => {
-    const remaining = d.remainingBalance || 0;
+    const remaining = d.remainingBalance !== undefined ? d.remainingBalance : d.principalBalance;
     return remaining > 0;
   });
   
   const paidDebts = state.debts.filter(d => {
-    const remaining = d.remainingBalance || 0;
+    const remaining = d.remainingBalance !== undefined ? d.remainingBalance : d.principalBalance;
     return remaining <= 0;
   });
   
@@ -749,11 +749,11 @@ function renderDebts() {
         <span class="debt-count">${activeDebts.length} pendiente${activeDebts.length !== 1 ? 's' : ''}</span>
       </div>
       ${activeDebts.map(d => {
-        const total = d.principalBalance || 0;           // NO CAMBIA
-        const remaining = d.remainingBalance || 0;       // SÍ CAMBIA
+        const total = d.principalBalance || 0;
+        const remaining = d.remainingBalance !== undefined ? d.remainingBalance : d.principalBalance;
         const paidAmount = total - remaining;
         const pct = total > 0 ? Math.round((paidAmount / total) * 100) : 0;
-        const paymentAmount = d.installment || d.minimumPayment || 0;  // NO CAMBIA
+        const paymentAmount = d.installment || d.minimumPayment || 0;
         
         return `
           <div class="data-row" style="flex-direction:column;align-items:stretch;gap:.75rem">
@@ -785,7 +785,7 @@ function renderDebts() {
     </div>`;
   }
   
-  // Deudas saldadas (opcional)
+  // Deudas saldadas
   if (paidDebts.length > 0) {
     html += `<div class="debt-section paid-section">
       <div class="debt-section-header">
