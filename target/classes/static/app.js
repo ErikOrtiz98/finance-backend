@@ -868,37 +868,88 @@ function renderInstallments() {
     return;
   }
   
+  // Filtrar solo partialidades no pagadas (opcional: mostrar todas pero con estilo)
   const sorted = [...state.installments].sort((a, b) => new Date(a.dueDate) - new Date(b.dueDate));
   
-  c.innerHTML = sorted.map(inst => {
-    const isPaid = inst.paid;
-    const debt = state.debts.find(d => d.id === inst.debtId);
-    const account = state.accounts.find(a => a.id === inst.accountId);
-    return `
-      <div class="data-row" style="${isPaid ? 'opacity:0.7' : ''}">
-        <div class="data-row-icon">${isPaid ? "✅" : "📅"}</div>
-        <div class="data-row-info">
-          <div class="data-row-name">
-            Partialidad #${inst.number} - ${debt?.name || "Deuda"}
-            ${account ? `<span class="badge badge-blue">${account.name}</span>` : ""}
-          </div>
-          <div class="data-row-meta">
-            Vence: ${relativeDate(inst.dueDate)} · 
-            ${isPaid ? `Pagada el ${inst.paidAt ? new Date(inst.paidAt).toLocaleDateString() : ''}` : "Pendiente"}
-            ${inst.originalPurchaseAmount ? ` · Compra original: ${fmt(inst.originalPurchaseAmount, cur)}` : ""}
-          </div>
-        </div>
-        <div class="data-row-amount ${isPaid ? "income" : "expense"}">
-          ${fmt(inst.amount, cur)}
-        </div>
-        <div class="data-row-actions">
-          ${!isPaid ? `<button class="btn-success-sm" data-action="pay-inst" data-id="${inst.id}">Pagar</button>` : ''}
-          <button class="btn-edit-sm" data-action="edit-inst" data-id="${inst.id}">Editar</button>
-          <button class="btn-danger-sm" data-action="del-inst" data-id="${inst.id}">Eliminar</button>
-        </div>
+  // Separar pendientes y pagadas
+  const pendingInstallments = sorted.filter(inst => !inst.paid);
+  const paidInstallments = sorted.filter(inst => inst.paid);
+  
+  let html = '';
+  
+  // Partialidades pendientes
+  if (pendingInstallments.length > 0) {
+    html += `<div class="installment-section">
+      <div class="installment-section-header">
+        <h4>⏳ Pendientes</h4>
+        <span class="installment-count">${pendingInstallments.length}</span>
       </div>
-    `;
-  }).join("");
+      ${pendingInstallments.map(inst => {
+        const debt = state.debts.find(d => d.id === inst.debtId);
+        const account = state.accounts.find(a => a.id === inst.accountId);
+        return `
+          <div class="data-row">
+            <div class="data-row-icon">📅</div>
+            <div class="data-row-info">
+              <div class="data-row-name">
+                Partialidad #${inst.number} - ${debt?.name || "Deuda"}
+                ${account ? `<span class="badge badge-blue">${account.name}</span>` : ""}
+              </div>
+              <div class="data-row-meta">
+                Vence: ${relativeDate(inst.dueDate)} · Monto: ${fmt(inst.amount, cur)}
+              </div>
+            </div>
+            <div class="data-row-amount expense">
+              ${fmt(inst.amount, cur)}
+            </div>
+            <div class="data-row-actions">
+              <button class="btn-success-sm" data-action="pay-inst" data-id="${inst.id}">Pagar</button>
+              <button class="btn-edit-sm" data-action="edit-inst" data-id="${inst.id}">Editar</button>
+              <button class="btn-danger-sm" data-action="del-inst" data-id="${inst.id}">Eliminar</button>
+            </div>
+          </div>
+        `;
+      }).join("")}
+    </div>`;
+  }
+  
+  // Partialidades pagadas (opcional - colapsadas o al final)
+  if (paidInstallments.length > 0) {
+    html += `<div class="installment-section paid-section">
+      <div class="installment-section-header">
+        <h4>✅ Pagadas</h4>
+        <span class="installment-count">${paidInstallments.length}</span>
+      </div>
+      <div class="paid-installments">
+        ${paidInstallments.map(inst => {
+          const debt = state.debts.find(d => d.id === inst.debtId);
+          const account = state.accounts.find(a => a.id === inst.accountId);
+          return `
+            <div class="data-row installment-paid">
+              <div class="data-row-icon">✅</div>
+              <div class="data-row-info">
+                <div class="data-row-name">
+                  Partialidad #${inst.number} - ${debt?.name || "Deuda"}
+                  ${account ? `<span class="badge badge-blue">${account.name}</span>` : ""}
+                </div>
+                <div class="data-row-meta">
+                  Pagada el ${inst.paidAt ? new Date(inst.paidAt).toLocaleDateString() : ''}
+                </div>
+              </div>
+              <div class="data-row-amount income">
+                ${fmt(inst.amount, cur)}
+              </div>
+              <div class="data-row-actions">
+                <button class="btn-danger-sm" data-action="del-inst" data-id="${inst.id}">Eliminar</button>
+              </div>
+            </div>
+          `;
+        }).join("")}
+      </div>
+    </div>`;
+  }
+  
+  c.innerHTML = html;
 }
 
 function populateDebtSelect(selectId, debts) {
@@ -2522,6 +2573,8 @@ function buildEditRecurringModal(rec) {
 }
 
 function buildEditDebtModal(debt) {
+  console.log("Editando deuda:", debt);
+  
   const frequencyOptions = [
     ["weekly", "Semanal"],
     ["biweekly", "Quincenal"],
@@ -2529,7 +2582,7 @@ function buildEditDebtModal(debt) {
     ["quarterly", "Trimestral"],
     ["yearly", "Anual"],
     ["custom", "Personalizado"],
-  ].map(([value, label]) => `<option value="${value}" ${String(debt.frequency || "").toLowerCase() === value ? "selected" : ""}>${label}</option>`).join("");
+  ].map(([value, label]) => `<option value="${value}" ${(debt.frequency || "").toLowerCase() === value ? "selected" : ""}>${label}</option>`).join("");
 
   openModal("Editar deuda", `
     <div class="form-grid">
@@ -2542,8 +2595,12 @@ function buildEditDebtModal(debt) {
         <input id="m-debt-principal" class="field-input" type="number" step="0.01" value="${escapeHtml(debt.principalBalance ?? 0)}" />
       </div>
       <div class="field-group">
+        <label class="field-label">Saldo restante</label>
+        <input id="m-debt-remaining" class="field-input" type="number" step="0.01" value="${escapeHtml(debt.remainingBalance || debt.principalBalance || 0)}" />
+      </div>
+      <div class="field-group">
         <label class="field-label">Pago mínimo</label>
-        <input id="m-debt-installment" class="field-input" type="number" step="0.01" value="${escapeHtml(debt.installment ?? "")}" />
+        <input id="m-debt-installment" class="field-input" type="number" step="0.01" value="${escapeHtml(debt.installment ?? 0)}" />
       </div>
       <div class="field-group">
         <label class="field-label">Frecuencia</label>
@@ -2562,15 +2619,18 @@ function buildEditDebtModal(debt) {
     const body = {
       name: el("m-debt-name")?.value.trim(),
       principalBalance: Number(el("m-debt-principal")?.value || 0),
+      remainingBalance: Number(el("m-debt-remaining")?.value || 0),
       installment: Number(el("m-debt-installment")?.value || 0),
       frequency: el("m-debt-frequency")?.value || "monthly",
       nextDueDate: el("m-debt-due-date")?.value || null,
       notes: el("m-debt-notes")?.value.trim() || null,
     };
-    if (!body.name || !body.principalBalance || !body.frequency) {
-      showToast("Completa nombre, saldo y frecuencia", "error");
+    
+    if (!body.name || !body.principalBalance) {
+      showToast("Completa nombre y saldo total", "error");
       return;
     }
+    
     await api.patch(`/debts/${debt.id}`, body);
     showToast("Deuda actualizada", "success");
     closeModal();
@@ -2942,8 +3002,16 @@ document.addEventListener("click", async (e) => {
 	    const installment = state.installments.find(i => i.id == id);
 	    if (!installment) throw new Error("No se encontró la partialidad");
 	    
+	    console.log("Installment a pagar:", installment);
+	    console.log("DebtId de la installment:", installment.debtId);
+	    
 	    const debt = state.debts.find(d => d.id === installment.debtId);
-	    if (!debt) throw new Error("No se encontró la deuda asociada");
+	    if (!debt) {
+	      console.log("Deudas disponibles:", state.debts);
+	      throw new Error("No se encontró la deuda asociada");
+	    }
+	    
+	    console.log("Deuda encontrada:", debt);
 	    
 	    const currentRemaining = debt.remainingBalance || debt.principalBalance || 0;
 	    const newRemaining = currentRemaining - installment.amount;
@@ -2955,17 +3023,13 @@ document.addEventListener("click", async (e) => {
 	    
 	    await api.post(`/installments/${id}/pay`, {});
 	    
-	    // Recargar deudas para actualizar la barra de progreso
-	    await loadDebts();      // <-- IMPORTANTE: recargar deudas
-	    await loadInstallments(); // <-- IMPORTANTE: recargar partialidades
+	    // Recargar datos
+	    await loadDebts();
+	    await loadInstallments();
 	    
 	    showToast(`Partialidad pagada. Saldo restante: ${fmt(newRemaining, state.user?.currency || "MXN")}`, "success");
-	    
-	    // Si estamos en la sección de deudas, recargar
-	    if (state.activeSection === "debts") {
-	      await loadDebts();
-	    }
 	  } catch (err) {
+	    console.error("Error al pagar partialidad:", err);
 	    showToast(err.message, "error");
 	  }
 	}
