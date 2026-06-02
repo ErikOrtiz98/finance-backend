@@ -14,27 +14,22 @@ import org.springframework.security.web.SecurityFilterChain;
 @EnableMethodSecurity
 public class SecurityConfig {
 
+	@Bean
+	SecurityFilterChain filterChain(HttpSecurity http, JwtDecoder jwtDecoder) throws Exception {
+		return http.csrf(AbstractHttpConfigurer::disable).authorizeHttpRequests(auth -> auth
+				// Permitir acceso público a la raíz y archivos estáticos
+				.requestMatchers("/", "/index.html", "/styles.css", "/app.js", "/manifest.json", "/sw.js",
+						"/manifest.json", "/icon.svg", "/static/**")
+				.permitAll()
+				// Endpoints de autenticación públicos
+				.requestMatchers("/auth/**", "/actuator/health", "/health").permitAll()
+				// Todo lo demás requiere autenticación
+				.anyRequest().authenticated()).oauth2ResourceServer(oauth -> oauth.jwt(jwt -> jwt.decoder(jwtDecoder)))
+				.build();
+	}
 
-    @Bean
-    SecurityFilterChain filterChain(HttpSecurity http, JwtDecoder jwtDecoder) throws Exception {
-        return http
-                .csrf(AbstractHttpConfigurer::disable)
-                .authorizeHttpRequests(auth -> auth
-                        // Permitir acceso público a la raíz y archivos estáticos
-                		.requestMatchers("/", "/index.html", "/styles.css", "/app.js", 
-                                "/manifest.json", "/sw.js","/manifest.json", "/icon.svg", "/static/**").permitAll()
-                        // Endpoints de autenticación públicos
-                        .requestMatchers("/auth/**", "/actuator/health", "/health").permitAll()
-                        // Todo lo demás requiere autenticación
-                        .anyRequest().authenticated())
-                .oauth2ResourceServer(oauth -> oauth.jwt(jwt -> jwt.decoder(jwtDecoder)))
-                .build();
-    }
-
-    @Bean
-    JwtDecoder jwtDecoder(AppProperties properties) {
-        return NimbusJwtDecoder.withJwkSetUri(properties.jwkSetUri())
-                .jwsAlgorithm(SignatureAlgorithm.ES256)
-                .build();
-    }
+	@Bean
+	JwtDecoder jwtDecoder(AppProperties properties) {
+		return NimbusJwtDecoder.withJwkSetUri(properties.jwkSetUri()).jwsAlgorithm(SignatureAlgorithm.ES256).build();
+	}
 }

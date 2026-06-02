@@ -10,7 +10,7 @@ import org.springframework.context.annotation.ComponentScan;
 @ConfigurationPropertiesScan(basePackageClasses = AppProperties.class)
 @ComponentScan(basePackages = "com.codex.finance")
 public class FinanceApplication {
-    public static void main(String[] args) {
-        SpringApplication.run(FinanceApplication.class, args);
-    }
+	public static void main(String[] args) {
+		SpringApplication.run(FinanceApplication.class, args);
+	}
 }

@@ -7,12 +7,12 @@ import org.springframework.stereotype.Component;
 
 @Component
 public class AuthenticatedUser {
-    
-    public String getUserId() {
-        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
-        if (authentication != null && authentication.getPrincipal() instanceof Jwt jwt) {
-            return jwt.getClaimAsString("sub");
-        }
-        throw new RuntimeException("No authenticated user found");
-    }
+
+	public String getUserId() {
+		Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+		if (authentication != null && authentication.getPrincipal() instanceof Jwt jwt) {
+			return jwt.getClaimAsString("sub");
+		}
+		throw new RuntimeException("No authenticated user found");
+	}
 }
