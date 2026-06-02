@@ -95,14 +95,13 @@ public interface AccountRepository extends JpaRepository<Account, UUID> {
            "WHERE id = :id AND user_id = :userId AND deleted_at IS NULL", nativeQuery = true)
     int updateBalance(@Param("id") UUID id, @Param("userId") UUID userId, @Param("newBalance") BigDecimal newBalance);
     
-    @Query(value = "SELECT a.id, a.user_id, a.name, a.account_type AS type, a.bank_name AS institution, " +
-            "a.current_balance AS balance, a.credit_limit, a.statement_close_day AS closing_day, " +
-            "a.payment_due_day AS due_day, a.is_active AS active, " +
-            "COALESCE(a.metadata->>'currency', 'MXN') AS currency, " +
-            "a.created_at, a.updated_at, a.deleted_at, " +
-            "CASE WHEN a.deleted_at IS NULL THEN 'synced' ELSE 'deleted' END AS syncStatus " +
-            "FROM accounts a " +
-            "WHERE a.user_id = :userId AND a.id = :id AND a.deleted_at IS NULL", nativeQuery = true)
-     Object[] getAccountById(@Param("id") UUID id, @Param("userId") UUID userId);
+    @Query(value = "SELECT a.id, a.user_id, a.name, a.account_type, a.bank_name, " +
+    	       "a.current_balance, a.credit_limit, a.statement_close_day, a.payment_due_day, " +
+    	       "a.is_active, COALESCE(a.metadata->>'currency', 'MXN') as currency, " +
+    	       "a.created_at, a.updated_at, a.deleted_at, " +
+    	       "CASE WHEN a.deleted_at IS NULL THEN 'synced' ELSE 'deleted' END AS syncStatus " +
+    	       "FROM accounts a " +
+    	       "WHERE a.user_id = :userId AND a.id = :id AND a.deleted_at IS NULL", nativeQuery = true)
+    	Object[] getAccountById(@Param("id") UUID id, @Param("userId") UUID userId);
     
 }

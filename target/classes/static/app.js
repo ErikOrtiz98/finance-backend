@@ -2877,15 +2877,32 @@ function showInstallButton() {
   }
 }
 
-// Función para compras a meses (SOLO UNA VEZ)
-function showCreditCardPurchaseForm() {
+// Función para compras a meses
+async function showCreditCardPurchaseForm() {
+  // Asegurar que las cuentas están cargadas
+  if (!state.accounts || state.accounts.length === 0) {
+    showToast("Cargando cuentas, intenta nuevamente", "info");
+    await loadAccounts();  // Recargar cuentas
+  }
+  
+  const creditCards = state.accounts.filter(a => a.type === "credit");
+  
+  console.log("=== DEBUG CREDIT CARDS ===");
+  console.log("Todas las cuentas:", state.accounts);
+  console.log("Tarjetas de crédito filtradas:", creditCards);
+  
+  if (creditCards.length === 0) {
+    showToast("No tienes tarjetas de crédito registradas. Crea una primero.", "error");
+    return;
+  }
+  
   const modalBody = `
     <div class="form-grid">
       <div class="field-group field-full">
         <label class="field-label">Tarjeta de crédito</label>
         <select id="purchase-account" class="field-input">
-          ${state.accounts.filter(a => a.type === "credit").map(a => 
-            `<option value="${a.id}">${a.name} - Límite: ${fmt(a.creditLimit)} - Disponible: ${fmt(a.creditLimit - a.balance)}</option>`
+          ${creditCards.map(a => 
+            `<option value="${a.id}">${a.name} - Límite: ${fmt(a.creditLimit)} - Saldo: ${fmt(a.balance)} - Tipo: ${a.type}</option>`
           ).join("")}
         </select>
       </div>
@@ -2928,6 +2945,27 @@ function showCreditCardPurchaseForm() {
   
   openModal("Comprar a meses", modalBody, async () => {
     const accountId = el("purchase-account")?.value;
+    const selectedOption = el("purchase-account")?.options[el("purchase-account").selectedIndex];
+    const accountName = selectedOption?.text || "";
+    
+    console.log("Cuenta seleccionada ID:", accountId);
+    console.log("Cuenta seleccionada nombre:", accountName);
+    
+    const selectedCard = creditCards.find(c => c.id === accountId);
+    
+    if (!selectedCard) {
+      showToast("Selecciona una tarjeta de crédito válida", "error");
+      return;
+    }
+    
+    console.log("Tarjeta seleccionada:", selectedCard);
+    console.log("Tipo de tarjeta:", selectedCard.type);
+    
+    if (selectedCard.type !== "credit") {
+      showToast(`La cuenta "${selectedCard.name}" no es una tarjeta de crédito (tipo: ${selectedCard.type})`, "error");
+      return;
+    }
+    
     const name = el("purchase-name")?.value.trim();
     const totalAmount = Number(el("purchase-total")?.value || 0);
     const months = parseInt(el("purchase-months")?.value, 10);
@@ -2935,7 +2973,7 @@ function showCreditCardPurchaseForm() {
     const firstDueDate = el("purchase-first-due")?.value;
     const categoryId = el("purchase-category")?.value || null;
     
-    if (!accountId || !name || !totalAmount || !months || !firstDueDate) {
+    if (!name || !totalAmount || !months || !firstDueDate) {
       showToast("Completa todos los campos", "error");
       return;
     }
@@ -2950,6 +2988,8 @@ function showCreditCardPurchaseForm() {
       categoryId: categoryId
     };
     
+    console.log("Enviando body:", body);
+    
     try {
       await api.post("/installments/credit-card-purchase", body);
       showToast(`Compra a ${months} meses registrada exitosamente`, "success");
@@ -2958,6 +2998,7 @@ function showCreditCardPurchaseForm() {
       await loadAccounts();
       await loadDebts();
     } catch (e) {
+      console.error("Error al registrar compra:", e);
       showToast(e.message, "error");
     }
   });

@@ -57,11 +57,22 @@ public class FinanceMapper {
     public ContractDtos.AccountResponse mapToAccountResponse(Object[] row) {
         row = unwrap(row);
         return new ContractDtos.AccountResponse(
-            toString(row[0]), toString(row[1]), toString(row[2]), toString(row[3]),
-            toString(row[4]), toString(row[5]), toBigDecimal(row[6]), toBigDecimal(row[7]),
-            toInteger(row[8]), toInteger(row[9]), toBoolean(row[10]),
-            toInstant(row[11]), toInstant(row[12]), toInstant(row[13]),
-            toSyncStatus(row[14]), toLong(row[15], 1L)
+            toString(row[0]),     // id
+            toString(row[1]),     // userId
+            toString(row[2]),     // type (account_type) <-- DEBE SER "credit"
+            toString(row[3]),     // name
+            toString(row[4]),     // institution
+            toString(row[5]),     // currency
+            toBigDecimal(row[6]), // balance
+            toBigDecimal(row[7]), // creditLimit
+            toInteger(row[8]),    // closingDay
+            toInteger(row[9]),    // dueDay
+            toBoolean(row[10]),   // active
+            toInstant(row[11]),   // createdAt
+            toInstant(row[12]),   // updatedAt
+            toInstant(row[13]),   // deletedAt
+            toSyncStatus(row[14]), // syncStatus
+            toLong(row[15], 1L)   // version
         );
     }
 
