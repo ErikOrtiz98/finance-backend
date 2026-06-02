@@ -47,7 +47,7 @@ public interface FinancialGoalRepository extends JpaRepository<FinancialGoal, UU
            "target_amount = COALESCE(:targetAmount, target_amount), " +
            "current_progress = COALESCE(:currentProgress, current_progress), " +
            "target_date = COALESCE(:targetDate, target_date), " +
-           "status = COALESCE(:status, status), " +
+           "status = COALESCE(CAST(:status AS goal_status), status), " +
            "updated_at = NOW() " +
            "WHERE id = :id AND user_id = :userId AND deleted_at IS NULL", nativeQuery = true)
     void updateGoal(@Param("userId") UUID userId,

@@ -357,7 +357,8 @@ function renderKPIs() {
   const kpiNote = el("kpi-income-note");
   
   if (kpiIncome) kpiIncome.textContent = fmt(s.income || 0, cur);
-  if (kpiObligations) kpiObligations.textContent = fmt(s.fixedPayments || 0, cur);
+  const totalObligations = (s.expenses || 0) + (s.fixedPayments || 0) + (s.debtPayments || 0);
+  if (kpiObligations) kpiObligations.textContent = fmt(totalObligations, cur);
   if (kpiBalance) kpiBalance.textContent = fmt(s.availableBalance || 0, cur);
   if (kpiDebt) kpiDebt.textContent = fmt(s.debtPayments || 0, cur);
   if (kpiNote && state.user) kpiNote.textContent = `Periodo ${state.activePeriod === "biweekly" ? "Quincenal" : "Mensual"}`;
@@ -926,7 +927,10 @@ function wireTxForm() {
   }
   
   if (addBtn) {
-    addBtn.addEventListener("click", () => {
+    const newAddBtn = addBtn.cloneNode(true);
+    addBtn.parentNode.replaceChild(newAddBtn, addBtn);
+    
+    newAddBtn.addEventListener("click", () => {
       showInlineForm("transaction-form-wrap", "btn-add-transaction");
       if (transferGroup) transferGroup.classList.add("hidden");
       if (typeSelect) typeSelect.value = "expense";
@@ -934,7 +938,10 @@ function wireTxForm() {
   }
   
   if (cancelBtn) {
-    cancelBtn.addEventListener("click", () => {
+    const newCancelBtn = cancelBtn.cloneNode(true);
+    cancelBtn.parentNode.replaceChild(newCancelBtn, cancelBtn);
+    
+    newCancelBtn.addEventListener("click", () => {
       hideForm("transaction-form-wrap", "btn-add-transaction", "+ Nueva");
       document.querySelectorAll("#transaction-form-wrap input, #transaction-form-wrap select").forEach(i => i.value = "");
       if (dateInput) dateInput.value = todayIso();
@@ -946,7 +953,13 @@ function wireTxForm() {
   if (dateInput) dateInput.value = todayIso();
   
   if (saveBtn) {
-    saveBtn.addEventListener("click", async () => {
+    const newSaveBtn = saveBtn.cloneNode(true);
+    saveBtn.parentNode.replaceChild(newSaveBtn, saveBtn);
+    
+    newSaveBtn.addEventListener("click", async () => {
+      if (newSaveBtn.dataset.saving === "true") return;
+      newSaveBtn.dataset.saving = "true";
+      
       try {
         const type = el("tx-type")?.value;
         const accountId = el("tx-account")?.value;
@@ -1016,6 +1029,8 @@ function wireTxForm() {
       } catch (e) {
         console.error("Error al guardar transacción:", e);
         showToast(e.message || "Error al guardar la transacción", "error");
+      } finally {
+        newSaveBtn.dataset.saving = "false";
       }
     });
   }
@@ -1030,7 +1045,6 @@ function wireAccForm() {
   const otherGroup = el("acc-other-institution-group");
   const otherInput = el("acc-other-institution");
   
-  // Mostrar/ocultar campo de "Otra" institución
   if (institutionSelect && otherGroup) {
     institutionSelect.addEventListener("change", () => {
       otherGroup.classList.toggle("hidden", institutionSelect.value !== "Otra");
@@ -1038,12 +1052,28 @@ function wireAccForm() {
     });
   }
   
-  if (addBtn) addBtn.addEventListener("click", () => showInlineForm("account-form-wrap", "btn-add-account"));
-  if (cancelBtn) cancelBtn.addEventListener("click", () => hideForm("account-form-wrap", "btn-add-account", "+ Nueva cuenta"));
+  if (addBtn) {
+    const newAddBtn = addBtn.cloneNode(true);
+    addBtn.parentNode.replaceChild(newAddBtn, addBtn);
+    newAddBtn.addEventListener("click", () => showInlineForm("account-form-wrap", "btn-add-account"));
+  }
+  
+  if (cancelBtn) {
+    const newCancelBtn = cancelBtn.cloneNode(true);
+    cancelBtn.parentNode.replaceChild(newCancelBtn, cancelBtn);
+    newCancelBtn.addEventListener("click", () => hideForm("account-form-wrap", "btn-add-account", "+ Nueva cuenta"));
+  }
+  
   if (typeSelect) typeSelect.addEventListener("change", toggleCreditFields);
   
   if (saveBtn) {
-    saveBtn.addEventListener("click", async () => {
+    const newSaveBtn = saveBtn.cloneNode(true);
+    saveBtn.parentNode.replaceChild(newSaveBtn, saveBtn);
+    
+    newSaveBtn.addEventListener("click", async () => {
+      if (newSaveBtn.dataset.saving === "true") return;
+      newSaveBtn.dataset.saving = "true";
+      
       try {
         let institution = institutionSelect?.value || "";
         if (institution === "Otra") {
@@ -1072,13 +1102,14 @@ function wireAccForm() {
         await api.post("/accounts", body);
         showToast("Cuenta creada", "success");
         hideForm("account-form-wrap", "btn-add-account", "+ Nueva cuenta");
-        // Limpiar campos
         if (institutionSelect) institutionSelect.value = "";
         if (otherGroup) otherGroup.classList.add("hidden");
         if (otherInput) otherInput.value = "";
         await loadAccounts();
       } catch (e) {
         showToast(e.message, "error");
+      } finally {
+        newSaveBtn.dataset.saving = "false";
       }
     });
   }
@@ -1092,12 +1123,28 @@ function wireRecurringForm() {
   const recAccountGroup = el("rec-account")?.closest(".field-group");
   if (recAccountGroup) recAccountGroup.classList.add("hidden");
   
-  if (addBtn) addBtn.addEventListener("click", () => showInlineForm("recurring-form-wrap", "btn-add-recurring"));
-  if (cancelBtn) cancelBtn.addEventListener("click", () => hideForm("recurring-form-wrap", "btn-add-recurring", "+ Nuevo"));
+  if (addBtn) {
+    const newAddBtn = addBtn.cloneNode(true);
+    addBtn.parentNode.replaceChild(newAddBtn, addBtn);
+    newAddBtn.addEventListener("click", () => showInlineForm("recurring-form-wrap", "btn-add-recurring"));
+  }
+  
+  if (cancelBtn) {
+    const newCancelBtn = cancelBtn.cloneNode(true);
+    cancelBtn.parentNode.replaceChild(newCancelBtn, cancelBtn);
+    newCancelBtn.addEventListener("click", () => hideForm("recurring-form-wrap", "btn-add-recurring", "+ Nuevo"));
+  }
+  
   if (nextDue) nextDue.value = todayIso();
   
   if (saveBtn) {
-    saveBtn.addEventListener("click", async () => {
+    const newSaveBtn = saveBtn.cloneNode(true);
+    saveBtn.parentNode.replaceChild(newSaveBtn, saveBtn);
+    
+    newSaveBtn.addEventListener("click", async () => {
+      if (newSaveBtn.dataset.saving === "true") return;
+      newSaveBtn.dataset.saving = "true";
+      
       try {
         const frequency = el("rec-frequency")?.value?.toLowerCase();
         
@@ -1121,6 +1168,8 @@ function wireRecurringForm() {
         await loadRecurring();
       } catch (e) {
         showToast(e.message, "error");
+      } finally {
+        newSaveBtn.dataset.saving = "false";
       }
     });
   }
@@ -1136,32 +1185,52 @@ function wireDebtForm() {
   if (debtTotalGroup) debtTotalGroup.classList.add("hidden");
   if (debtInterestGroup) debtInterestGroup.classList.add("hidden");
   
-  if (addBtn) addBtn.addEventListener("click", () => showInlineForm("debt-form-wrap", "btn-add-debt"));
-  if (cancelBtn) cancelBtn.addEventListener("click", () => hideForm("debt-form-wrap", "btn-add-debt", "+ Nueva deuda"));
+  if (addBtn) {
+    const newAddBtn = addBtn.cloneNode(true);
+    addBtn.parentNode.replaceChild(newAddBtn, addBtn);
+    newAddBtn.addEventListener("click", () => showInlineForm("debt-form-wrap", "btn-add-debt"));
+  }
+  
+  if (cancelBtn) {
+    const newCancelBtn = cancelBtn.cloneNode(true);
+    cancelBtn.parentNode.replaceChild(newCancelBtn, cancelBtn);
+    newCancelBtn.addEventListener("click", () => hideForm("debt-form-wrap", "btn-add-debt", "+ Nueva deuda"));
+  }
+  
   if (dueDate) dueDate.value = todayIso();
   
-  if (saveBtn) saveBtn.addEventListener("click", async () => {
-    try {
-      const body = {
-        name: el("debt-name")?.value.trim(),
-        principalBalance: Number(el("debt-remaining")?.value || 0),
-        installment: Number(el("debt-min-payment")?.value || 0),
-        frequency: "monthly",
-        nextDueDate: el("debt-due-date")?.value,
-        notes: el("debt-name")?.value,
-      };
-      if (!body.name) {
-        showToast("Ingresa el nombre de la deuda", "error");
-        return;
+  if (saveBtn) {
+    const newSaveBtn = saveBtn.cloneNode(true);
+    saveBtn.parentNode.replaceChild(newSaveBtn, saveBtn);
+    
+    newSaveBtn.addEventListener("click", async () => {
+      if (newSaveBtn.dataset.saving === "true") return;
+      newSaveBtn.dataset.saving = "true";
+      
+      try {
+        const body = {
+          name: el("debt-name")?.value.trim(),
+          principalBalance: Number(el("debt-remaining")?.value || 0),
+          installment: Number(el("debt-min-payment")?.value || 0),
+          frequency: "monthly",
+          nextDueDate: el("debt-due-date")?.value,
+          notes: el("debt-name")?.value,
+        };
+        if (!body.name) {
+          showToast("Ingresa el nombre de la deuda", "error");
+          return;
+        }
+        await api.post("/debts", body);
+        showToast("Deuda registrada", "success");
+        hideForm("debt-form-wrap", "btn-add-debt", "+ Nueva deuda");
+        await loadDebts();
+      } catch (e) {
+        showToast(e.message, "error");
+      } finally {
+        newSaveBtn.dataset.saving = "false";
       }
-      await api.post("/debts", body);
-      showToast("Deuda registrada", "success");
-      hideForm("debt-form-wrap", "btn-add-debt", "+ Nueva deuda");
-      await loadDebts();
-    } catch (e) {
-      showToast(e.message, "error");
-    }
-  });
+    });
+  }
 }
 
 function wireInstallmentForm() {
@@ -1170,33 +1239,53 @@ function wireInstallmentForm() {
   const saveBtn = el("btn-save-installment");
   const dueDate = el("inst-due-date");
   
-  if (addBtn) addBtn.addEventListener("click", () => showInlineForm("installment-form-wrap", "btn-add-installment"));
-  if (cancelBtn) cancelBtn.addEventListener("click", () => hideForm("installment-form-wrap", "btn-add-installment", "+ Nueva partialidad"));
+  if (addBtn) {
+    const newAddBtn = addBtn.cloneNode(true);
+    addBtn.parentNode.replaceChild(newAddBtn, addBtn);
+    newAddBtn.addEventListener("click", () => showInlineForm("installment-form-wrap", "btn-add-installment"));
+  }
+  
+  if (cancelBtn) {
+    const newCancelBtn = cancelBtn.cloneNode(true);
+    cancelBtn.parentNode.replaceChild(newCancelBtn, cancelBtn);
+    newCancelBtn.addEventListener("click", () => hideForm("installment-form-wrap", "btn-add-installment", "+ Nueva partialidad"));
+  }
+  
   if (dueDate) dueDate.value = todayIso();
   
-  if (saveBtn) saveBtn.addEventListener("click", async () => {
-    try {
-      const body = {
-        debtId: el("inst-debt")?.value,
-        number: parseInt(el("inst-number")?.value, 10),
-        amount: Number(el("inst-amount")?.value || 0),
-        dueDate: el("inst-due-date")?.value,
-        paid: el("inst-paid")?.value === "true"
-      };
-      if (!body.debtId || !body.number || !body.amount) {
-        showToast("Completa todos los campos", "error");
-        return;
+  if (saveBtn) {
+    const newSaveBtn = saveBtn.cloneNode(true);
+    saveBtn.parentNode.replaceChild(newSaveBtn, saveBtn);
+    
+    newSaveBtn.addEventListener("click", async () => {
+      if (newSaveBtn.dataset.saving === "true") return;
+      newSaveBtn.dataset.saving = "true";
+      
+      try {
+        const body = {
+          debtId: el("inst-debt")?.value,
+          number: parseInt(el("inst-number")?.value, 10),
+          amount: Number(el("inst-amount")?.value || 0),
+          dueDate: el("inst-due-date")?.value,
+          paid: el("inst-paid")?.value === "true"
+        };
+        if (!body.debtId || !body.number || !body.amount) {
+          showToast("Completa todos los campos", "error");
+          return;
+        }
+        await api.post("/installments", body);
+        showToast("Partialidad guardada", "success");
+        hideForm("installment-form-wrap", "btn-add-installment", "+ Nueva partialidad");
+        document.querySelectorAll("#installment-form-wrap input, #installment-form-wrap select").forEach(i => i.value = "");
+        if (dueDate) dueDate.value = todayIso();
+        await loadInstallments();
+      } catch (e) {
+        showToast(e.message, "error");
+      } finally {
+        newSaveBtn.dataset.saving = "false";
       }
-      await api.post("/installments", body);
-      showToast("Partialidad guardada", "success");
-      hideForm("installment-form-wrap", "btn-add-installment", "+ Nueva partialidad");
-      document.querySelectorAll("#installment-form-wrap input, #installment-form-wrap select").forEach(i => i.value = "");
-      if (dueDate) dueDate.value = todayIso();
-      await loadInstallments();
-    } catch (e) {
-      showToast(e.message, "error");
-    }
-  });
+    });
+  }
 }
 
 function wireCategoryForm() {
@@ -1204,29 +1293,48 @@ function wireCategoryForm() {
   const cancelBtn = el("btn-cancel-category");
   const saveBtn = el("btn-save-category");
   
-  if (addBtn) addBtn.addEventListener("click", () => showInlineForm("category-form-wrap", "btn-add-category"));
-  if (cancelBtn) cancelBtn.addEventListener("click", () => hideForm("category-form-wrap", "btn-add-category", "+ Nueva"));
+  if (addBtn) {
+    const newAddBtn = addBtn.cloneNode(true);
+    addBtn.parentNode.replaceChild(newAddBtn, addBtn);
+    newAddBtn.addEventListener("click", () => showInlineForm("category-form-wrap", "btn-add-category"));
+  }
   
-  if (saveBtn) saveBtn.addEventListener("click", async () => {
-    try {
-      const body = {
-        name: el("cat-name")?.value.trim(),
-        type: el("cat-type")?.value,
-        color: el("cat-color")?.value,
-        icon: el("cat-icon")?.value.trim(),
-      };
-      if (!body.name) {
-        showToast("Ingresa el nombre de la categoría", "error");
-        return;
+  if (cancelBtn) {
+    const newCancelBtn = cancelBtn.cloneNode(true);
+    cancelBtn.parentNode.replaceChild(newCancelBtn, cancelBtn);
+    newCancelBtn.addEventListener("click", () => hideForm("category-form-wrap", "btn-add-category", "+ Nueva"));
+  }
+  
+  if (saveBtn) {
+    const newSaveBtn = saveBtn.cloneNode(true);
+    saveBtn.parentNode.replaceChild(newSaveBtn, saveBtn);
+    
+    newSaveBtn.addEventListener("click", async () => {
+      if (newSaveBtn.dataset.saving === "true") return;
+      newSaveBtn.dataset.saving = "true";
+      
+      try {
+        const body = {
+          name: el("cat-name")?.value.trim(),
+          type: el("cat-type")?.value,
+          color: el("cat-color")?.value,
+          icon: el("cat-icon")?.value.trim(),
+        };
+        if (!body.name) {
+          showToast("Ingresa el nombre de la categoría", "error");
+          return;
+        }
+        await api.post("/categories", body);
+        showToast("Categoría creada", "success");
+        hideForm("category-form-wrap", "btn-add-category", "+ Nueva");
+        await loadCategories();
+      } catch (e) {
+        showToast(e.message, "error");
+      } finally {
+        newSaveBtn.dataset.saving = "false";
       }
-      await api.post("/categories", body);
-      showToast("Categoría creada", "success");
-      hideForm("category-form-wrap", "btn-add-category", "+ Nueva");
-      await loadCategories();
-    } catch (e) {
-      showToast(e.message, "error");
-    }
-  });
+    });
+  }
 }
 
 function wireProfileForm() {
@@ -1237,67 +1345,92 @@ function wireProfileForm() {
   
   if (periodSelect) periodSelect.addEventListener("change", () => toggleProfilePeriodFields(periodSelect.value));
   
-  if (saveBtn) saveBtn.addEventListener("click", async () => {
-    try {
-      const period = el("profile-period")?.value;
-      let payDays = [];
-      if (period === "biweekly") {
-        const d1 = parseInt(el("profile-payday1")?.value, 10);
-        const d2 = parseInt(el("profile-payday2")?.value, 10);
-        if (!isNaN(d1)) payDays.push(d1);
-        if (!isNaN(d2)) payDays.push(d2);
-      } else {
-        const d = parseInt(el("profile-payday-monthly")?.value, 10);
-        if (!isNaN(d)) payDays.push(d);
+  if (saveBtn) {
+    const newSaveBtn = saveBtn.cloneNode(true);
+    saveBtn.parentNode.replaceChild(newSaveBtn, saveBtn);
+    
+    newSaveBtn.addEventListener("click", async () => {
+      if (newSaveBtn.dataset.saving === "true") return;
+      newSaveBtn.dataset.saving = "true";
+      
+      try {
+        const period = el("profile-period")?.value;
+        let payDays = [];
+        if (period === "biweekly") {
+          const d1 = parseInt(el("profile-payday1")?.value, 10);
+          const d2 = parseInt(el("profile-payday2")?.value, 10);
+          if (!isNaN(d1)) payDays.push(d1);
+          if (!isNaN(d2)) payDays.push(d2);
+        } else {
+          const d = parseInt(el("profile-payday-monthly")?.value, 10);
+          if (!isNaN(d)) payDays.push(d);
+        }
+        
+        const monthlyIncomeValue = parseFloat(el("profile-income")?.value || 0);
+        
+        const body = {
+          displayName: state.user?.displayName || "",
+          currency: el("profile-currency")?.value,
+          payCycle: period,
+          payDays: payDays,
+          monthlyIncome: isNaN(monthlyIncomeValue) ? 0 : monthlyIncomeValue
+        };
+        
+        await api.patch("/me", body);
+        state.user = { ...(state.user || {}), ...body };
+        showToast("Perfil actualizado", "success");
+      } catch (e) {
+        showToast(e.message, "error");
+      } finally {
+        newSaveBtn.dataset.saving = "false";
       }
-      
-      const monthlyIncomeValue = parseFloat(el("profile-income")?.value || 0);
-      
-      const body = {
-        displayName: state.user?.displayName || "",
-        currency: el("profile-currency")?.value,
-        payCycle: period,
-        payDays: payDays,
-        monthlyIncome: isNaN(monthlyIncomeValue) ? 0 : monthlyIncomeValue
-      };
-      
-      await api.patch("/me", body);
-      state.user = { ...(state.user || {}), ...body };
-      showToast("Perfil actualizado", "success");
-    } catch (e) {
-      showToast(e.message, "error");
-    }
-  });
+    });
+  }
   
-  if (exportBtn) exportBtn.addEventListener("click", async () => {
-    try {
-      const data = await api.get("/backup/export");
-      if (data.downloadUrl) {
-        window.open(data.downloadUrl, '_blank');
-      } else {
-        showToast("No se pudo generar el respaldo", "error");
+  if (exportBtn) {
+    const newExportBtn = exportBtn.cloneNode(true);
+    exportBtn.parentNode.replaceChild(newExportBtn, exportBtn);
+    
+    newExportBtn.addEventListener("click", async () => {
+      if (newExportBtn.dataset.saving === "true") return;
+      newExportBtn.dataset.saving = "true";
+      
+      try {
+        const data = await api.get("/backup/export");
+        if (data.downloadUrl) {
+          window.open(data.downloadUrl, '_blank');
+        } else {
+          showToast("No se pudo generar el respaldo", "error");
+        }
+        showToast("Respaldo exportado", "success");
+      } catch (e) {
+        showToast(e.message, "error");
+      } finally {
+        newExportBtn.dataset.saving = "false";
       }
-      showToast("Respaldo exportado", "success");
-    } catch (e) {
-      showToast(e.message, "error");
-    }
-  });
+    });
+  }
   
-  if (importInput) importInput.addEventListener("change", async (e) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    try {
-      const text = await file.text();
-      const parsed = JSON.parse(text);
-      await api.post("/backup/import", parsed);
-      showToast("Respaldo importado exitosamente", "success");
-      await loadSection(state.activeSection);
-    } catch (err) {
-      showToast("Error al importar el respaldo", "error");
-    } finally {
-      importInput.value = "";
-    }
-  });
+  if (importInput) {
+    const newImportInput = importInput.cloneNode(true);
+    importInput.parentNode.replaceChild(newImportInput, importInput);
+    
+    newImportInput.addEventListener("change", async (e) => {
+      const file = e.target.files?.[0];
+      if (!file) return;
+      try {
+        const text = await file.text();
+        const parsed = JSON.parse(text);
+        await api.post("/backup/import", parsed);
+        showToast("Respaldo importado exitosamente", "success");
+        await loadSection(state.activeSection);
+      } catch (err) {
+        showToast("Error al importar el respaldo", "error");
+      } finally {
+        newImportInput.value = "";
+      }
+    });
+  }
 }
 
 // ─── MODAL BUILDERS ─────────────────────────────────────────
@@ -1858,7 +1991,13 @@ function wireAuth() {
   });
   
   if (loginBtn) {
-    loginBtn.addEventListener("click", async () => {
+    const newLoginBtn = loginBtn.cloneNode(true);
+    loginBtn.parentNode.replaceChild(newLoginBtn, loginBtn);
+    
+    newLoginBtn.addEventListener("click", async () => {
+      if (newLoginBtn.dataset.saving === "true") return;
+      newLoginBtn.dataset.saving = "true";
+      
       const email = el("login-email")?.value.trim();
       const password = el("login-password")?.value;
       const errorEl = el("login-error");
@@ -1869,6 +2008,7 @@ function wireAuth() {
           errorEl.textContent = "Completa correo y contraseña";
           errorEl.classList.remove("hidden");
         }
+        newLoginBtn.dataset.saving = "false";
         return;
       }
       try {
@@ -1883,12 +2023,19 @@ function wireAuth() {
         }
       } finally {
         setLoading(false);
+        newLoginBtn.dataset.saving = "false";
       }
     });
   }
   
   if (registerBtn) {
-    registerBtn.addEventListener("click", async () => {
+    const newRegisterBtn = registerBtn.cloneNode(true);
+    registerBtn.parentNode.replaceChild(newRegisterBtn, registerBtn);
+    
+    newRegisterBtn.addEventListener("click", async () => {
+      if (newRegisterBtn.dataset.saving === "true") return;
+      newRegisterBtn.dataset.saving = "true";
+      
       const email = el("reg-email")?.value.trim();
       const displayName = el("reg-username")?.value.trim();
       const password = el("reg-password")?.value;
@@ -1900,6 +2047,7 @@ function wireAuth() {
           errorEl.textContent = "Completa todos los campos";
           errorEl.classList.remove("hidden");
         }
+        newRegisterBtn.dataset.saving = "false";
         return;
       }
       if (password.length < 8) {
@@ -1907,6 +2055,7 @@ function wireAuth() {
           errorEl.textContent = "La contraseña debe tener al menos 8 caracteres";
           errorEl.classList.remove("hidden");
         }
+        newRegisterBtn.dataset.saving = "false";
         return;
       }
       try {
@@ -1921,6 +2070,7 @@ function wireAuth() {
         }
       } finally {
         setLoading(false);
+        newRegisterBtn.dataset.saving = "false";
       }
     });
   }
@@ -2047,17 +2197,41 @@ document.addEventListener("click", async (e) => {
       showToast("Presupuesto eliminado", "success");
       await loadBudgets();
     }
-	if (action === "pay-inst") {
-	  if (!confirm("¿Marcar esta partialidad como pagada?")) return;
-	  try {
-	    await api.post(`/installments/${id}/pay`, {});
-	    showToast("Partialidad marcada como pagada", "success");
-	    await loadInstallments();
-	    await loadDebts();  // ← Recargar deudas para mostrar nuevo saldo
-	  } catch (err) {
-	    showToast(err.message, "error");
-	  }
-	}
+    if (action === "pay-inst") {
+      if (!confirm("¿Marcar esta partialidad como pagada?")) return;
+      try {
+        const installment = state.installments.find(i => i.id == id);
+        if (!installment) throw new Error("No se encontró la partialidad");
+        
+        const debt = state.debts.find(d => d.id === installment.debtId);
+        if (!debt) throw new Error("No se encontró la deuda asociada");
+        
+        const currentRemaining = debt.remainingBalance || debt.principalBalance || 0;
+        const newRemaining = currentRemaining - installment.amount;
+        
+        if (newRemaining < 0) {
+          showToast("El monto de la partialidad excede el saldo restante", "error");
+          return;
+        }
+        
+        await api.post(`/installments/${id}/pay`, {});
+        
+        await api.patch(`/debts/${debt.id}`, {
+          remainingBalance: newRemaining,
+          principalBalance: debt.principalBalance,
+          installment: debt.installment,
+          frequency: debt.frequency,
+          nextDueDate: debt.nextDueDate,
+          notes: debt.notes
+        });
+        
+        showToast(`Partialidad pagada. Saldo restante: ${fmt(newRemaining, state.user?.currency || "MXN")}`, "success");
+        await loadInstallments();
+        await loadDebts();
+      } catch (err) {
+        showToast(err.message, "error");
+      }
+    }
     if (action === "del-inst") {
       if (!confirm("¿Eliminar esta partialidad?")) return;
       await api.delete(`/installments/${id}`);
@@ -2068,10 +2242,10 @@ document.addEventListener("click", async (e) => {
       const inst = state.installments.find(i => i.id == id);
       if (inst) buildEditInstallmentModal(inst);
     }
-	if (action === "add-progress-goal") {
-	  const goal = state.goals.find(g => g.id == id);
-	  if (goal) buildAddProgressModal(goal);
-	}
+    if (action === "add-progress-goal") {
+      const goal = state.goals.find(g => g.id == id);
+      if (goal) buildAddProgressModal(goal);
+    }
   } catch (err) {
     showToast(err.message, "error");
   }
@@ -2159,6 +2333,7 @@ function buildAddProgressModal(goal) {
     await loadGoals();
   });
 }
+
 // ─── BUDGETS ────────────────────────────────────────────────
 async function loadBudgets() {
   setLoading(true);
@@ -2275,46 +2450,83 @@ function wireGoalForm() {
   const saveBtn = el("btn-save-goal");
   
   if (addBtn) {
-    addBtn.addEventListener("click", () => {
+    const newAddBtn = addBtn.cloneNode(true);
+    addBtn.parentNode.replaceChild(newAddBtn, addBtn);
+    
+    newAddBtn.addEventListener("click", () => {
       const form = el("goal-form-wrap");
       if (form) {
         form.classList.toggle("hidden");
-        addBtn.textContent = form.classList.contains("hidden") ? "+ Nueva meta" : "✕ Cancelar";
+        newAddBtn.textContent = form.classList.contains("hidden") ? "+ Nueva meta" : "✕ Cancelar";
       }
     });
   }
   
   if (cancelBtn) {
-    cancelBtn.addEventListener("click", () => {
+    const newCancelBtn = cancelBtn.cloneNode(true);
+    cancelBtn.parentNode.replaceChild(newCancelBtn, cancelBtn);
+    
+    newCancelBtn.addEventListener("click", () => {
       const form = el("goal-form-wrap");
       if (form) form.classList.add("hidden");
-      if (addBtn) addBtn.textContent = "+ Nueva meta";
+      const add = el("btn-add-goal");
+      if (add) add.textContent = "+ Nueva meta";
+      document.querySelectorAll("#goal-form-wrap input, #goal-form-wrap select").forEach(i => i.value = "");
     });
   }
   
   if (saveBtn) {
-    saveBtn.addEventListener("click", async () => {
+    const newSaveBtn = saveBtn.cloneNode(true);
+    saveBtn.parentNode.replaceChild(newSaveBtn, saveBtn);
+    
+    newSaveBtn.addEventListener("click", async () => {
+      if (newSaveBtn.dataset.saving === "true") return;
+      newSaveBtn.dataset.saving = "true";
+      
       try {
+        const nameInput = el("goal-name");
+        const targetInput = el("goal-target");
+        const progressInput = el("goal-progress");
+        const dateInput = el("goal-date");
+        const statusSelect = el("goal-status");
+        
         const body = {
-          name: el("goal-name")?.value.trim(),
-          targetAmount: Number(el("goal-target")?.value || 0),
-          currentProgress: Number(el("goal-progress")?.value || 0),
-          targetDate: el("goal-date")?.value || null,
-          status: el("goal-status")?.value || "active"
+          name: nameInput?.value.trim(),
+          targetAmount: Number(targetInput?.value || 0),
+          currentProgress: Number(progressInput?.value || 0),
+          targetDate: dateInput?.value || null,
+          status: statusSelect?.value || "active"
         };
+        
         if (!body.name || !body.targetAmount) {
           showToast("Completa nombre y monto objetivo", "error");
           return;
         }
+        
+        if (body.currentProgress > body.targetAmount) {
+          showToast("El progreso no puede exceder la meta", "error");
+          return;
+        }
+        
         await api.post("/financial-goals", body);
         showToast("Meta guardada", "success");
+        
         const form = el("goal-form-wrap");
         if (form) form.classList.add("hidden");
-        if (addBtn) addBtn.textContent = "+ Nueva meta";
-        document.querySelectorAll("#goal-form-wrap input, #goal-form-wrap select").forEach(i => i.value = "");
+        const add = el("btn-add-goal");
+        if (add) add.textContent = "+ Nueva meta";
+        
+        if (nameInput) nameInput.value = "";
+        if (targetInput) targetInput.value = "";
+        if (progressInput) progressInput.value = "";
+        if (dateInput) dateInput.value = "";
+        if (statusSelect) statusSelect.value = "active";
+        
         await loadGoals();
       } catch (e) {
         showToast(e.message, "error");
+      } finally {
+        newSaveBtn.dataset.saving = "false";
       }
     });
   }
@@ -2327,26 +2539,39 @@ function wireBudgetForm() {
   const saveBtn = el("btn-save-budget");
   
   if (addBtn) {
-    addBtn.addEventListener("click", () => {
+    const newAddBtn = addBtn.cloneNode(true);
+    addBtn.parentNode.replaceChild(newAddBtn, addBtn);
+    
+    newAddBtn.addEventListener("click", () => {
       const form = el("budget-form-wrap");
       if (form) {
         form.classList.toggle("hidden");
-        addBtn.textContent = form.classList.contains("hidden") ? "+ Nuevo presupuesto" : "✕ Cancelar";
+        newAddBtn.textContent = form.classList.contains("hidden") ? "+ Nuevo presupuesto" : "✕ Cancelar";
       }
       populateCategorySelect("budget-category", state.categories);
     });
   }
   
   if (cancelBtn) {
-    cancelBtn.addEventListener("click", () => {
+    const newCancelBtn = cancelBtn.cloneNode(true);
+    cancelBtn.parentNode.replaceChild(newCancelBtn, cancelBtn);
+    
+    newCancelBtn.addEventListener("click", () => {
       const form = el("budget-form-wrap");
       if (form) form.classList.add("hidden");
-      if (addBtn) addBtn.textContent = "+ Nuevo presupuesto";
+      const add = el("btn-add-budget");
+      if (add) add.textContent = "+ Nuevo presupuesto";
     });
   }
   
   if (saveBtn) {
-    saveBtn.addEventListener("click", async () => {
+    const newSaveBtn = saveBtn.cloneNode(true);
+    saveBtn.parentNode.replaceChild(newSaveBtn, saveBtn);
+    
+    newSaveBtn.addEventListener("click", async () => {
+      if (newSaveBtn.dataset.saving === "true") return;
+      newSaveBtn.dataset.saving = "true";
+      
       try {
         const alertValue = Number(el("budget-alert")?.value || 80);
         const body = {
@@ -2363,17 +2588,23 @@ function wireBudgetForm() {
         }
         await api.post("/budgets", body);
         showToast("Presupuesto guardado", "success");
+        
         const form = el("budget-form-wrap");
         if (form) form.classList.add("hidden");
-        if (addBtn) addBtn.textContent = "+ Nuevo presupuesto";
+        const add = el("btn-add-budget");
+        if (add) add.textContent = "+ Nuevo presupuesto";
+        
         document.querySelectorAll("#budget-form-wrap input, #budget-form-wrap select").forEach(i => i.value = "");
         await loadBudgets();
       } catch (e) {
         showToast(e.message, "error");
+      } finally {
+        newSaveBtn.dataset.saving = "false";
       }
     });
   }
 }
+
 function syncCreditOnlyFields(scope, type) {
   const root = scope || document;
   root.querySelectorAll(".credit-only").forEach(field => {
@@ -2407,6 +2638,7 @@ function showInstallButton() {
     });
   }
 }
+
 // ─── INIT ──────────────────────────────────────────────────
 async function init() {
   wireAuth();

@@ -391,80 +391,79 @@ public class FinanceApiService {
 	// ==================== SUMMARY ====================
 	@Transactional(readOnly = true)
 	public ContractDtos.SummaryResponse summary(String userId, String range, LocalDate from, LocalDate to, String accountId) {
-		UUID uuid = UUID.fromString(userId);
-		String currency = profileRepo.getUserCurrency(uuid);
+	    UUID uuid = UUID.fromString(userId);
+	    String currency = profileRepo.getUserCurrency(uuid);
 
-		// Obtener el rango de fechas correcto
-		LocalDate[] window = resolveWindow(range, from, to);
-		LocalDate startDate = window[0];
-		LocalDate endDate = window[1];
+	    // Obtener el rango de fechas correcto
+	    LocalDate[] window = resolveWindow(range, from, to);
+	    LocalDate startDate = window[0];
+	    LocalDate endDate = window[1];
+	    
+	    System.out.println("=== SUMMARY DEBUG ===");
+	    System.out.println("Range: " + range);
+	    System.out.println("Start date: " + startDate);
+	    System.out.println("End date: " + endDate);
 
-		// Obtener ingresos reales de transacciones en el rango
-		BigDecimal realIncome = BigDecimal.ZERO;
-		if (startDate != null && endDate != null) {
-			Object[] incomeRow = movementRepo.getSummaryByDateRange(uuid, startDate, endDate);
-			if (incomeRow != null) {
-				incomeRow = mapper.unwrap(incomeRow);
-				realIncome = mapper.toBigDecimal(incomeRow[0]);
-			}
-		}
+	    // Obtener ingresos reales de transacciones en el rango
+	    BigDecimal realIncome = BigDecimal.ZERO;
+	    BigDecimal expenses = BigDecimal.ZERO;
+	    BigDecimal debtPayments = BigDecimal.ZERO;
+	    BigDecimal fixedPayments = BigDecimal.ZERO;
 
-		// Obtener monthlyIncome del perfil
-		BigDecimal monthlyIncome = BigDecimal.ZERO;
-		Object[] profileRow = profileRepo.getProfile(uuid);
-		if (profileRow != null) {
-			profileRow = mapper.unwrap(profileRow);
-			// monthlyIncome está en la posición 6 del array
-			if (profileRow.length > 6 && profileRow[6] != null) {
-				monthlyIncome = mapper.toBigDecimal(profileRow[6]);
-			}
-		}
+	    if (startDate != null && endDate != null) {
+	        Object[] summaryRow = movementRepo.getSummaryByDateRange(uuid, startDate, endDate);
+	        if (summaryRow != null) {
+	            summaryRow = mapper.unwrap(summaryRow);
+	            realIncome = mapper.toBigDecimal(summaryRow[0]);
+	            expenses = mapper.toBigDecimal(summaryRow[1]);
+	            debtPayments = mapper.toBigDecimal(summaryRow[2]);
+	            fixedPayments = mapper.toBigDecimal(summaryRow[3]);
+	            System.out.println("Real Income from transactions: " + realIncome);
+	            System.out.println("Expenses from transactions: " + expenses);
+	            System.out.println("Debt payments: " + debtPayments);
+	            System.out.println("Fixed payments: " + fixedPayments);
+	        }
+	    }
 
-		// Calcular el ingreso proporcional según el rango
-		BigDecimal finalIncome = realIncome;
-		if (realIncome == null || realIncome.compareTo(BigDecimal.ZERO) == 0) {
-			// Si no hay transacciones, usar monthlyIncome proporcional
-			if (monthlyIncome.compareTo(BigDecimal.ZERO) > 0) {
-				if ("biweekly".equals(range)) {
-					// Para quincena, la mitad del ingreso mensual
-					finalIncome = monthlyIncome.divide(BigDecimal.valueOf(2), 2, java.math.RoundingMode.HALF_UP);
-				} else {
-					finalIncome = monthlyIncome;
-				}
-			} else {
-				finalIncome = BigDecimal.ZERO;
-			}
-		}
+	    // Obtener monthlyIncome del perfil
+	    BigDecimal monthlyIncome = BigDecimal.ZERO;
+	    Object[] profileRow = profileRepo.getProfile(uuid);
+	    if (profileRow != null) {
+	        profileRow = mapper.unwrap(profileRow);
+	        if (profileRow.length > 6 && profileRow[6] != null) {
+	            monthlyIncome = mapper.toBigDecimal(profileRow[6]);
+	        }
+	    }
+	    System.out.println("Monthly income from profile: " + monthlyIncome);
 
-		// Obtener gastos, pagos fijos y pagos de deudas en el rango
-		BigDecimal expenses = BigDecimal.ZERO;
-		BigDecimal fixedPayments = BigDecimal.ZERO;
-		BigDecimal debtPayments = BigDecimal.ZERO;
+	    // Calcular el ingreso final
+	    BigDecimal finalIncome = realIncome;
+	    if (realIncome.compareTo(BigDecimal.ZERO) == 0 && monthlyIncome.compareTo(BigDecimal.ZERO) > 0) {
+	        if ("biweekly".equals(range)) {
+	            finalIncome = monthlyIncome.divide(BigDecimal.valueOf(2), 2, java.math.RoundingMode.HALF_UP);
+	            System.out.println("Using biweekly income: " + finalIncome);
+	        } else {
+	            finalIncome = monthlyIncome;
+	        }
+	    }
 
-		if (startDate != null && endDate != null) {
-			Object[] summaryRow = movementRepo.getSummaryByDateRange(uuid, startDate, endDate);
-			if (summaryRow != null) {
-				summaryRow = mapper.unwrap(summaryRow);
-				expenses = mapper.toBigDecimal(summaryRow[1]);
-				debtPayments = mapper.toBigDecimal(summaryRow[2]);
-				fixedPayments = mapper.toBigDecimal(summaryRow[3]);
-			}
-		}
+	    // Calcular total de gastos
+	    BigDecimal totalExpenses = expenses.add(fixedPayments).add(debtPayments);
+	    System.out.println("Total expenses: " + totalExpenses);
+	    
+	    // Calcular balance disponible
+	    BigDecimal availableBalance = finalIncome.subtract(totalExpenses);
+	    System.out.println("Available balance: " + availableBalance);
 
-		// Calcular balance disponible
-		BigDecimal availableBalance = finalIncome.subtract(expenses)
-				.subtract(fixedPayments).subtract(debtPayments);
-
-		return new ContractDtos.SummaryResponse(
-				finalIncome,      // income
-				expenses,         // expenses
-				fixedPayments,    // fixedPayments
-				debtPayments,     // debtPayments
-				availableBalance, // availableBalance
-				currency
-				);
+	    return new ContractDtos.SummaryResponse(
+	        finalIncome,      // income
+	        expenses,         // expenses (solo gastos de transacciones)
+	        fixedPayments,    // fixedPayments (pagos fijos)
+	        debtPayments,     // debtPayments (pagos de deudas)
+	        availableBalance, // availableBalance
+	        currency
+	    );
 	}
-
 	@Transactional(readOnly = true)
 	public List<ContractDtos.CategoryStatResponse> categoryStats(String userId, String range, LocalDate from, LocalDate to, String accountId) {
 		LocalDate[] window = resolveWindow(range, from, to);
