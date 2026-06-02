@@ -52,11 +52,15 @@ public class GlobalExceptionHandler {
     }
 
     @ExceptionHandler(DataIntegrityViolationException.class)
-    public ResponseEntity<Map<String, Object>> handleIntegrity(DataIntegrityViolationException ex) {
-        String raw = ex.getMostSpecificCause() != null ? ex.getMostSpecificCause().getMessage() : ex.getMessage();
-        String message = friendlyIntegrityMessage(raw);
-        HttpStatus status = message.startsWith("Ya existe") ? HttpStatus.CONFLICT : HttpStatus.BAD_REQUEST;
-        return ResponseEntity.status(status).body(errorBody("data_integrity_error", message));
+    public ResponseEntity<Map<String, Object>> handleDataIntegrityViolation(DataIntegrityViolationException ex) {
+        String message = ex.getMessage();
+        Map<String, Object> response = Map.of(
+            "error", "data_integrity",
+            "message", message != null && message.contains("enum") 
+                ? "Uno de los valores seleccionados no es válido." 
+                : "Error de integridad de datos."
+        );
+        return ResponseEntity.badRequest().body(response);
     }
 
     @ExceptionHandler(WebClientResponseException.class)
@@ -155,15 +159,5 @@ public class GlobalExceptionHandler {
         }
         return "No se pudo completar la autenticación.";
     }
-    @ExceptionHandler(org.springframework.dao.DataIntegrityViolationException.class)
-    public ResponseEntity<Map<String, Object>> handleDataIntegrityViolation(DataIntegrityViolationException ex) {
-        String message = ex.getMessage();
-        if (message != null && message.contains("enum")) {
-            return ResponseEntity.badRequest().body(Map.of(
-                "error", "validation_failed",
-                "message", "Valor no válido para el campo seleccionado. Verifica los datos."
-            ));
-        }
-        return ResponseEntity.badRequest().body(Map.of("error", "data_integrity", "message", ex.getMessage()));
-    }
+
 }
