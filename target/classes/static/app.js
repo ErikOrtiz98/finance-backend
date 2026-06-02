@@ -399,9 +399,7 @@ function renderKPIs() {
   
   if (kpiIncome) kpiIncome.textContent = fmt(s.income || 0, cur);
   
-  // CORREGIDO: Ya no sumamos fixedPayments porque ya está incluido en expenses
-  // Si el backend ya envía expenses con todo incluido, usamos solo eso
-  const totalObligations = (s.expenses || 0);  // <-- SOLO expenses, sin sumar fixedPayments
+  const totalObligations = (s.expenses || 0);
   
   if (kpiObligations) kpiObligations.textContent = fmt(totalObligations, cur);
   if (kpiBalance) kpiBalance.textContent = fmt(s.availableBalance || 0, cur);
@@ -538,7 +536,6 @@ function renderTransactions() {
   const c = el("transactions-list");
   if (!c) return;
   const cur = state.user?.currency || "MXN";
-  const isExpense = tx.type === "expense" || tx.type === "payment";
   if (!state.transactions.length) {
     c.innerHTML = `<div class="empty-state"><div class="empty-state-icon">💸</div>Sin transacciones aún</div>`;
     return;
@@ -1108,10 +1105,8 @@ function wireTxForm() {
       newSaveBtn.dataset.saving = "true";
       
       try {
-        // OBTENER Y VALIDAR EL TIPO AQUÍ DENTRO DEL EVENTO
         let type = el("tx-type")?.value;
         
-        // Validar que el tipo sea uno de los permitidos
         if (!validTypes.includes(type)) {
           console.warn(`Tipo de transacción inválido: "${type}", cambiando a "expense"`);
           type = "expense";
@@ -1191,6 +1186,99 @@ function wireTxForm() {
   }
 }
 
+function wireAccForm() {
+  const addBtn = el("btn-add-account");
+  const cancelBtn = el("btn-cancel-account");
+  const saveBtn = el("btn-save-account");
+  const msiBtn = el("btn-msi-purchase");
+  const typeSelect = el("acc-type");
+  const institutionSelect = el("acc-institution");
+  const otherGroup = el("acc-other-institution-group");
+  const otherInput = el("acc-other-institution");
+  
+  if (institutionSelect && otherGroup) {
+    institutionSelect.addEventListener("change", () => {
+      otherGroup.classList.toggle("hidden", institutionSelect.value !== "Otra");
+      if (otherInput) otherInput.value = "";
+    });
+  }
+  
+  if (addBtn) {
+    const newAddBtn = addBtn.cloneNode(true);
+    addBtn.parentNode.replaceChild(newAddBtn, addBtn);
+    newAddBtn.addEventListener("click", () => showInlineForm("account-form-wrap", "btn-add-account"));
+  }
+  
+  if (cancelBtn) {
+    const newCancelBtn = cancelBtn.cloneNode(true);
+    cancelBtn.parentNode.replaceChild(newCancelBtn, cancelBtn);
+    newCancelBtn.addEventListener("click", () => hideForm("account-form-wrap", "btn-add-account", "+ Nueva cuenta"));
+  }
+  
+  if (typeSelect) typeSelect.addEventListener("change", toggleCreditFields);
+  
+  // Botón de compra a meses
+  if (msiBtn) {
+    const newMsiBtn = msiBtn.cloneNode(true);
+    msiBtn.parentNode.replaceChild(newMsiBtn, msiBtn);
+    newMsiBtn.addEventListener("click", () => {
+      const creditCards = state.accounts.filter(a => a.type === "credit");
+      if (creditCards.length === 0) {
+        showToast("No tienes tarjetas de crédito registradas", "error");
+        return;
+      }
+      showCreditCardPurchaseForm();
+    });
+  }
+  
+  if (saveBtn) {
+    const newSaveBtn = saveBtn.cloneNode(true);
+    saveBtn.parentNode.replaceChild(newSaveBtn, saveBtn);
+    
+    newSaveBtn.addEventListener("click", async () => {
+      if (newSaveBtn.dataset.saving === "true") return;
+      newSaveBtn.dataset.saving = "true";
+      
+      try {
+        let institution = institutionSelect?.value || "";
+        if (institution === "Otra") {
+          institution = otherInput?.value.trim() || "";
+          if (!institution) {
+            showToast("Escribe el nombre de la institución", "error");
+            return;
+          }
+        }
+        
+        const body = {
+          type: el("acc-type")?.value,
+          name: el("acc-name")?.value.trim(),
+          institution: institution,
+          currency: el("acc-currency")?.value,
+          balance: Number(el("acc-balance")?.value || 0),
+          creditLimit: el("acc-type")?.value === "credit" ? Number(el("acc-limit")?.value || 0) : null,
+          closingDay: el("acc-type")?.value === "credit" ? Number(el("acc-cut-day")?.value || 0) : null,
+          dueDay: el("acc-type")?.value === "credit" ? Number(el("acc-due-day")?.value || 0) : null,
+          active: true,
+        };
+        if (!body.name) {
+          showToast("Ingresa el nombre de la cuenta", "error");
+          return;
+        }
+        await api.post("/accounts", body);
+        showToast("Cuenta creada", "success");
+        hideForm("account-form-wrap", "btn-add-account", "+ Nueva cuenta");
+        if (institutionSelect) institutionSelect.value = "";
+        if (otherGroup) otherGroup.classList.add("hidden");
+        if (otherInput) otherInput.value = "";
+        await loadAccounts();
+      } catch (e) {
+        showToast(e.message, "error");
+      } finally {
+        newSaveBtn.dataset.saving = "false";
+      }
+    });
+  }
+}
 
 function wireRecurringForm() {
   const addBtn = el("btn-add-recurring");
@@ -2789,7 +2877,7 @@ function showInstallButton() {
   }
 }
 
-// Agregar al HTML un nuevo formulario para compras a meses
+// Función para compras a meses (SOLO UNA VEZ)
 function showCreditCardPurchaseForm() {
   const modalBody = `
     <div class="form-grid">
@@ -2896,12 +2984,6 @@ async function init() {
       wireNav();
       wireTxForm();
       wireAccForm();
-	  const msiBtn = el("btn-msi-purchase");
-	  if (msiBtn) {
-	      msiBtn.addEventListener("click", () => {
-	          showCreditCardPurchaseForm();
-	      });
-	  }
       wireRecurringForm();
       wireDebtForm();
       wireInstallmentForm();
