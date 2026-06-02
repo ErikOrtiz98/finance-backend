@@ -36,12 +36,23 @@ public class FinanceMapper {
         map.put("payCycle",    toStringText(row[4]));
         map.put("payDays",     normalizePayDays(row[5]));
         map.put("monthlyIncome", toBigDecimal(row[6]));
+        map.put("mainAccountId", extractMainAccountId(row[5])); // NUEVO
         map.put("createdAt",   row[7]);
         map.put("updatedAt",   row[8]);
         map.put("deletedAt",   row[9]);
         map.put("syncStatus",  toStringText(row[10]));
         map.put("version",     row[11]);
         return objectMapper.convertValue(map, ContractDtos.MeResponse.class);
+    }
+    private String extractMainAccountId(Object settings) {
+        if (settings == null) return null;
+        try {
+            Map<String, Object> map = objectMapper.readValue(settings.toString(), new TypeReference<Map<String, Object>>() {});
+            Object mainAccountId = map.get("mainAccountId");
+            return mainAccountId != null ? mainAccountId.toString() : null;
+        } catch (Exception e) {
+            return null;
+        }
     }
 
     public ContractDtos.CategoryResponse mapToCategoryResponse(Object[] row) {

@@ -77,6 +77,7 @@ public final class ContractDtos {
 			String payCycle,
 			List<Integer> payDays,
 			BigDecimal monthlyIncome,
+			String mainAccountId,
 			Instant createdAt,
 			Instant updatedAt,
 			Instant deletedAt,
@@ -89,7 +90,8 @@ public final class ContractDtos {
 			@NotBlank String currency,
 			@NotBlank String payCycle,
 			@NotEmpty List<Integer> payDays,
-			BigDecimal monthlyIncome  
+			BigDecimal monthlyIncome,
+			String mainAccountId
 			) { }
 
 	public record CategoryResponse(

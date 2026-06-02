@@ -1012,6 +1012,14 @@
                     <option value="monthly">Mensual</option>
                   </select>
                 </div>
+				<div class="field-group">
+				  <label class="field-label">Cuenta de débito principal</label>
+				  <select id="profile-main-account" class="field-input">
+				    <option value="">Seleccionar cuenta de débito</option>
+				    <!-- Las opciones se llenarán desde el frontend -->
+				  </select>
+				  <small class="text-muted">Esta cuenta se usará para calcular el balance real en el Dashboard</small>
+				</div>
                 <div id="profile-quincenal-fields" class="field-group">
                   <label class="field-label">Fecha de pago 1 (día del mes)</label>
                   <input id="profile-payday1" class="field-input" type="number" min="1" max="31" placeholder="ej. 15" />

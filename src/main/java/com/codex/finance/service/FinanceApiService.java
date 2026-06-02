@@ -97,6 +97,7 @@ public class FinanceApiService {
 
     public ContractDtos.MeResponse updateMe(String userId, ContractDtos.UpdateMeRequest request) {
         UUID uuid = UUID.fromString(userId);
+        
         String settingsJson = profileRepo.getSettingsJson(uuid);
         Map<String, Object> settings;
         try {
@@ -108,19 +109,21 @@ public class FinanceApiService {
         } catch (Exception e) {
             settings = new HashMap<>();
         }
-
+        
         settings.put("monthlyIncome", request.monthlyIncome() != null ? request.monthlyIncome() : 0);
         settings.put("payCycle", request.payCycle());
+        settings.put("mainAccountId", request.mainAccountId()); // NUEVO
+        
         String payDaysJson = toJson(request.payDays());
         settings.put("payDays", payDaysJson);
-
+        
         String newSettingsJson;
         try {
             newSettingsJson = objectMapper.writeValueAsString(settings);
         } catch (Exception e) {
             newSettingsJson = "{}";
         }
-
+        
         Object[] row = profileRepo.upsertProfile(uuid, request.displayName(), request.currency(), newSettingsJson, uuid);
         return mapper.mapToMeResponse(row);
     }
@@ -565,88 +568,92 @@ public class FinanceApiService {
     // ==================== SUMMARY ====================
     @Transactional(readOnly = true)
     public ContractDtos.SummaryResponse summary(String userId, String range, LocalDate from, LocalDate to, String accountId) {
-        System.out.println("=== SUMMARY DEBUG ===");
-        System.out.println("Range recibido: '" + range + "'");
-        System.out.println("Range es null? " + (range == null));
-        System.out.println("Range longitud: " + (range == null ? "null" : range.length()));
-        
-        // Sanitizar el range ANTES de usarlo
-        String sanitizedRange = range;
-        if (sanitizedRange != null) {
-            sanitizedRange = sanitizedRange.toLowerCase().trim();
-            System.out.println("Range sanitizado: '" + sanitizedRange + "'");
-            
-            // Validar que sea uno de los valores permitidos
-            if (!sanitizedRange.equals("biweekly") && !sanitizedRange.equals("monthly") && !sanitizedRange.equals("custom")) {
-                System.out.println("⚠️ Range inválido: '" + sanitizedRange + "', usando 'monthly' como default");
-                sanitizedRange = "monthly";
-            }
-        } else {
-            sanitizedRange = "monthly";
-        }
-        
         UUID uuid = UUID.fromString(userId);
         String currency = profileRepo.getUserCurrency(uuid);
         
-        LocalDate[] window = resolveWindow(sanitizedRange, from, to);
+        LocalDate[] window = resolveWindow(range, from, to);
         LocalDate startDate = window[0];
         LocalDate endDate = window[1];
         
-        System.out.println("Fechas: " + startDate + " a " + endDate);
-        
-        BigDecimal realIncome = BigDecimal.ZERO;
-        BigDecimal totalExpenses = BigDecimal.ZERO;  
-        BigDecimal debtPayments = BigDecimal.ZERO;
-        
-        if (startDate != null && endDate != null) {
-            // Obtener resumen de movimientos (ingresos y gastos)
-            Object[] summaryRow = movementRepo.getSummaryByDateRange(uuid, startDate, endDate);
-            if (summaryRow != null) {
-                summaryRow = mapper.unwrap(summaryRow);
-                realIncome = mapper.toBigDecimal(summaryRow[0]);      // ingresos reales
-                totalExpenses = mapper.toBigDecimal(summaryRow[1]);   // gastos totales (incluye todo)
-                debtPayments = mapper.toBigDecimal(summaryRow[2]);    // pagos de deudas
-                // NOTA: fixedPayments ya está incluido en totalExpenses, no sumar aparte
-            }
-        }
-        
-        // Obtener monthlyIncome del perfil
-        BigDecimal monthlyIncome = BigDecimal.ZERO;
+        // Obtener la cuenta principal del perfil
         Object[] profileRow = profileRepo.getProfile(uuid);
+        String mainAccountId = null;
+        BigDecimal monthlyIncome = BigDecimal.ZERO;
+        
         if (profileRow != null) {
             profileRow = mapper.unwrap(profileRow);
             if (profileRow.length > 6 && profileRow[6] != null) {
                 monthlyIncome = mapper.toBigDecimal(profileRow[6]);
             }
-        }
-        
-        // Calcular el ingreso final
-        BigDecimal finalIncome = realIncome;
-        if (realIncome.compareTo(BigDecimal.ZERO) == 0 && monthlyIncome.compareTo(BigDecimal.ZERO) > 0) {
-            if ("biweekly".equals(range)) {
-                finalIncome = monthlyIncome.divide(BigDecimal.valueOf(2), 2, java.math.RoundingMode.HALF_UP);
-            } else {
-                finalIncome = monthlyIncome;
+            // Extraer mainAccountId del settings (índice 5)
+            Object settings = profileRow[5];
+            if (settings != null) {
+                try {
+                    Map<String, Object> settingsMap = objectMapper.readValue(settings.toString(), new TypeReference<Map<String, Object>>() {});
+                    Object mainId = settingsMap.get("mainAccountId");
+                    if (mainId != null) {
+                        mainAccountId = mainId.toString();
+                    }
+                } catch (Exception e) {
+                    // Ignorar
+                }
             }
         }
         
-        // Balance disponible = ingresos - gastos totales
+        BigDecimal realIncome = BigDecimal.ZERO;
+        BigDecimal expenses = BigDecimal.ZERO;
+        BigDecimal debtPayments = BigDecimal.ZERO;
+        BigDecimal fixedPayments = BigDecimal.ZERO;
+        
+        if (startDate != null && endDate != null) {
+            Object[] summaryRow;
+            
+            // Si hay cuenta principal, usarla
+            if (mainAccountId != null && !mainAccountId.isEmpty()) {
+                summaryRow = movementRepo.getSummaryByDateRangeAndAccount(uuid, startDate, endDate, UUID.fromString(mainAccountId));
+            } else if (accountId != null && !accountId.isEmpty()) {
+                summaryRow = movementRepo.getSummaryByDateRangeAndAccount(uuid, startDate, endDate, UUID.fromString(accountId));
+            } else {
+                summaryRow = movementRepo.getSummaryByDateRangeFromDebitAccount(uuid, startDate, endDate);
+            }
+            
+            if (summaryRow != null) {
+                summaryRow = mapper.unwrap(summaryRow);
+                realIncome = mapper.toBigDecimal(summaryRow[0]);
+                expenses = mapper.toBigDecimal(summaryRow[1]);
+                debtPayments = mapper.toBigDecimal(summaryRow[2]);
+                fixedPayments = mapper.toBigDecimal(summaryRow[3]);
+            }
+        }
+        
+        // Calcular el ingreso final - PRIORIZAR ingresos reales de la cuenta
+        BigDecimal finalIncome = realIncome;
+        
+        // Solo usar monthlyIncome estimado si no hay ingresos reales en la cuenta principal
+        if (realIncome.compareTo(BigDecimal.ZERO) == 0 && monthlyIncome.compareTo(BigDecimal.ZERO) > 0) {
+            if ("biweekly".equals(range)) {
+                finalIncome = monthlyIncome.divide(BigDecimal.valueOf(2), 2, java.math.RoundingMode.HALF_UP);
+                System.out.println("Usando ingreso estimado (sin movimientos reales): " + finalIncome);
+            } else {
+                finalIncome = monthlyIncome;
+            }
+        } else {
+            System.out.println("Usando ingreso real de la cuenta: " + finalIncome);
+        }
+        
+        BigDecimal totalExpenses = expenses.add(fixedPayments).add(debtPayments);
         BigDecimal availableBalance = finalIncome.subtract(totalExpenses);
         
-        System.out.println("=== SUMMARY CORREGIDO ===");
-        System.out.println("Income: " + finalIncome);
-        System.out.println("Total Expenses: " + totalExpenses);
-        System.out.println("Debt Payments (dentro de expenses): " + debtPayments);
-        System.out.println("Available Balance: " + availableBalance);
+        // Calcular balance REAL de la cuenta principal
+        BigDecimal realBalance = BigDecimal.ZERO;
+        if (mainAccountId != null && !mainAccountId.isEmpty()) {
+            realBalance = accountRepo.getAccountBalance(uuid, UUID.fromString(mainAccountId));
+            System.out.println("Saldo real de la cuenta principal: " + realBalance);
+        }
         
-        // Retornar: expenses = totalExpenses (todos los gastos)
-        // fixedPayments = 0 (para no duplicar en frontend)
         return new ContractDtos.SummaryResponse(
-            finalIncome,           // income
-            totalExpenses,         // expenses (todos los gastos)
-            BigDecimal.ZERO,       // fixedPayments - YA NO se usa para no duplicar
-            debtPayments,          // debtPayments (solo para referencia)
-            availableBalance,      // availableBalance
+            finalIncome, expenses, fixedPayments, debtPayments, 
+            realBalance.compareTo(BigDecimal.ZERO) > 0 ? realBalance : availableBalance, 
             currency
         );
     }

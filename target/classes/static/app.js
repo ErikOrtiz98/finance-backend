@@ -888,9 +888,17 @@ function renderCategories() {
 async function loadProfile() {
   setLoading(true);
   try {
-    const user = await api.get("/me");
+    // Cargar cuentas primero para tenerlas disponibles en el selector
+    const [user, accounts] = await Promise.all([
+      api.get("/me"),
+      api.get("/accounts")
+    ]);
     state.user = user;
+    state.accounts = accounts || [];
     fillProfile(user);
+  } catch (error) {
+    console.error("Error loading profile:", error);
+    showToast("Error al cargar el perfil", "error");
   } finally {
     setLoading(false);
   }
@@ -901,10 +909,22 @@ function fillProfile(user) {
   const income = el("profile-income");
   const currency = el("profile-currency");
   const period = el("profile-period");
+  const mainAccountSelect = el("profile-main-account");
   
   if (income) income.value = user.monthlyIncome || "";
   if (currency) currency.value = user.currency || "MXN";
   if (period) period.value = user.payCycle === "monthly" ? "monthly" : "biweekly";
+  
+  // Cargar cuentas de débito en el selector de cuenta principal
+  if (mainAccountSelect && state.accounts) {
+    const debitAccounts = state.accounts.filter(a => a.type === "debit");
+    if (debitAccounts.length === 0) {
+      mainAccountSelect.innerHTML = `<option value="">No hay cuentas de débito registradas</option>`;
+    } else {
+      mainAccountSelect.innerHTML = `<option value="">Ninguna (usar ingresos estimados)</option>` +
+        debitAccounts.map(a => `<option value="${a.id}" ${user.mainAccountId === a.id ? 'selected' : ''}>${a.name} - Saldo: ${fmt(a.balance, a.currency || 'MXN')}</option>`).join("");
+    }
+  }
   
   toggleProfilePeriodFields(user.payCycle || "biweekly");
   
@@ -917,6 +937,21 @@ function fillProfile(user) {
     } else {
       const paydayMonthly = el("profile-payday-monthly");
       if (paydayMonthly) paydayMonthly.value = user.payDays[0] || "";
+    }
+  }
+  
+  // Mostrar mensaje informativo si no hay cuenta seleccionada
+  if (mainAccountSelect && (!user.mainAccountId || user.mainAccountId === "")) {
+    const infoMsg = document.getElementById("main-account-info");
+    if (!infoMsg && mainAccountSelect.parentElement) {
+      const small = document.createElement("small");
+      small.id = "main-account-info";
+      small.className = "text-muted";
+      small.style.display = "block";
+      small.style.marginTop = "0.5rem";
+      small.style.fontSize = "0.75rem";
+      small.innerHTML = "⚠️ No has seleccionado una cuenta principal. El dashboard usará ingresos estimados en lugar de tu saldo real.";
+      mainAccountSelect.parentElement.appendChild(small);
     }
   }
 }
@@ -1575,8 +1610,14 @@ function wireProfileForm() {
   const saveBtn = el("btn-save-profile");
   const exportBtn = el("btn-export-backup");
   const importInput = el("import-backup");
+  const mainAccountSelect = el("profile-main-account");
   
   if (periodSelect) periodSelect.addEventListener("change", () => toggleProfilePeriodFields(periodSelect.value));
+  
+  // Recargar cuentas de débito cuando se abre el perfil
+  if (mainAccountSelect) {
+    // Esto se actualizará cuando se cargue el perfil en fillProfile
+  }
   
   if (saveBtn) {
     const newSaveBtn = saveBtn.cloneNode(true);
@@ -1600,18 +1641,25 @@ function wireProfileForm() {
         }
         
         const monthlyIncomeValue = parseFloat(el("profile-income")?.value || 0);
+        const mainAccountId = el("profile-main-account")?.value || null;
         
         const body = {
           displayName: state.user?.displayName || "",
           currency: el("profile-currency")?.value,
           payCycle: period,
           payDays: payDays,
-          monthlyIncome: isNaN(monthlyIncomeValue) ? 0 : monthlyIncomeValue
+          monthlyIncome: isNaN(monthlyIncomeValue) ? 0 : monthlyIncomeValue,
+          mainAccountId: mainAccountId
         };
         
         await api.patch("/me", body);
         state.user = { ...(state.user || {}), ...body };
         showToast("Perfil actualizado", "success");
+        
+        // Recargar dashboard si está visible para mostrar nuevos valores
+        if (state.activeSection === "dashboard") {
+          await loadDashboard();
+        }
       } catch (e) {
         showToast(e.message, "error");
       } finally {
