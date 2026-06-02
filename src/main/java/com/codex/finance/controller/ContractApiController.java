@@ -389,5 +389,21 @@ public class ContractApiController {
             @Valid @RequestBody ContractDtos.UpsertInstallmentRequest request) {
         return service.createCreditCardInstallment(jwt.getSubject(), request);
     }
+ // Compras a meses con tarjeta de crédito
+    @PostMapping("/installments/credit-card-purchase")
+    public List<ContractDtos.InstallmentResponse> createCreditCardPurchase(
+            @AuthenticationPrincipal Jwt jwt,
+            @Valid @RequestBody ContractDtos.CreditCardPurchaseRequest request) {
+        return service.createCreditCardPurchase(jwt.getSubject(), request);
+    }
+
+    // Pagar una partialidad de tarjeta de crédito
+    @PostMapping("/installments/{id}/pay-with-debit")
+    public ContractDtos.InstallmentResponse payCreditCardInstallment(
+            @AuthenticationPrincipal Jwt jwt,
+            @PathVariable String id,
+            @Valid @RequestBody ContractDtos.PayInstallmentRequest request) {
+        return service.payCreditCardInstallment(jwt.getSubject(), id, request);
+    }
 }
 

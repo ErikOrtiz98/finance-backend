@@ -130,15 +130,16 @@ public interface MovementRepository extends JpaRepository<Movement, UUID> {
     	       "FROM movements WHERE user_id = :userId AND deleted_at IS NULL", nativeQuery = true)
     	Object[] getSummaryAll(@Param("userId") UUID userId);
 
-    	@Query(value = "SELECT COALESCE(SUM(CASE WHEN movement_type = 'income' THEN amount ELSE 0 END), 0) AS income, " +
-    	       "COALESCE(SUM(CASE WHEN movement_type = 'expense' THEN amount ELSE 0 END), 0) AS expenses, " +
-    	       "COALESCE(SUM(CASE WHEN movement_type = 'payment' THEN amount ELSE 0 END), 0) AS debtPayments, " +
-    	       "COALESCE(SUM(CASE WHEN movement_type IN ('expense', 'payment') THEN amount ELSE 0 END), 0) AS fixedPayments " +
-    	       "FROM movements WHERE user_id = :userId AND deleted_at IS NULL " +
-    	       "AND movement_date >= :from AND movement_date <= :to", nativeQuery = true)
-    	Object[] getSummaryByDateRange(@Param("userId") UUID userId, 
-    	                               @Param("from") LocalDate from, 
-    	                               @Param("to") LocalDate to);
+    @Query(value = "SELECT " +
+            "COALESCE(SUM(CASE WHEN movement_type = 'income' THEN amount ELSE 0 END), 0) AS income, " +
+            "COALESCE(SUM(CASE WHEN movement_type IN ('expense', 'payment', 'withdrawal') THEN amount ELSE 0 END), 0) AS expenses, " +
+            "COALESCE(SUM(CASE WHEN movement_type = 'payment' THEN amount ELSE 0 END), 0) AS debtPayments, " +
+            "0 AS fixedPayments " +
+            "FROM movements WHERE user_id = :userId AND deleted_at IS NULL " +
+            "AND movement_date >= :from AND movement_date <= :to", nativeQuery = true)
+     Object[] getSummaryByDateRange(@Param("userId") UUID userId, 
+                                    @Param("from") LocalDate from, 
+                                    @Param("to") LocalDate to);
 
     	@Query(value = "SELECT COALESCE(SUM(CASE WHEN movement_type = 'income' THEN amount ELSE 0 END), 0) AS income, " +
     	       "COALESCE(SUM(CASE WHEN movement_type = 'expense' THEN amount ELSE 0 END), 0) AS expenses, " +

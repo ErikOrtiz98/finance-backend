@@ -17,15 +17,15 @@ import com.codex.finance.entity.Installment;
 public interface InstallmentRepository extends JpaRepository<Installment, UUID> {
     
     @Query(value = "SELECT i.id, i.debt_id, i.number, i.amount, i.due_date, i.paid, i.paid_at, " +
-            "i.payment_movement_id, i.created_at, i.updated_at, i.deleted_at, " +
-            "CASE WHEN i.deleted_at IS NULL THEN 'synced' ELSE 'deleted' END AS syncStatus, " +
-            "COALESCE(i.row_version, 1) AS version " +
-            "FROM installments i " +
-            "WHERE i.user_id = :userId " +
-            "AND i.deleted_at IS NULL " +
-            "ORDER BY i.due_date ASC " +
-            "LIMIT :limit", nativeQuery = true)
-     List<Object[]> listInstallments(@Param("userId") UUID userId, @Param("limit") int limit);
+           "i.payment_movement_id, i.created_at, i.updated_at, i.deleted_at, " +
+           "CASE WHEN i.deleted_at IS NULL THEN 'synced' ELSE 'deleted' END AS syncStatus, " +
+           "COALESCE(i.row_version, 1) AS version " +
+           "FROM installments i " +
+           "WHERE i.user_id = :userId " +
+           "AND i.deleted_at IS NULL " +
+           "ORDER BY i.due_date ASC " +
+           "LIMIT :limit", nativeQuery = true)
+    List<Object[]> listInstallments(@Param("userId") UUID userId, @Param("limit") int limit);
     
     @Query(value = "SELECT i.id, i.debt_id, i.number, i.amount, i.due_date, i.paid, i.paid_at, " +
            "i.payment_movement_id, i.created_at, i.updated_at, i.deleted_at, " +
@@ -37,6 +37,17 @@ public interface InstallmentRepository extends JpaRepository<Installment, UUID> 
            "AND i.deleted_at IS NULL " +
            "ORDER BY i.number ASC", nativeQuery = true)
     List<Object[]> listInstallmentsByDebt(@Param("userId") UUID userId, @Param("debtId") UUID debtId);
+    
+    @Query(value = "SELECT i.id, i.debt_id, i.number, i.amount, i.due_date, i.paid, i.paid_at, " +
+           "i.payment_movement_id, i.account_id, " +
+           "i.created_at, i.updated_at, i.deleted_at, " +
+           "CASE WHEN i.deleted_at IS NULL THEN 'synced' ELSE 'deleted' END AS syncStatus, " +
+           "COALESCE(i.row_version, 1) AS version " +
+           "FROM installments i " +
+           "WHERE i.user_id = :userId AND i.account_id = :accountId " +
+           "AND i.deleted_at IS NULL " +
+           "ORDER BY i.due_date ASC", nativeQuery = true)
+    List<Object[]> listInstallmentsByAccount(@Param("userId") UUID userId, @Param("accountId") UUID accountId);
     
     @Query(value = "SELECT i.id, i.debt_id, i.number, i.amount, i.due_date, i.paid, i.paid_at, " +
            "i.payment_movement_id, i.created_at, i.updated_at, i.deleted_at, " +
@@ -57,6 +68,21 @@ public interface InstallmentRepository extends JpaRepository<Installment, UUID> 
                            @Param("amount") BigDecimal amount,
                            @Param("dueDate") LocalDate dueDate,
                            @Param("paid") Boolean paid);
+    
+    @Modifying
+    @Query(value = "INSERT INTO installments (id, debt_id, account_id, user_id, number, amount, due_date, " +
+           "original_purchase_amount, interest_rate, paid, created_at, updated_at, row_version) " +
+           "VALUES (gen_random_uuid(), :debtId, :accountId, :userId, :number, :amount, :dueDate, " +
+           ":originalPurchaseAmount, :interestRate, :paid, NOW(), NOW(), 1)", nativeQuery = true)
+    void createCreditCardInstallment(@Param("userId") UUID userId, 
+                                     @Param("debtId") UUID debtId,
+                                     @Param("accountId") UUID accountId,
+                                     @Param("number") Integer number,
+                                     @Param("amount") BigDecimal amount,
+                                     @Param("dueDate") LocalDate dueDate,
+                                     @Param("originalPurchaseAmount") BigDecimal originalPurchaseAmount,
+                                     @Param("interestRate") BigDecimal interestRate,
+                                     @Param("paid") Boolean paid);
     
     @Modifying
     @Query(value = "UPDATE installments SET " +
@@ -87,47 +113,4 @@ public interface InstallmentRepository extends JpaRepository<Installment, UUID> 
     @Query(value = "SELECT COUNT(*) FROM installments " +
            "WHERE debt_id = :debtId AND user_id = :userId AND paid = false AND deleted_at IS NULL", nativeQuery = true)
     int countUnpaidInstallments(@Param("userId") UUID userId, @Param("debtId") UUID debtId);
- // Agregar estos métodos al InstallmentRepository existente
-
-    @Query(value = "SELECT i.id, i.debt_id, i.number, i.amount, i.due_date, i.paid, i.paid_at, " +
-           "i.payment_movement_id, i.account_id, a.name as account_name, " +
-           "i.original_purchase_amount, i.interest_rate, " +
-           "i.created_at, i.updated_at, i.deleted_at, " +
-           "CASE WHEN i.deleted_at IS NULL THEN 'synced' ELSE 'deleted' END AS syncStatus, " +
-           "COALESCE(i.row_version, 1) AS version " +
-           "FROM installments i " +
-           "LEFT JOIN accounts a ON a.id = i.account_id " +
-           "WHERE i.user_id = :userId " +
-           "AND i.deleted_at IS NULL " +
-           "ORDER BY i.due_date ASC " +
-           "LIMIT :limit", nativeQuery = true)
-    List<Object[]> listInstallmentsWithAccount(@Param("userId") UUID userId, @Param("limit") int limit);
-    
-    @Query(value = "SELECT i.id, i.debt_id, i.number, i.amount, i.due_date, i.paid, i.paid_at, " +
-           "i.payment_movement_id, i.account_id, a.name as account_name, " +
-           "i.original_purchase_amount, i.interest_rate, " +
-           "i.created_at, i.updated_at, i.deleted_at, " +
-           "CASE WHEN i.deleted_at IS NULL THEN 'synced' ELSE 'deleted' END AS syncStatus, " +
-           "COALESCE(i.row_version, 1) AS version " +
-           "FROM installments i " +
-           "LEFT JOIN accounts a ON a.id = i.account_id " +
-           "WHERE i.user_id = :userId AND i.account_id = :accountId " +
-           "AND i.deleted_at IS NULL " +
-           "ORDER BY i.due_date ASC", nativeQuery = true)
-    List<Object[]> listInstallmentsByAccount(@Param("userId") UUID userId, @Param("accountId") UUID accountId);
-    
-    @Modifying
-    @Query(value = "INSERT INTO installments (id, debt_id, account_id, user_id, number, amount, due_date, " +
-           "original_purchase_amount, interest_rate, paid, created_at, updated_at, row_version) " +
-           "VALUES (gen_random_uuid(), :debtId, :accountId, :userId, :number, :amount, :dueDate, " +
-           ":originalPurchaseAmount, :interestRate, :paid, NOW(), NOW(), 1)", nativeQuery = true)
-    void createCreditCardInstallment(@Param("userId") UUID userId, 
-                                     @Param("debtId") UUID debtId,
-                                     @Param("accountId") UUID accountId,
-                                     @Param("number") Integer number,
-                                     @Param("amount") BigDecimal amount,
-                                     @Param("dueDate") LocalDate dueDate,
-                                     @Param("originalPurchaseAmount") BigDecimal originalPurchaseAmount,
-                                     @Param("interestRate") BigDecimal interestRate,
-                                     @Param("paid") Boolean paid);
 }

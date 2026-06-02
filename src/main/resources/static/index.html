@@ -185,28 +185,28 @@
 
         <!-- ── DASHBOARD ── -->
         <section class="page-section active" id="section-dashboard">
-          <div class="kpi-grid">
-            <div class="kpi-card kpi-income">
-              <span class="kpi-label">Ingreso del periodo</span>
-              <strong class="kpi-value" id="kpi-income">$0.00</strong>
-              <small class="kpi-note" id="kpi-income-note">—</small>
-            </div>
-            <div class="kpi-card kpi-obligations">
-              <span class="kpi-label">Obligaciones próximas</span>
-              <strong class="kpi-value" id="kpi-obligations">$0.00</strong>
-              <small class="kpi-note">Pagos del periodo activo</small>
-            </div>
-            <div class="kpi-card kpi-balance">
-              <span class="kpi-label">Balance estimado</span>
-              <strong class="kpi-value" id="kpi-balance">$0.00</strong>
-              <small class="kpi-note">Ingreso menos compromisos</small>
-            </div>
-            <div class="kpi-card kpi-debt">
-              <span class="kpi-label">Deuda total</span>
-              <strong class="kpi-value" id="kpi-debt">$0.00</strong>
-              <small class="kpi-note">Tarjetas + préstamos</small>
-            </div>
-          </div>
+			<div class="kpi-grid">
+			  <div class="kpi-card kpi-income">
+			    <span class="kpi-label">Ingreso del periodo</span>
+			    <strong class="kpi-value" id="kpi-income">$0.00</strong>
+			    <small class="kpi-note" id="kpi-income-note">—</small>
+			  </div>
+			  <div class="kpi-card kpi-obligations">
+			    <span class="kpi-label">Total Gastos</span>  <!-- Cambiado -->
+			    <strong class="kpi-value" id="kpi-obligations">$0.00</strong>
+			    <small class="kpi-note">Gastos del periodo</small>  <!-- Cambiado -->
+			  </div>
+			  <div class="kpi-card kpi-balance">
+			    <span class="kpi-label">Balance estimado</span>
+			    <strong class="kpi-value" id="kpi-balance">$0.00</strong>
+			    <small class="kpi-note">Ingreso menos gastos</small>  <!-- Cambiado -->
+			  </div>
+			  <div class="kpi-card kpi-debt">
+			    <span class="kpi-label">Pago de deudas</span>
+			    <strong class="kpi-value" id="kpi-debt">$0.00</strong>
+			    <small class="kpi-note">Solo pagos de deudas</small>
+			  </div>
+			</div>
 
           <!-- NUEVO: Indicador de Endeudamiento -->
           <div class="dash-card">
@@ -286,6 +286,7 @@
           <div class="section-header">
             <h3 class="card-title">Cuentas y Tarjetas</h3>
             <button class="btn-primary btn-sm" id="btn-add-account">+ Nueva cuenta</button>
+			<button class="btn-primary btn-sm" id="btn-msi-purchase">+ Compra a meses</button>
           </div>
           <div id="account-form-wrap" class="inline-form hidden">
             <div class="form-grid">
