@@ -400,13 +400,15 @@ public class FinanceApiService {
 	        throw new ApiException(HttpStatus.NOT_FOUND, "installment not found or already paid");
 	    }
 	    
-	    // Actualizar SOLO el saldo restante de la deuda (NO el principalBalance)
+	    // Actualizar SOLO el saldo restante de la deuda
 	    Object[] debtRow = debtRepo.getDebtById(uuid, debtId);
 	    if (debtRow != null) {
 	        Object[] unwrappedDebt = mapper.unwrap(debtRow);
+	        
+	        // ÍNDICES CORREGIDOS según la consulta getDebtById
 	        BigDecimal currentRemaining = mapper.toBigDecimal(unwrappedDebt[3]); // remaining_balance
-	        BigDecimal principalBalance = mapper.toBigDecimal(unwrappedDebt[2]); // principalBalance (NO DEBE CAMBIAR)
-	        BigDecimal fixedPayment = mapper.toBigDecimal(unwrappedDebt[4]); // fixed_payment (NO DEBE CAMBIAR)
+	        BigDecimal principalBalance = mapper.toBigDecimal(unwrappedDebt[4]); // original_amount (NO DEBE CAMBIAR)
+	        BigDecimal fixedPayment = mapper.toBigDecimal(unwrappedDebt[5]);     // fixed_payment (NO DEBE CAMBIAR)
 	        BigDecimal newRemaining = currentRemaining.subtract(amount);
 	        
 	        if (newRemaining.compareTo(BigDecimal.ZERO) < 0) {
@@ -420,9 +422,9 @@ public class FinanceApiService {
 	        System.out.println("Payment amount: " + amount);
 	        System.out.println("New remaining: " + newRemaining);
 	        
-	        // Actualizar SOLO remaining_balance, mantener principalBalance y fixed_payment
+	        // Actualizar SOLO remaining_balance
 	        String sql = "UPDATE debts SET remaining_balance = :newRemaining, updated_at = NOW() " +
-	                     "WHERE id = :id AND user_id = :userId";
+	                     "WHERE id = :id AND user_id = :userId AND deleted_at IS NULL";
 	        jdbcTemplate.update(sql, 
 	            java.util.Map.of("newRemaining", newRemaining, 
 	                           "id", debtId, 

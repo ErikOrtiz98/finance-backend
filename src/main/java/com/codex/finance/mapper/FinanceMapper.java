@@ -104,10 +104,21 @@ public class FinanceMapper {
 	}
 
 	public ContractDtos.DebtResponse mapToDebtResponse(Object[] row) {
-		row = unwrap(row);
-		return new ContractDtos.DebtResponse(toString(row[0]), toString(row[1]), toString(row[2]), toBigDecimal(row[3]),
-				toBigDecimal(row[4]), toString(row[5]), toLocalDate(row[6]), toString(row[7]), toInstant(row[8]),
-				toInstant(row[9]), toInstant(row[10]), toSyncStatus(row[11]), toLong(row[12], 1L));
+	    row = unwrap(row);
+	    return new ContractDtos.DebtResponse(
+	        toString(row[0]), toString(row[1]), toString(row[2]),
+	        toBigDecimal(row[3]),  // principalBalance
+	        toBigDecimal(row[4]),  // remainingBalance  <-- NUEVO
+	        toBigDecimal(row[5]),  // installment
+	        toString(row[6]),      // frequency
+	        toLocalDate(row[7]),   // nextDueDate
+	        toString(row[8]),      // notes
+	        toInstant(row[9]),     // createdAt
+	        toInstant(row[10]),    // updatedAt
+	        toInstant(row[11]),    // deletedAt
+	        toSyncStatus(row[12]), // syncStatus
+	        toLong(row[13], 1L)    // version
+	    );
 	}
 
 	// ==================== RECURRING PAYMENT ====================

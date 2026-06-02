@@ -87,7 +87,7 @@ public final class ContractDtos {
 			Integer limit, String cursor) {
 	}
 
-	public record DebtResponse(String id, String userId, String name, BigDecimal principalBalance,
+	public record DebtResponse(String id, String userId, String name, BigDecimal principalBalance,  BigDecimal remainingBalance,
 			BigDecimal installment, String frequency, LocalDate nextDueDate, String notes, Instant createdAt,
 			Instant updatedAt, Instant deletedAt, SyncStatus syncStatus, long version) {
 	}
