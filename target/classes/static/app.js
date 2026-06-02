@@ -1191,91 +1191,6 @@ function wireTxForm() {
   }
 }
 
-// Agregar al HTML un nuevo formulario para compras a meses
-function showCreditCardPurchaseForm() {
-  const modalBody = `
-    <div class="form-grid">
-      <div class="field-group field-full">
-        <label class="field-label">Tarjeta de crédito</label>
-        <select id="purchase-account" class="field-input">
-          ${state.accounts.filter(a => a.type === "credit").map(a => 
-            `<option value="${a.id}">${a.name} - Límite: ${fmt(a.creditLimit)} - Disponible: ${fmt(a.creditLimit - a.balance)}</option>`
-          ).join("")}
-        </select>
-      </div>
-      <div class="field-group field-full">
-        <label class="field-label">Nombre de la compra</label>
-        <input id="purchase-name" class="field-input" type="text" placeholder="Ej: iPhone 15, Lavadora, Viaje..." />
-      </div>
-      <div class="field-group">
-        <label class="field-label">Monto total</label>
-        <input id="purchase-total" class="field-input" type="number" step="0.01" placeholder="0.00" />
-      </div>
-      <div class="field-group">
-        <label class="field-label">Número de meses</label>
-        <select id="purchase-months" class="field-input">
-          <option value="3">3 meses</option>
-          <option value="6">6 meses</option>
-          <option value="9">9 meses</option>
-          <option value="12">12 meses</option>
-          <option value="18">18 meses</option>
-          <option value="24">24 meses</option>
-        </select>
-      </div>
-      <div class="field-group">
-        <label class="field-label">Tasa de interés (%)</label>
-        <input id="purchase-interest" class="field-input" type="number" step="0.01" placeholder="0 (sin intereses)" value="0" />
-      </div>
-      <div class="field-group">
-        <label class="field-label">Primer pago</label>
-        <input id="purchase-first-due" class="field-input" type="date" value="${todayIso()}" />
-      </div>
-      <div class="field-group">
-        <label class="field-label">Categoría</label>
-        <select id="purchase-category" class="field-input">
-          <option value="">Seleccionar categoría</option>
-          ${state.categories.map(c => `<option value="${c.id}">${c.icon || ""} ${c.name}</option>`).join("")}
-        </select>
-      </div>
-    </div>
-  `;
-  
-  openModal("Comprar a meses", modalBody, async () => {
-    const accountId = el("purchase-account")?.value;
-    const name = el("purchase-name")?.value.trim();
-    const totalAmount = Number(el("purchase-total")?.value || 0);
-    const months = parseInt(el("purchase-months")?.value, 10);
-    const interestRate = Number(el("purchase-interest")?.value || 0);
-    const firstDueDate = el("purchase-first-due")?.value;
-    const categoryId = el("purchase-category")?.value || null;
-    
-    if (!accountId || !name || !totalAmount || !months || !firstDueDate) {
-      showToast("Completa todos los campos", "error");
-      return;
-    }
-    
-    const body = {
-      accountId: accountId,
-      name: name,
-      totalAmount: totalAmount,
-      months: months,
-      interestRate: interestRate,
-      firstDueDate: firstDueDate,
-      categoryId: categoryId
-    };
-    
-    try {
-      await api.post("/installments/credit-card-purchase", body);
-      showToast(`Compra a ${months} meses registrada exitosamente`, "success");
-      closeModal();
-      await loadInstallments();
-      await loadAccounts();
-      await loadDebts();
-    } catch (e) {
-      showToast(e.message, "error");
-    }
-  });
-}
 
 function wireRecurringForm() {
   const addBtn = el("btn-add-recurring");
@@ -2873,6 +2788,7 @@ function showInstallButton() {
     });
   }
 }
+
 // Agregar al HTML un nuevo formulario para compras a meses
 function showCreditCardPurchaseForm() {
   const modalBody = `
