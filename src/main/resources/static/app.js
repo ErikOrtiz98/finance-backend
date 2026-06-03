@@ -3494,7 +3494,11 @@ document.addEventListener("click", async (e) => {
 	      }
 	      
 	      // 3. Marcar partialidad como pagada en el backend
-	      await api.post(`/installments/${id}/pay`, {});
+		  await api.post(`/installments/${id}/pay`, {
+		    debitAccountId: sourceAccountId,
+		    currency: state.user?.currency || "MXN",
+		    notes: notes
+		  });
 	      
 	      showToast(`Partialidad pagada desde ${sourceAccount.name}`, "success");
 	      closeModal();
