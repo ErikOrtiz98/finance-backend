@@ -397,21 +397,36 @@ function renderKPIs() {
   const kpiIncome = el("kpi-income");
   const kpiObligations = el("kpi-obligations");
   const kpiBalance = el("kpi-balance");
-  const kpiPayments = el("kpi-payments");        // NUEVO
-  const kpiTotalDebt = el("kpi-total-debt");    // NUEVO
+  const kpiPayments = el("kpi-payments");
+  const kpiTotalDebt = el("kpi-total-debt");
   const kpiNote = el("kpi-income-note");
   
   if (kpiIncome) kpiIncome.textContent = fmt(s.income || 0, cur);
   
   const totalObligations = (s.expenses || 0);
   if (kpiObligations) kpiObligations.textContent = fmt(totalObligations, cur);
-  if (kpiBalance) kpiBalance.textContent = fmt(s.availableBalance || 0, cur);
   
-  // NUEVOS KPI
+  // CORREGIDO: Usar saldo real de la cuenta principal en lugar de calcular
+  // Buscar la cuenta principal seleccionada por el usuario
+  const mainAccountId = state.user?.mainAccountId;
+  const mainAccount = state.accounts.find(a => a.id === mainAccountId);
+  const realBalance = mainAccount ? mainAccount.balance : (s.availableBalance || 0);
+  
+  if (kpiBalance) {
+    kpiBalance.textContent = fmt(realBalance, cur);
+    // Agregar tooltip para explicar
+    kpiBalance.title = mainAccount ? `Saldo real de ${mainAccount.name}` : "Balance basado en movimientos";
+  }
+  
   if (kpiPayments) kpiPayments.textContent = fmt(s.debtPayments || 0, cur);
   if (kpiTotalDebt) kpiTotalDebt.textContent = fmt(s.totalRemainingDebt || 0, cur);
   
-  if (kpiNote && state.user) kpiNote.textContent = `Periodo ${state.activePeriod === "biweekly" ? "Quincenal" : "Mensual"}`;
+  if (kpiNote && state.user) {
+    kpiNote.textContent = `Periodo ${state.activePeriod === "biweekly" ? "Quincenal" : "Mensual"}`;
+    if (mainAccount) {
+      kpiNote.innerHTML += ` · Cuenta: ${mainAccount.name}`;
+    }
+  }
 }
 
 function renderUpcoming(containerId, items) {
