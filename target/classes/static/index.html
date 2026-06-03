@@ -657,41 +657,51 @@
         </section>
 
         <!-- ── CATEGORIES ── -->
-        <section class="page-section hidden" id="section-categories">
-          <div class="section-header">
-            <h3 class="card-title">Categorías</h3>
-            <button class="btn-primary btn-sm" id="btn-add-category">+ Nueva</button>
-          </div>
-          <div id="category-form-wrap" class="inline-form hidden">
-            <div class="form-grid">
-              <div class="field-group">
-                <label class="field-label">Nombre</label>
-                <input id="cat-name" class="field-input" type="text" placeholder="Alimentación..." />
-              </div>
-              <div class="field-group">
-                <label class="field-label">Tipo</label>
-                <select id="cat-type" class="field-input">
-                  <option value="expense">Gasto</option>
-                  <option value="income">Ingreso</option>
-                  <option value="both">Ambos</option>
-                </select>
-              </div>
-              <div class="field-group">
-                <label class="field-label">Color (hex)</label>
-                <input id="cat-color" class="field-input" type="color" value="#6ee7b7" />
-              </div>
-              <div class="field-group">
-                <label class="field-label">Ícono (emoji)</label>
-                <input id="cat-icon" class="field-input" type="text" maxlength="4" placeholder="🍔" />
-              </div>
-            </div>
-            <div class="form-actions">
-              <button class="btn-primary btn-sm" id="btn-save-category">Guardar</button>
-              <button class="btn-secondary btn-sm" id="btn-cancel-category">Cancelar</button>
-            </div>
-          </div>
-          <div id="categories-list" class="categories-grid"></div>
-        </section>
+		<!-- ── CATEGORIES ── -->
+		<section class="page-section hidden" id="section-categories">
+		  <div class="section-header">
+		    <h3 class="card-title">Categorías</h3>
+		    <button class="btn-primary btn-sm" id="btn-add-category">+ Nueva</button>
+		  </div>
+		  <div id="category-form-wrap" class="inline-form hidden">
+		    <div class="form-grid">
+		      <div class="field-group">
+		        <label class="field-label">Nombre</label>
+		        <input id="cat-name" class="field-input" type="text" placeholder="Alimentación..." />
+		      </div>
+		      <div class="field-group">
+		        <label class="field-label">Tipo</label>
+		        <select id="cat-type" class="field-input">
+		          <option value="expense">Gasto</option>
+		          <option value="income">Ingreso</option>
+		          <option value="both">Ambos</option>
+		        </select>
+		      </div>
+		      <div class="field-group">
+		        <label class="field-label">Color (hex)</label>
+		        <input id="cat-color" class="field-input" type="color" value="#6ee7b7" />
+		      </div>
+		      <div class="field-group">
+		        <label class="field-label">Ícono (emoji)</label>
+		        <div style="display: flex; gap: 0.5rem; align-items: center;">
+		          <input id="cat-icon" class="field-input" type="text" maxlength="4" placeholder="🍔" style="flex: 1;" />
+		          <button type="button" id="open-emoji-picker" class="btn-secondary btn-sm" style="width: auto; margin: 0;">📋</button>
+		        </div>
+		      </div>
+		    </div>
+		    <div id="emoji-picker" class="emoji-picker hidden">
+		      <div class="emoji-picker-header">
+		        <input type="text" id="emoji-search" placeholder="🔍 Buscar emoji..." class="field-input" />
+		      </div>
+		      <div id="emoji-grid" class="emoji-grid"></div>
+		    </div>
+		    <div class="form-actions" style="margin-top: 1rem;">
+		      <button class="btn-primary btn-sm" id="btn-save-category">Guardar</button>
+		      <button class="btn-secondary btn-sm" id="btn-cancel-category">Cancelar</button>
+		    </div>
+		  </div>
+		  <div id="categories-list" class="categories-grid"></div>
+		</section>
 
         <!-- ── ORGANIZACIÓN QUINCENAL (NUEVA SECCIÓN) ── -->
         <section class="page-section hidden" id="section-biweekly">

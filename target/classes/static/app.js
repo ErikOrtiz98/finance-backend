@@ -1722,17 +1722,94 @@ function wireCategoryForm() {
   const addBtn = el("btn-add-category");
   const cancelBtn = el("btn-cancel-category");
   const saveBtn = el("btn-save-category");
+  const openPickerBtn = el("open-emoji-picker");
+  const emojiPicker = el("emoji-picker");
+  const emojiSearch = el("emoji-search");
+  const emojiGrid = el("emoji-grid");
+  const catIconInput = el("cat-icon");
+  
+  // Lista de emojis comunes para categorías
+  const commonEmojis = [
+    "🍔", "🍕", "🥗", "🍎", "🥑", "🍿", "☕", "🥤", "🍺", "🍷",
+    "🚗", "⛽", "🚌", "✈️", "🏠", "🏥", "🏫", "💊", "🏋️", "🧘",
+    "📱", "💻", "🖥️", "📺", "🎮", "🎵", "🎬", "📚", "✏️", "💼",
+    "👕", "👗", "👟", "💄", "💍", "🎁", "🎉", "💝", "🏦", "💰",
+    "💳", "📈", "📉", "🏆", "⭐", "❤️", "💚", "💙", "🧡", "💜",
+    "🏡", "🔧", "🧹", "🌿", "🐶", "🐱", "🐟", "🌸", "🌞", "🌙",
+    "🎓", "📝", "🗂️", "📅", "⏰", "🔔", "📌", "📍", "🔑", "💡"
+  ];
+  
+  // Función para renderizar emojis
+  function renderEmojis(filter = "") {
+    if (!emojiGrid) return;
+    
+    const filtered = commonEmojis.filter(emoji => 
+      filter === "" || emoji.includes(filter)
+    );
+    
+    emojiGrid.innerHTML = filtered.map(emoji => `
+      <div class="emoji-option" data-emoji="${emoji}">${emoji}</div>
+    `).join("");
+    
+    // Agregar event listeners a los emojis
+    document.querySelectorAll(".emoji-option").forEach(el => {
+      el.addEventListener("click", () => {
+        const emoji = el.dataset.emoji;
+        if (catIconInput) catIconInput.value = emoji;
+        if (emojiPicker) emojiPicker.classList.add("hidden");
+        if (openPickerBtn) openPickerBtn.textContent = "✓ Seleccionado";
+        setTimeout(() => {
+          if (openPickerBtn) openPickerBtn.textContent = "📋";
+        }, 1500);
+      });
+    });
+  }
+  
+  // Abrir/cerrar selector de emojis
+  if (openPickerBtn && emojiPicker) {
+    openPickerBtn.addEventListener("click", (e) => {
+      e.stopPropagation();
+      emojiPicker.classList.toggle("hidden");
+      if (!emojiPicker.classList.contains("hidden")) {
+        renderEmojis("");
+        if (emojiSearch) emojiSearch.value = "";
+      }
+    });
+  }
+  
+  // Buscar emojis
+  if (emojiSearch) {
+    emojiSearch.addEventListener("input", (e) => {
+      renderEmojis(e.target.value);
+    });
+  }
+  
+  // Cerrar selector al hacer clic fuera
+  document.addEventListener("click", (e) => {
+    if (emojiPicker && !emojiPicker.classList.contains("hidden")) {
+      if (!openPickerBtn?.contains(e.target) && !emojiPicker.contains(e.target)) {
+        emojiPicker.classList.add("hidden");
+      }
+    }
+  });
   
   if (addBtn) {
     const newAddBtn = addBtn.cloneNode(true);
     addBtn.parentNode.replaceChild(newAddBtn, addBtn);
-    newAddBtn.addEventListener("click", () => showInlineForm("category-form-wrap", "btn-add-category"));
+    newAddBtn.addEventListener("click", () => {
+      showInlineForm("category-form-wrap", "btn-add-category");
+      if (emojiPicker) emojiPicker.classList.add("hidden");
+    });
   }
   
   if (cancelBtn) {
     const newCancelBtn = cancelBtn.cloneNode(true);
     cancelBtn.parentNode.replaceChild(newCancelBtn, cancelBtn);
-    newCancelBtn.addEventListener("click", () => hideForm("category-form-wrap", "btn-add-category", "+ Nueva"));
+    newCancelBtn.addEventListener("click", () => {
+      hideForm("category-form-wrap", "btn-add-category", "+ Nueva");
+      if (catIconInput) catIconInput.value = "";
+      if (emojiPicker) emojiPicker.classList.add("hidden");
+    });
   }
   
   if (saveBtn) {
@@ -1748,7 +1825,7 @@ function wireCategoryForm() {
           name: el("cat-name")?.value.trim(),
           type: el("cat-type")?.value,
           color: el("cat-color")?.value,
-          icon: el("cat-icon")?.value.trim(),
+          icon: el("cat-icon")?.value.trim() || "📁",
         };
         if (!body.name) {
           showToast("Ingresa el nombre de la categoría", "error");
@@ -1757,6 +1834,8 @@ function wireCategoryForm() {
         await api.post("/categories", body);
         showToast("Categoría creada", "success");
         hideForm("category-form-wrap", "btn-add-category", "+ Nueva");
+        if (catIconInput) catIconInput.value = "";
+        if (emojiPicker) emojiPicker.classList.add("hidden");
         await loadCategories();
       } catch (e) {
         showToast(e.message, "error");

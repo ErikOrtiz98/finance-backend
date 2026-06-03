@@ -1328,3 +1328,47 @@ a { color: inherit; text-decoration: none; }
   font-size: 0.7rem;
   font-weight: 500;
 }
+/* ─── EMOJI PICKER ──────────────────────────────────────── */
+.emoji-picker {
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  margin-top: 0.5rem;
+  padding: 0.75rem;
+  max-height: 250px;
+  overflow-y: auto;
+}
+
+.emoji-picker-header {
+  margin-bottom: 0.75rem;
+}
+
+.emoji-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(45px, 1fr));
+  gap: 0.5rem;
+}
+
+.emoji-option {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0.5rem;
+  font-size: 1.5rem;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-xs);
+  cursor: pointer;
+  transition: all var(--transition);
+}
+
+.emoji-option:hover {
+  background: var(--surface2);
+  border-color: var(--gold);
+  transform: scale(1.05);
+}
+
+.emoji-option.selected {
+  background: rgba(201, 168, 76, 0.2);
+  border-color: var(--gold);
+}
