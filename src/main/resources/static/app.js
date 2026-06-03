@@ -401,9 +401,8 @@ function renderKPIs() {
   const kpiIncome = el("kpi-income");
   const kpiObligations = el("kpi-obligations");
   const kpiBalance = el("kpi-balance");
-  const kpiDebt = el("kpi-debt");
-  const kpiNote = el("kpi-income-note");
   const kpiTotalDebt = el("kpi-total-debt");
+  const kpiNote = el("kpi-income-note");
   
   // 1. INGRESO REAL
   const realIncome = state.transactions
@@ -432,7 +431,6 @@ function renderKPIs() {
   console.log("Total pagos realizados:", realDebtPayments);
   
   // 5. DEUDA PENDIENTE - Suma de remainingBalance de TODAS las deudas
-  // (incluye préstamos y deudas de tarjetas)
   const totalDebtPending = state.debts.reduce((sum, debt) => {
     const remaining = debt.remainingBalance || debt.principalBalance || 0;
     return sum + remaining;
@@ -441,7 +439,6 @@ function renderKPIs() {
   console.log("=== DEUDA PENDIENTE DEBUG ===");
   console.log("Deudas:", state.debts);
   console.log("Total deuda pendiente (remainingBalance):", totalDebtPending);
-  
   
   // Mostrar en el DOM
   if (kpiIncome) {
@@ -473,7 +470,6 @@ function renderKPIs() {
   // Crear o actualizar el KPI de Pagos Realizados si no existe
   let kpiPayments = el("kpi-payments");
   if (!kpiPayments) {
-    // Buscar el contenedor padre y agregar el nuevo KPI
     const kpiGrid = document.querySelector(".kpi-grid");
     if (kpiGrid) {
       const newKpiCard = document.createElement("div");
@@ -493,6 +489,7 @@ function renderKPIs() {
   if (kpiNote && state.user) {
     kpiNote.textContent = `Periodo ${state.activePeriod === "biweekly" ? "Quincenal" : "Mensual"}`;
   }
+  
   renderAccountsBreakdown();
   renderCreditCardAlerts();
 }
