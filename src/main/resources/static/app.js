@@ -610,25 +610,47 @@ function renderUpcoming(containerId, items) {
     c.innerHTML = `<div class="empty-state"><div class="empty-state-icon">📅</div>Sin vencimientos próximos</div>`;
     return;
   }
+  
   const cur = state.user?.currency || "MXN";
-  c.innerHTML = items.map(item => {
+  
+  // Filtrar: Si hay una deuda y una partialidad con el mismo nombre, mostrar solo la partialidad
+  const debtNamesToSkip = new Set();
+  
+  // Primero, identificar qué deudas tienen partialidades con el mismo nombre
+  items.forEach(item => {
+    if (item.type === "installment") {
+      // Buscar deudas con el mismo nombre
+      items.forEach(other => {
+        if (other.type === "debt" && other.name === item.name) {
+          debtNamesToSkip.add(other.name);
+        }
+      });
+    }
+  });
+  
+  // Filtrar items
+  const filteredItems = items.filter(item => {
+    if (item.type === "debt" && debtNamesToSkip.has(item.name)) {
+      console.log(`Omitiendo deuda duplicada: ${item.name}`);
+      return false;
+    }
+    return true;
+  });
+  
+  c.innerHTML = filteredItems.map(item => {
     let icon = "📅";
     let amountClass = "expense";
     let amountPrefix = "-";
     
     if (item.type === "recurring") {
       icon = "🔄";
+    } else if (item.type === "installment") {
+      icon = "📅";
     } else if (item.type === "debt") {
-      if (item.amount <= 0) {
-        icon = "✅";
-        amountClass = "income";
-        amountPrefix = "✓ ";
-      } else {
-        icon = "📋";
-      }
+      icon = "📋";
     }
     
-    const formattedAmount = item.amount <= 0 ? "Saldada" : `${amountPrefix}${fmt(item.amount, cur)}`;
+    const formattedAmount = `${amountPrefix}${fmt(item.amount, cur)}`;
     
     return `
       <div class="upcoming-item">
