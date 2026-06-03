@@ -222,10 +222,9 @@ public final class ContractDtos {
 	) {
 	}
 
-	// Para pagar una partialidad
-	public record PayInstallmentRequest(@NotBlank String debitAccountId, // Cuenta de débito para pagar
-			@NotBlank String currency, // Moneda
-			String notes // Notas opcionales
-	) {
-	}
+	public record PayInstallmentRequest(
+		    @NotBlank String debitAccountId,
+		    @NotBlank String currency,
+		    String notes
+		) {}
 }

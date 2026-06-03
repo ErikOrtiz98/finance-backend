@@ -394,11 +394,17 @@ public class FinanceApiService {
 		return mapper.mapToInstallmentResponse(row);
 	}
 
-	public ContractDtos.InstallmentResponse markInstallmentAsPaid(String userId, String id) {
+	public ContractDtos.InstallmentResponse markInstallmentAsPaid(String userId, String id, ContractDtos.PayInstallmentRequest request) {
 	    UUID uuid = UUID.fromString(userId);
 	    UUID installmentUuid = UUID.fromString(id);
+	    UUID debitAccountUuid = UUID.fromString(request.debitAccountId()); // Cuenta de origen (débito/efectivo)
 	    
-	    // Obtener la installment antes de pagarla
+	    System.out.println("=== MARK INSTALLMENT AS PAID DEBUG ===");
+	    System.out.println("debitAccountId recibido: " + request.debitAccountId());
+	    System.out.println("currency: " + request.currency());
+	    System.out.println("notes: " + request.notes());
+	    
+	    // Obtener la installment
 	    Object[] installmentRow = installmentRepo.getInstallmentById(uuid, installmentUuid);
 	    if (installmentRow == null) {
 	        throw new ApiException(HttpStatus.NOT_FOUND, "installment not found");
@@ -413,42 +419,36 @@ public class FinanceApiService {
 	        accountId = UUID.fromString(mapper.toString(unwrappedInstallment[8]));
 	    }
 	    
-	    // Marcar como pagada
+	    // 1. Registrar transacción de PAGO en la cuenta de origen (débito/efectivo) - RESTA
+	    movementRepo.createTransaction(
+	        uuid, debitAccountUuid, null, null, "expense",
+	        amount, "Pago de partialidad", request.currency(), LocalDate.now(), request.notes()
+	    );
+	    
+	    // 2. Si la partialidad está asociada a una tarjeta de crédito, registrar transacción en la tarjeta
+	    if (accountId != null) {
+	        movementRepo.createTransaction(
+	            uuid, accountId, null, null, "payment",
+	            amount, "Pago recibido - Partialidad", request.currency(), LocalDate.now(), request.notes()
+	        );
+	    }
+	    
+	    // 3. Marcar como pagada
 	    int updated = installmentRepo.markAsPaid(uuid, installmentUuid);
 	    if (updated == 0) {
 	        throw new ApiException(HttpStatus.NOT_FOUND, "installment not found or already paid");
 	    }
 	    
-	    // 1. Actualizar el saldo restante de la DEUDA
-	    Object[] debtRow = debtRepo.getDebtById(uuid, debtId);
-	    if (debtRow != null) {
-	        Object[] unwrappedDebt = mapper.unwrap(debtRow);
-	        
-	        BigDecimal currentRemaining = mapper.toBigDecimal(unwrappedDebt[3]); // remaining_balance
-	        BigDecimal newRemaining = currentRemaining.subtract(amount);
-	        
-	        if (newRemaining.compareTo(BigDecimal.ZERO) < 0) {
-	            newRemaining = BigDecimal.ZERO;
-	        }
-	        
-	        System.out.println("=== MARK INSTALLMENT AS PAID DEBUG ===");
-	        System.out.println("Payment amount: " + amount);
-	        System.out.println("Current remaining: " + currentRemaining);
-	        System.out.println("New remaining: " + newRemaining);
-	        System.out.println("Account ID (tarjeta): " + accountId);
-	        
-	        // Actualizar SOLO remaining_balance de la deuda
-	        String sqlDebt = "UPDATE debts SET remaining_balance = remaining_balance - ?, updated_at = NOW() " +
-	                "WHERE id = ? AND user_id = ? AND deleted_at IS NULL";
-	        jdbcTemplate.update(sqlDebt, amount, debtId, uuid);
-	    }
+	    // 4. Actualizar el saldo restante de la DEUDA
+	    String sqlDebt = "UPDATE debts SET remaining_balance = remaining_balance - ?, updated_at = NOW() " +
+	            "WHERE id = ? AND user_id = ? AND deleted_at IS NULL";
+	    jdbcTemplate.update(sqlDebt, amount, debtId, uuid);
 	    
-	    // 2. Actualizar el saldo de la TARJETA DE CRÉDITO (restar el pago)
+	    // 5. Actualizar el saldo de la TARJETA DE CRÉDITO (restar el pago)
 	    if (accountId != null) {
 	        String sqlAccount = "UPDATE accounts SET current_balance = current_balance - ?, updated_at = NOW() " +
 	                "WHERE id = ? AND user_id = ? AND deleted_at IS NULL AND account_type = 'credit'";
-	        int updatedAccount = jdbcTemplate.update(sqlAccount, amount, accountId, uuid);
-	        System.out.println("Saldo de tarjeta actualizado. Filas afectadas: " + updatedAccount);
+	        jdbcTemplate.update(sqlAccount, amount, accountId, uuid);
 	    }
 	    
 	    Object[] row = installmentRepo.getInstallmentById(uuid, installmentUuid);

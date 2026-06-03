@@ -309,9 +309,11 @@ public class ContractApiController {
 	}
 
 	@PostMapping("/installments/{id}/pay")
-	public ContractDtos.InstallmentResponse markInstallmentAsPaid(@AuthenticationPrincipal Jwt jwt,
-			@PathVariable String id) {
-		return service.markInstallmentAsPaid(jwt.getSubject(), id);
+	public ContractDtos.InstallmentResponse markInstallmentAsPaid(
+	        @AuthenticationPrincipal Jwt jwt,
+	        @PathVariable String id,
+	        @Valid @RequestBody ContractDtos.PayInstallmentRequest request) {  // ← Agregar @RequestBody
+	    return service.markInstallmentAsPaid(jwt.getSubject(), id, request);
 	}
 
 	@DeleteMapping("/installments/{id}")

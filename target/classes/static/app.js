@@ -407,47 +407,45 @@ function renderKPIs() {
     .filter(tx => tx.type === "income")
     .reduce((sum, tx) => sum + (tx.amount || 0), 0);
   
-  // 2. TOTAL GASTOS: SOLO expense (NO withdrawal, NO payment)
+  // 2. TOTAL GASTOS (solo expense, NO withdrawal, NO payment)
   const totalExpenses = state.transactions
     .filter(tx => tx.type === "expense")
     .reduce((sum, tx) => sum + (tx.amount || 0), 0);
   
-  // 3. RETIROS DE EFECTIVO (solo para información, no afecta balance total)
-  const totalWithdrawals = state.transactions
-    .filter(tx => tx.type === "withdrawal")
-    .reduce((sum, tx) => sum + (tx.amount || 0), 0);
-  
-  // 4. SALDO REAL: Suma de TODAS las cuentas de débito + efectivo
+  // 3. SALDO REAL (débito + efectivo)
   const debitAccounts = state.accounts.filter(a => a.type === "debit");
   const cashAccounts = state.accounts.filter(a => a.type === "cash");
   const totalDebitBalance = debitAccounts.reduce((sum, acc) => sum + (acc.balance || 0), 0);
   const totalCashBalance = cashAccounts.reduce((sum, acc) => sum + (acc.balance || 0), 0);
   const totalRealBalance = totalDebitBalance + totalCashBalance;
   
-  // 5. PAGOS REALIZADOS (solo payment)
+  // 4. PAGOS REALIZADOS - TODAS las transacciones tipo "payment"
   const realDebtPayments = state.transactions
     .filter(tx => tx.type === "payment")
     .reduce((sum, tx) => sum + (tx.amount || 0), 0);
-
-	// 6. DEUDA PENDIENTE TOTAL (partialidades pendientes + saldos de préstamos)
-  const pendingInstallments = state.installments.filter(i => !i.paid);
-  const totalPendingInstallments = pendingInstallments.reduce((sum, i) => sum + (i.amount || 0), 0);
-	
-  const activeDebts = state.debts.filter(d => (d.remainingBalance || d.principalBalance || 0) > 0);
-  const totalActiveDebts = activeDebts.reduce((sum, d) => sum + (d.remainingBalance || d.principalBalance || 0), 0);
   
-  const totalDebtPending = totalPendingInstallments + totalActiveDebts;
+  console.log("=== PAGOS REALIZADOS DEBUG ===");
+  console.log("Transacciones tipo payment:", state.transactions.filter(tx => tx.type === "payment"));
+  console.log("Total pagos realizados:", realDebtPayments);
   
+  // 5. DEUDA PENDIENTE - Suma de remainingBalance de TODAS las deudas
+  // (incluye préstamos y deudas de tarjetas)
+  const totalDebtPending = state.debts.reduce((sum, debt) => {
+    const remaining = debt.remainingBalance || debt.principalBalance || 0;
+    return sum + remaining;
+  }, 0);
+  
+  console.log("=== DEUDA PENDIENTE DEBUG ===");
+  console.log("Deudas:", state.debts);
+  console.log("Total deuda pendiente (remainingBalance):", totalDebtPending);
+  
+  // Mostrar en el DOM
   if (kpiIncome) {
     kpiIncome.textContent = fmt(realIncome, cur);
-    const incomeNote = kpiIncome.parentElement?.querySelector(".kpi-note");
-    if (incomeNote) incomeNote.textContent = "Ingresos reales";
   }
   
   if (kpiObligations) {
     kpiObligations.textContent = fmt(totalExpenses, cur);
-    const expenseNote = kpiObligations.parentElement?.querySelector(".kpi-note");
-    if (expenseNote) expenseNote.textContent = "Compras y gastos";
   }
   
   if (kpiBalance) {
@@ -464,8 +462,28 @@ function renderKPIs() {
     } else {
       kpiDebt.textContent = fmt(totalDebtPending, cur);
       const debtNote = kpiDebt.parentElement?.querySelector(".kpi-note");
-      if (debtNote) debtNote.textContent = "Partialidades + Préstamos";
+      if (debtNote) debtNote.textContent = "Suma de saldos restantes";
     }
+  }
+  
+  // Crear o actualizar el KPI de Pagos Realizados si no existe
+  let kpiPayments = el("kpi-payments");
+  if (!kpiPayments) {
+    // Buscar el contenedor padre y agregar el nuevo KPI
+    const kpiGrid = document.querySelector(".kpi-grid");
+    if (kpiGrid) {
+      const newKpiCard = document.createElement("div");
+      newKpiCard.className = "kpi-card kpi-payments";
+      newKpiCard.innerHTML = `
+        <span class="kpi-label">Pagos realizados</span>
+        <strong class="kpi-value" id="kpi-payments">${fmt(realDebtPayments, cur)}</strong>
+        <small class="kpi-note">Pagos a deudas en el periodo</small>
+      `;
+      kpiGrid.appendChild(newKpiCard);
+      kpiPayments = el("kpi-payments");
+    }
+  } else {
+    kpiPayments.textContent = fmt(realDebtPayments, cur);
   }
   
   if (kpiNote && state.user) {
@@ -963,7 +981,12 @@ async function loadDebts() {
   try {
     const debts = await api.get("/debts");
     state.debts = debts || [];
-    console.log("Deudas cargadas:", state.debts);
+    console.log("=== DEUDAS CARGADAS ===");
+    console.log(state.debts.map(d => ({
+      name: d.name,
+      remainingBalance: d.remainingBalance,
+      principalBalance: d.principalBalance
+    })));
     renderDebts();
   } catch (error) {
     console.error("Error loading debts:", error);
