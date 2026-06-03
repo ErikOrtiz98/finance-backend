@@ -1437,3 +1437,105 @@ a { color: inherit; text-decoration: none; }
   color: var(--green);
   font-size: 0.85rem;
 }
+/* Alertas de tarjetas de crédito */
+.alerts-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+  gap: 1rem;
+}
+
+.alert-card {
+  background: var(--surface2);
+  border-radius: var(--radius-sm);
+  padding: 1rem;
+  border-left: 4px solid;
+  transition: transform var(--transition);
+}
+
+.alert-card:hover {
+  transform: translateY(-2px);
+}
+
+.alert-card.alert-critical {
+  border-left-color: var(--red);
+  background: rgba(248, 113, 113, 0.05);
+}
+
+.alert-card.alert-warning {
+  border-left-color: var(--amber);
+  background: rgba(251, 191, 36, 0.05);
+}
+
+.alert-card.alert-info {
+  border-left-color: var(--blue);
+}
+
+.alert-card.alert-ok {
+  border-left-color: var(--green);
+}
+
+.alert-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 0.75rem;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.alert-name {
+  font-weight: 600;
+  font-size: 1rem;
+}
+
+.alert-status {
+  font-size: 0.75rem;
+  padding: 0.2rem 0.6rem;
+  border-radius: 99px;
+  font-weight: 500;
+}
+
+.alert-status.alert-critical {
+  background: rgba(248, 113, 113, 0.15);
+  color: var(--red);
+}
+
+.alert-status.alert-warning {
+  background: rgba(251, 191, 36, 0.15);
+  color: var(--amber);
+}
+
+.alert-status.alert-info {
+  background: rgba(96, 165, 250, 0.15);
+  color: var(--blue);
+}
+
+.alert-status.alert-ok {
+  background: rgba(52, 211, 153, 0.15);
+  color: var(--green);
+}
+
+.alert-details {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 0.5rem;
+  margin-bottom: 0.75rem;
+}
+
+.alert-detail {
+  font-size: 0.8rem;
+  color: var(--text-muted);
+}
+
+.alert-progress {
+  height: 4px;
+  background: var(--surface);
+  border-radius: 99px;
+  overflow: hidden;
+}
+
+.alert-progress-bar {
+  height: 100%;
+  border-radius: 99px;
+  transition: width 0.3s ease;
+}

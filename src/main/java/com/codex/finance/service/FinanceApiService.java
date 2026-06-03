@@ -682,54 +682,55 @@ public class FinanceApiService {
 	    UUID uuid = UUID.fromString(userId);
 	    List<ContractDtos.UpcomingItemResponse> items = new ArrayList<>();
 	    
-	    System.out.println("=== UPCOMING DEBUG ===");
-	    System.out.println("UserId: " + userId);
+	    LocalDate today = LocalDate.now();
+	    LocalDate monthEnd = today.withDayOfMonth(today.lengthOfMonth());
 	    
-	    // 1. Pagos recurrentes
-	    List<Object[]> recurringRows = scheduledPaymentRepo.getUpcomingRecurringPayments(uuid);
-	    System.out.println("Recurring rows found: " + (recurringRows == null ? "null" : recurringRows.size()));
-	    
-	    if (recurringRows != null && !recurringRows.isEmpty()) {
+	    // Pagos recurrentes del mes actual
+	    List<Object[]> recurringRows = scheduledPaymentRepo.getUpcomingRecurringPaymentsInRange(uuid, today, monthEnd);
+	    if (recurringRows != null) {
 	        for (Object[] row : recurringRows) {
 	            items.add(new ContractDtos.UpcomingItemResponse(
 	                "recurring",
-	                mapper.toString(row[0]),  // id
-	                mapper.toString(row[1]),  // name
-	                mapper.toLocalDate(row[2]), // dueDate
-	                mapper.toBigDecimal(row[3])  // amount
+	                mapper.toString(row[0]),
+	                mapper.toString(row[1]),
+	                mapper.toLocalDate(row[3]),
+	                mapper.toBigDecimal(row[2])
 	            ));
-	            System.out.println("Added recurring: " + mapper.toString(row[1]));
 	        }
 	    }
 	    
-	    // 2. Deudas
-	    List<Object[]> debtRows = debtRepo.getUpcomingDebts(uuid);
-	    System.out.println("Debt rows found: " + (debtRows == null ? "null" : debtRows.size()));
-	    
-	    if (debtRows != null && !debtRows.isEmpty()) {
+	    // Deudas con vencimiento en el mes actual
+	    List<Object[]> debtRows = debtRepo.getUpcomingDebtsInRange(uuid, today, monthEnd);
+	    if (debtRows != null) {
 	        for (Object[] row : debtRows) {
-	            // Solo agregar deudas con saldo mayor a 0
-	            BigDecimal amount = mapper.toBigDecimal(row[3]);
+	            BigDecimal amount = mapper.toBigDecimal(row[4]);
 	            if (amount.compareTo(BigDecimal.ZERO) > 0) {
 	                items.add(new ContractDtos.UpcomingItemResponse(
 	                    "debt",
-	                    mapper.toString(row[0]),  // id
-	                    mapper.toString(row[1]),  // name
-	                    mapper.toLocalDate(row[2]), // dueDate
+	                    mapper.toString(row[0]),
+	                    mapper.toString(row[1]),
+	                    mapper.toLocalDate(row[3]),
 	                    amount
 	                ));
-	                System.out.println("Added debt: " + mapper.toString(row[1]) + " - Amount: " + amount);
-	            } else {
-	                System.out.println("Skipped debt (saldo 0): " + mapper.toString(row[1]));
 	            }
 	        }
 	    }
 	    
-	    // Ordenar por fecha
+	    // Partialidades con vencimiento en el mes actual
+	    List<Object[]> installmentRows = installmentRepo.getUpcomingInstallments(uuid, today, monthEnd);
+	    if (installmentRows != null) {
+	        for (Object[] row : installmentRows) {
+	            items.add(new ContractDtos.UpcomingItemResponse(
+	                "installment",
+	                mapper.toString(row[0]),
+	                mapper.toString(row[1]),
+	                mapper.toLocalDate(row[2]),
+	                mapper.toBigDecimal(row[3])
+	            ));
+	        }
+	    }
+	    
 	    items.sort(Comparator.comparing(ContractDtos.UpcomingItemResponse::dueDate));
-	    
-	    System.out.println("Total items: " + items.size());
-	    
 	    return new ContractDtos.UpcomingResponse(items);
 	}
 

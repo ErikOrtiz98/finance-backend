@@ -82,4 +82,16 @@ public interface InstallmentRepository extends JpaRepository<Installment, UUID> 
 	@Query(value = "SELECT COUNT(*) FROM installments "
 			+ "WHERE debt_id = :debtId AND user_id = :userId AND paid = false AND deleted_at IS NULL", nativeQuery = true)
 	int countUnpaidInstallments(@Param("userId") UUID userId, @Param("debtId") UUID debtId);
+	
+	@Query(value = "SELECT i.id, d.name, i.due_date, i.amount " +
+		       "FROM installments i " +
+		       "JOIN debts d ON d.id = i.debt_id " +
+		       "WHERE i.user_id = :userId " +
+		       "AND i.paid = false " +
+		       "AND i.deleted_at IS NULL " +
+		       "AND i.due_date BETWEEN :startDate AND :endDate " +
+		       "ORDER BY i.due_date ASC", nativeQuery = true)
+		List<Object[]> getUpcomingInstallments(@Param("userId") UUID userId,
+		                                        @Param("startDate") LocalDate startDate,
+		                                        @Param("endDate") LocalDate endDate);
 }

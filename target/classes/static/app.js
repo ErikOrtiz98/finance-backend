@@ -333,27 +333,25 @@ async function loadDashboard() {
   setLoading(true);
   try {
     const range = state.activePeriod;
-    // Cargar transacciones y cuentas junto con los stats
-    const [summary, upcoming, catStats, debtRatio, transactions, accounts] = await Promise.all([
-      api.get(`/stats/summary?range=${range}`),
+    const [transactions, accounts, upcoming, catStats, debtRatio] = await Promise.all([
+      api.get("/transactions"),
+      api.get("/accounts"),
       api.get("/stats/upcoming"),
       api.get("/stats/categories"),
       api.get("/stats/debt-ratio"),
-      api.get("/transactions"),
-      api.get("/accounts"),
     ]);
     
-    state.summary = summary;
+    state.transactions = transactions || [];
+    state.accounts = accounts || [];
     state.upcoming = upcoming;
     state.categoryStats = catStats || [];
     state.debtRatio = debtRatio;
-    state.transactions = transactions || [];
-    state.accounts = accounts || [];
 
     renderKPIs();
     renderUpcoming("upcoming-list", state.upcoming?.next7Days || []);
     renderCategoryBars("category-bars", state.categoryStats);
     renderDebtRatioGauge("debt-ratio-gauge", state.debtRatio);
+    renderCreditCardAlerts();  // NUEVO
   } catch (error) {
     console.error("Dashboard error:", error);
   } finally {
@@ -409,47 +407,72 @@ function renderKPIs() {
     .filter(tx => tx.type === "income")
     .reduce((sum, tx) => sum + (tx.amount || 0), 0);
   
-  // 2. TOTAL GASTOS (expense + withdrawal, NO payment)
+  // 2. TOTAL GASTOS: SOLO expense (NO withdrawal, NO payment)
   const totalExpenses = state.transactions
-    .filter(tx => tx.type === "expense" || tx.type === "withdrawal")
+    .filter(tx => tx.type === "expense")
     .reduce((sum, tx) => sum + (tx.amount || 0), 0);
   
-  // 3. SALDO REAL: Suma de TODAS las cuentas de débito + efectivo
+  // 3. RETIROS DE EFECTIVO (solo para información, no afecta balance total)
+  const totalWithdrawals = state.transactions
+    .filter(tx => tx.type === "withdrawal")
+    .reduce((sum, tx) => sum + (tx.amount || 0), 0);
+  
+  // 4. SALDO REAL: Suma de TODAS las cuentas de débito + efectivo
   const debitAccounts = state.accounts.filter(a => a.type === "debit");
   const cashAccounts = state.accounts.filter(a => a.type === "cash");
   const totalDebitBalance = debitAccounts.reduce((sum, acc) => sum + (acc.balance || 0), 0);
   const totalCashBalance = cashAccounts.reduce((sum, acc) => sum + (acc.balance || 0), 0);
   const totalRealBalance = totalDebitBalance + totalCashBalance;
   
-  // 4. PAGOS REALIZADOS (solo payment)
+  // 5. PAGOS REALIZADOS (solo payment)
   const realDebtPayments = state.transactions
     .filter(tx => tx.type === "payment")
     .reduce((sum, tx) => sum + (tx.amount || 0), 0);
+
+	// 6. DEUDA PENDIENTE TOTAL (partialidades pendientes + saldos de préstamos)
+  const pendingInstallments = state.installments.filter(i => !i.paid);
+  const totalPendingInstallments = pendingInstallments.reduce((sum, i) => sum + (i.amount || 0), 0);
+	
+  const activeDebts = state.debts.filter(d => (d.remainingBalance || d.principalBalance || 0) > 0);
+  const totalActiveDebts = activeDebts.reduce((sum, d) => sum + (d.remainingBalance || d.principalBalance || 0), 0);
+  
+  const totalDebtPending = totalPendingInstallments + totalActiveDebts;
   
   if (kpiIncome) {
     kpiIncome.textContent = fmt(realIncome, cur);
+    const incomeNote = kpiIncome.parentElement?.querySelector(".kpi-note");
+    if (incomeNote) incomeNote.textContent = "Ingresos reales";
   }
   
   if (kpiObligations) {
     kpiObligations.textContent = fmt(totalExpenses, cur);
+    const expenseNote = kpiObligations.parentElement?.querySelector(".kpi-note");
+    if (expenseNote) expenseNote.textContent = "Compras y gastos";
   }
   
   if (kpiBalance) {
     kpiBalance.textContent = fmt(totalRealBalance, cur);
     const balanceNote = kpiBalance.parentElement?.querySelector(".kpi-note");
-    if (balanceNote) balanceNote.textContent = "Saldo total (débito + efectivo)";
+    if (balanceNote) balanceNote.textContent = "Débito + Efectivo";
   }
   
   if (kpiDebt) {
-    kpiDebt.textContent = fmt(realDebtPayments, cur);
+    if (totalDebtPending === 0) {
+      kpiDebt.textContent = "✓ Sin deudas";
+      const debtNote = kpiDebt.parentElement?.querySelector(".kpi-note");
+      if (debtNote) debtNote.textContent = "No hay deudas pendientes";
+    } else {
+      kpiDebt.textContent = fmt(totalDebtPending, cur);
+      const debtNote = kpiDebt.parentElement?.querySelector(".kpi-note");
+      if (debtNote) debtNote.textContent = "Partialidades + Préstamos";
+    }
   }
   
   if (kpiNote && state.user) {
     kpiNote.textContent = `Periodo ${state.activePeriod === "biweekly" ? "Quincenal" : "Mensual"}`;
   }
-  
-  // NUEVO: Renderizar desglose de cuentas
   renderAccountsBreakdown();
+  renderCreditCardAlerts();
 }
 
 function renderAccountsBreakdown() {
@@ -496,16 +519,85 @@ function renderAccountsBreakdown() {
       <div class="breakdown-title">💳 Tarjetas de Crédito</div>`;
     creditAccounts.forEach(acc => {
       const available = (acc.creditLimit || 0) - (acc.balance || 0);
+      const isDebtZero = (acc.balance || 0) <= 0;
       html += `<div class="breakdown-item">
         <span class="breakdown-name">${acc.name}</span>
         <div class="breakdown-amounts">
-          <span class="breakdown-debt">Deuda: ${fmt(acc.balance, cur)}</span>
-          <span class="breakdown-available">Disponible: ${fmt(available, cur)}</span>
+          <span class="breakdown-debt" style="color: ${isDebtZero ? '#34d399' : '#f87171'}">
+            Deuda: ${fmt(acc.balance, cur)}
+          </span>
+          <span class="breakdown-available" style="color: ${available <= 0 ? '#f87171' : '#34d399'}">
+            Disponible: ${fmt(available, cur)}
+          </span>
         </div>
       </div>`;
     });
     html += `</div>`;
   }
+  
+  html += `</div>`;
+  container.innerHTML = html;
+}
+function renderCreditCardAlerts() {
+  const container = el("credit-card-alerts");
+  if (!container) return;
+  
+  const cur = state.user?.currency || "MXN";
+  const creditCards = state.accounts.filter(a => a.type === "credit" && a.active);
+  const today = new Date();
+  const currentDay = today.getDate();
+  
+  if (creditCards.length === 0) {
+    container.innerHTML = `<div class="empty-state"><div class="empty-state-icon">💳</div>No hay tarjetas de crédito registradas</div>`;
+    return;
+  }
+  
+  let html = '<div class="alerts-grid">';
+  
+  creditCards.forEach(card => {
+    const dueDay = card.dueDay;
+    const daysUntilDue = dueDay ? dueDay - currentDay : 0;
+    let statusClass = "";
+    let statusText = "";
+    
+    if (daysUntilDue < 0) {
+      statusClass = "alert-critical";
+      statusText = "Vencido";
+    } else if (daysUntilDue === 0) {
+      statusClass = "alert-critical";
+      statusText = "Vence HOY";
+    } else if (daysUntilDue <= 3) {
+      statusClass = "alert-warning";
+      statusText = `Vence en ${daysUntilDue} días`;
+    } else if (daysUntilDue <= 7) {
+      statusClass = "alert-info";
+      statusText = `Vence en ${daysUntilDue} días`;
+    } else {
+      statusClass = "alert-ok";
+      statusText = `Vence el día ${dueDay}`;
+    }
+    
+    const available = (card.creditLimit || 0) - (card.balance || 0);
+    const usagePercent = card.creditLimit > 0 ? ((card.balance / card.creditLimit) * 100).toFixed(0) : 0;
+    
+    html += `
+      <div class="alert-card ${statusClass}">
+        <div class="alert-header">
+          <span class="alert-name">💳 ${card.name}</span>
+          <span class="alert-status ${statusClass}">${statusText}</span>
+        </div>
+        <div class="alert-details">
+          <div class="alert-detail">Saldo: ${fmt(card.balance, cur)}</div>
+          <div class="alert-detail">Límite: ${fmt(card.creditLimit, cur)}</div>
+          <div class="alert-detail">Disponible: ${fmt(available, cur)}</div>
+          <div class="alert-detail">Uso: ${usagePercent}%</div>
+        </div>
+        <div class="alert-progress">
+          <div class="alert-progress-bar" style="width: ${Math.min(usagePercent, 100)}%; background: ${usagePercent > 80 ? '#f87171' : usagePercent > 50 ? '#fbbf24' : '#34d399'}"></div>
+        </div>
+      </div>
+    `;
+  });
   
   html += `</div>`;
   container.innerHTML = html;
@@ -818,20 +910,23 @@ function renderRecurring() {
   
   c.innerHTML = state.recurring.map(r => {
     const isIncome = r.paymentType === "income";
+    const isOverdue = new Date(r.nextDueDate) < new Date();
     return `
-      <div class="data-row">
+      <div class="data-row ${isOverdue && !isIncome ? 'overdue' : ''}">
         <div class="data-row-icon">${isIncome ? "💰" : "🔄"}</div>
         <div class="data-row-info">
           <div class="data-row-name">${r.name}</div>
           <div class="data-row-meta">
             ${freqMap[r.frequency] || r.frequency} · ${isIncome ? "Ingreso" : "Gasto"} · 
             próximo: ${relativeDate(r.nextDueDate)}${r.endDate ? ` · hasta: ${new Date(r.endDate).toLocaleDateString()}` : ""}
+            ${isOverdue && !isIncome ? '<span class="badge badge-red">Vencido</span>' : ''}
           </div>
         </div>
         <div class="data-row-amount ${isIncome ? "income" : "expense"}">
           ${isIncome ? "+" : "-"}${fmt(r.amount, cur)}
         </div>
         <div class="data-row-actions">
+          ${!isIncome ? `<button class="btn-success-sm" data-action="pay-rec" data-id="${r.id}">Pagar ahora</button>` : ''}
           <button class="btn-edit-sm" data-action="edit-rec" data-id="${r.id}">Editar</button>
           <button class="btn-danger-sm" data-action="del-rec" data-id="${r.id}">Eliminar</button>
         </div>
@@ -3303,41 +3398,95 @@ document.addEventListener("click", async (e) => {
       await loadBudgets();
     }
 	if (action === "pay-inst") {
-	  if (!confirm("¿Marcar esta partialidad como pagada?")) return;
-	  try {
-	    const installment = state.installments.find(i => i.id == id);
-	    if (!installment) throw new Error("No se encontró la partialidad");
+	  // Mostrar modal para seleccionar cuenta de origen
+	  const sourceAccounts = state.accounts.filter(a => a.type === "debit" || a.type === "cash");
+	  
+	  if (sourceAccounts.length === 0) {
+	    showToast("No tienes cuentas de débito o efectivo para pagar", "error");
+	    return;
+	  }
+	  
+	  const modalBody = `
+	    <div class="form-grid">
+	      <div class="field-group field-full">
+	        <label class="field-label">¿De dónde viene el dinero?</label>
+	        <select id="pay-source-account" class="field-input">
+	          ${sourceAccounts.map(a => 
+	            `<option value="${a.id}">${a.type === "debit" ? "💳" : "💵"} ${a.name} - Saldo: ${fmt(a.balance)}</option>`
+	          ).join("")}
+	        </select>
+	      </div>
+	      <div class="field-group field-full">
+	        <label class="field-label">Nota (opcional)</label>
+	        <input id="pay-note" class="field-input" type="text" placeholder="Referencia del pago" />
+	      </div>
+	    </div>
+	  `;
+	  
+	  openModal("Pagar partialidad", modalBody, async () => {
+	    const sourceAccountId = el("pay-source-account")?.value;
+	    const notes = el("pay-note")?.value || null;
 	    
-	    console.log("Installment a pagar:", installment);
-	    console.log("DebtId de la installment:", installment.debtId);
-	    
-	    const debt = state.debts.find(d => d.id === installment.debtId);
-	    if (!debt) {
-	      console.log("Deudas disponibles:", state.debts);
-	      throw new Error("No se encontró la deuda asociada");
-	    }
-	    
-	    console.log("Deuda encontrada:", debt);
-	    
-	    const currentRemaining = debt.remainingBalance || debt.principalBalance || 0;
-	    const newRemaining = currentRemaining - installment.amount;
-	    
-	    if (newRemaining < 0) {
-	      showToast("El monto de la partialidad excede el saldo restante", "error");
+	    if (!sourceAccountId) {
+	      showToast("Selecciona una cuenta de origen", "error");
 	      return;
 	    }
 	    
-	    await api.post(`/installments/${id}/pay`, {});
-	    
-	    // Recargar datos
-	    await loadDebts();
-	    await loadInstallments();
-	    
-	    showToast(`Partialidad pagada. Saldo restante: ${fmt(newRemaining, state.user?.currency || "MXN")}`, "success");
-	  } catch (err) {
-	    console.error("Error al pagar partialidad:", err);
-	    showToast(err.message, "error");
-	  }
+	    try {
+	      const installment = state.installments.find(i => i.id == id);
+	      if (!installment) throw new Error("No se encontró la partialidad");
+	      
+	      const sourceAccount = state.accounts.find(a => a.id === sourceAccountId);
+	      
+	      // 1. Registrar gasto en la cuenta de origen (resta)
+	      await api.post("/transactions", {
+	        accountId: sourceAccountId,
+	        transferAccountId: null,
+	        categoryId: null,
+	        debtId: installment.debtId,
+	        type: "payment",
+	        description: `Pago de partialidad #${installment.number} - ${installment.debtName || "Deuda"}`,
+	        amount: installment.amount,
+	        currency: state.user?.currency || "MXN",
+	        transactionDate: todayIso(),
+	        notes: notes
+	      });
+	      
+	      // 2. Si la partialidad está asociada a una tarjeta de crédito, reducir su saldo
+	      if (installment.accountId) {
+	        const creditAccount = state.accounts.find(a => a.id === installment.accountId);
+	        if (creditAccount && creditAccount.type === "credit") {
+	          await api.post("/transactions", {
+	            accountId: installment.accountId,
+	            transferAccountId: null,
+	            categoryId: null,
+	            debtId: null,
+	            type: "payment",
+	            description: `Pago recibido - Partialidad #${installment.number}`,
+	            amount: installment.amount,
+	            currency: state.user?.currency || "MXN",
+	            transactionDate: todayIso(),
+	            notes: notes
+	          });
+	        }
+	      }
+	      
+	      // 3. Marcar partialidad como pagada en el backend
+	      await api.post(`/installments/${id}/pay`, {});
+	      
+	      showToast(`Partialidad pagada desde ${sourceAccount.name}`, "success");
+	      closeModal();
+	      await loadInstallments();
+	      await loadDebts();
+	      await loadAccounts();
+	      await loadTransactions();
+	      if (state.activeSection === "dashboard") {
+	        await loadDashboard();
+	      }
+	    } catch (err) {
+	      showToast(err.message, "error");
+	    }
+	  });
 	}
     if (action === "del-inst") {
       if (!confirm("¿Eliminar esta partialidad?")) return;
@@ -3353,6 +3502,85 @@ document.addEventListener("click", async (e) => {
       const goal = state.goals.find(g => g.id == id);
       if (goal) buildAddProgressModal(goal);
     }
+	if (action === "pay-rec") {
+	  // Mostrar modal para seleccionar cuenta de origen
+	  const sourceAccounts = state.accounts.filter(a => a.type === "debit" || a.type === "cash");
+	  
+	  if (sourceAccounts.length === 0) {
+	    showToast("No tienes cuentas de débito o efectivo para pagar", "error");
+	    return;
+	  }
+	  
+	  const recurring = state.recurring.find(r => r.id == id);
+	  if (!recurring) return;
+	  
+	  const modalBody = `
+	    <div class="form-grid">
+	      <div class="field-group field-full">
+	        <label class="field-label">¿De dónde viene el dinero?</label>
+	        <select id="pay-source-account" class="field-input">
+	          ${sourceAccounts.map(a => 
+	            `<option value="${a.id}">${a.type === "debit" ? "💳" : "💵"} ${a.name} - Saldo: ${fmt(a.balance)}</option>`
+	          ).join("")}
+	        </select>
+	      </div>
+	      <div class="field-group field-full">
+	        <label class="field-label">Nota (opcional)</label>
+	        <input id="pay-note" class="field-input" type="text" placeholder="Referencia del pago" />
+	      </div>
+	    </div>
+	  `;
+	  
+	  openModal(`Pagar: ${recurring.name}`, modalBody, async () => {
+	    const sourceAccountId = el("pay-source-account")?.value;
+	    const notes = el("pay-note")?.value || null;
+	    
+	    if (!sourceAccountId) {
+	      showToast("Selecciona una cuenta de origen", "error");
+	      return;
+	    }
+	    
+	    try {
+	      // Crear transacción de gasto
+	      await api.post("/transactions", {
+	        accountId: sourceAccountId,
+	        transferAccountId: null,
+	        categoryId: recurring.categoryId,
+	        debtId: null,
+	        type: "expense",
+	        description: recurring.name,
+	        amount: recurring.amount,
+	        currency: state.user?.currency || "MXN",
+	        transactionDate: todayIso(),
+	        notes: notes
+	      });
+	      
+	      // Actualizar siguiente fecha del pago recurrente
+	      let nextDate = new Date(recurring.nextDueDate);
+	      switch (recurring.frequency) {
+	        case "weekly": nextDate.setDate(nextDate.getDate() + 7); break;
+	        case "biweekly": nextDate.setDate(nextDate.getDate() + 14); break;
+	        case "monthly": nextDate.setMonth(nextDate.getMonth() + 1); break;
+	        case "quarterly": nextDate.setMonth(nextDate.getMonth() + 3); break;
+	        case "yearly": nextDate.setFullYear(nextDate.getFullYear() + 1); break;
+	      }
+	      
+	      await api.patch(`/recurring-payments/${recurring.id}`, {
+	        ...recurring,
+	        nextDueDate: nextDate.toISOString().slice(0, 10)
+	      });
+	      
+	      showToast(`${recurring.name} pagado desde ${sourceAccounts.find(a => a.id === sourceAccountId)?.name}`, "success");
+	      closeModal();
+	      await loadRecurring();
+	      await loadTransactions();
+	      await loadAccounts();
+	      if (state.activeSection === "dashboard") await loadDashboard();
+	    } catch (err) {
+	      showToast(err.message, "error");
+	    }
+	  });
+	}
   } catch (err) {
     showToast(err.message, "error");
   }
