@@ -1372,3 +1372,68 @@ a { color: inherit; text-decoration: none; }
   background: rgba(201, 168, 76, 0.2);
   border-color: var(--gold);
 }
+/* Desglose de cuentas */
+.accounts-breakdown-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 1rem;
+}
+
+.breakdown-group {
+  background: var(--surface2);
+  border-radius: var(--radius-sm);
+  padding: 1rem;
+}
+
+.breakdown-title {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--gold);
+  margin-bottom: 0.75rem;
+  padding-bottom: 0.5rem;
+  border-bottom: 1px solid var(--border);
+}
+
+.breakdown-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0.5rem 0;
+  border-bottom: 1px solid var(--border);
+  font-size: 0.9rem;
+}
+
+.breakdown-item:last-child {
+  border-bottom: none;
+}
+
+.breakdown-item.main-account {
+  background: rgba(201, 168, 76, 0.1);
+  margin: 0 -0.5rem;
+  padding: 0.5rem;
+  border-radius: var(--radius-xs);
+}
+
+.breakdown-name {
+  color: var(--text);
+}
+
+.breakdown-amount {
+  font-family: var(--font-display);
+  color: var(--green);
+}
+
+.breakdown-amounts {
+  display: flex;
+  gap: 1rem;
+}
+
+.breakdown-debt {
+  color: var(--red);
+  font-size: 0.85rem;
+}
+
+.breakdown-available {
+  color: var(--green);
+  font-size: 0.85rem;
+}

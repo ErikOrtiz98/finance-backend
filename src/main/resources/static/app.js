@@ -404,33 +404,30 @@ function renderKPIs() {
   const kpiDebt = el("kpi-debt");
   const kpiNote = el("kpi-income-note");
   
-  // 1. INGRESO REAL del periodo (solo transacciones tipo income)
+  // 1. INGRESO REAL
   const realIncome = state.transactions
     .filter(tx => tx.type === "income")
     .reduce((sum, tx) => sum + (tx.amount || 0), 0);
   
-  // 2. GASTOS REALES (expense, withdrawal, payment)
+  // 2. TOTAL GASTOS (expense + withdrawal, NO payment)
   const totalExpenses = state.transactions
-    .filter(tx => tx.type === "expense" || tx.type === "withdrawal" || tx.type === "payment")
+    .filter(tx => tx.type === "expense" || tx.type === "withdrawal")
     .reduce((sum, tx) => sum + (tx.amount || 0), 0);
   
-  // 3. SALDO REAL (débito + efectivo)
+  // 3. SALDO REAL: Suma de TODAS las cuentas de débito + efectivo
   const debitAccounts = state.accounts.filter(a => a.type === "debit");
   const cashAccounts = state.accounts.filter(a => a.type === "cash");
   const totalDebitBalance = debitAccounts.reduce((sum, acc) => sum + (acc.balance || 0), 0);
   const totalCashBalance = cashAccounts.reduce((sum, acc) => sum + (acc.balance || 0), 0);
-  const realBalance = totalDebitBalance + totalCashBalance;
+  const totalRealBalance = totalDebitBalance + totalCashBalance;
   
-  // 4. PAGOS REALIZADOS (solo tipo payment)
+  // 4. PAGOS REALIZADOS (solo payment)
   const realDebtPayments = state.transactions
     .filter(tx => tx.type === "payment")
     .reduce((sum, tx) => sum + (tx.amount || 0), 0);
   
-  // Mostrar en el DOM
   if (kpiIncome) {
     kpiIncome.textContent = fmt(realIncome, cur);
-    const incomeNote = kpiIncome.parentElement?.querySelector(".kpi-note");
-    if (incomeNote) incomeNote.textContent = "Ingresos reales del periodo";
   }
   
   if (kpiObligations) {
@@ -438,9 +435,9 @@ function renderKPIs() {
   }
   
   if (kpiBalance) {
-    kpiBalance.textContent = fmt(realBalance, cur);
+    kpiBalance.textContent = fmt(totalRealBalance, cur);
     const balanceNote = kpiBalance.parentElement?.querySelector(".kpi-note");
-    if (balanceNote) balanceNote.textContent = "Saldo real (débito + efectivo)";
+    if (balanceNote) balanceNote.textContent = "Saldo total (débito + efectivo)";
   }
   
   if (kpiDebt) {
@@ -450,6 +447,68 @@ function renderKPIs() {
   if (kpiNote && state.user) {
     kpiNote.textContent = `Periodo ${state.activePeriod === "biweekly" ? "Quincenal" : "Mensual"}`;
   }
+  
+  // NUEVO: Renderizar desglose de cuentas
+  renderAccountsBreakdown();
+}
+
+function renderAccountsBreakdown() {
+  const container = el("accounts-breakdown");
+  if (!container) return;
+  
+  const cur = state.user?.currency || "MXN";
+  const debitAccounts = state.accounts.filter(a => a.type === "debit");
+  const cashAccounts = state.accounts.filter(a => a.type === "cash");
+  const creditAccounts = state.accounts.filter(a => a.type === "credit");
+  
+  let html = '<div class="accounts-breakdown-grid">';
+  
+  // Cuentas de débito
+  if (debitAccounts.length > 0) {
+    html += `<div class="breakdown-group">
+      <div class="breakdown-title">💳 Cuentas de Débito</div>`;
+    debitAccounts.forEach(acc => {
+      const isMain = state.user?.mainAccountId === acc.id;
+      html += `<div class="breakdown-item ${isMain ? 'main-account' : ''}">
+        <span class="breakdown-name">${acc.name}${isMain ? ' ⭐' : ''}</span>
+        <span class="breakdown-amount">${fmt(acc.balance, cur)}</span>
+      </div>`;
+    });
+    html += `</div>`;
+  }
+  
+  // Cuenta de efectivo (solo una)
+  if (cashAccounts.length > 0) {
+    html += `<div class="breakdown-group">
+      <div class="breakdown-title">💵 Efectivo</div>`;
+    cashAccounts.forEach(acc => {
+      html += `<div class="breakdown-item">
+        <span class="breakdown-name">${acc.name}</span>
+        <span class="breakdown-amount">${fmt(acc.balance, cur)}</span>
+      </div>`;
+    });
+    html += `</div>`;
+  }
+  
+  // Tarjetas de crédito
+  if (creditAccounts.length > 0) {
+    html += `<div class="breakdown-group">
+      <div class="breakdown-title">💳 Tarjetas de Crédito</div>`;
+    creditAccounts.forEach(acc => {
+      const available = (acc.creditLimit || 0) - (acc.balance || 0);
+      html += `<div class="breakdown-item">
+        <span class="breakdown-name">${acc.name}</span>
+        <div class="breakdown-amounts">
+          <span class="breakdown-debt">Deuda: ${fmt(acc.balance, cur)}</span>
+          <span class="breakdown-available">Disponible: ${fmt(available, cur)}</span>
+        </div>
+      </div>`;
+    });
+    html += `</div>`;
+  }
+  
+  html += `</div>`;
+  container.innerHTML = html;
 }
 
 function renderUpcoming(containerId, items) {
@@ -1370,13 +1429,6 @@ function wireTxForm() {
       
       try {
         let type = el("tx-type")?.value;
-        
-        // Validar tipo
-        if (!validTypes.includes(type)) {
-          console.warn(`Tipo inválido: "${type}", cambiando a "expense"`);
-          type = "expense";
-        }
-        
         const accountId = el("tx-account")?.value;
         const amount = Number(el("tx-amount")?.value || 0);
         const transactionDate = el("tx-date")?.value;
@@ -1385,53 +1437,78 @@ function wireTxForm() {
         const notes = el("tx-note")?.value.trim() || null;
         const transferAccountId = el("tx-transfer-account")?.value;
         
-        if (!accountId) {
-          showToast("Selecciona una cuenta", "error");
-          return;
-        }
+        // Validaciones...
         
-        if (!amount || amount <= 0) {
-          showToast("Ingresa un monto válido", "error");
-          return;
-        }
-        
-        if (!transactionDate) {
-          showToast("Ingresa una fecha", "error");
-          return;
-        }
-        
-        if (!description) {
-          showToast("Ingresa una descripción", "error");
-          return;
-        }
-        
-        if (type === "transfer") {
-          if (!transferAccountId) {
-            showToast("Selecciona la cuenta destino", "error");
+        // Si es retiro de efectivo, debemos RESTAR de la cuenta de débito y SUMAR a la cuenta de efectivo
+        if (type === "withdrawal") {
+          // Buscar la cuenta de efectivo del usuario
+          const cashAccount = state.accounts.find(a => a.type === "cash");
+          if (!cashAccount) {
+            showToast("No se encontró una cuenta de efectivo. Crea una primero.", "error");
             return;
           }
-          if (transferAccountId === accountId) {
-            showToast("La cuenta origen y destino no pueden ser iguales", "error");
+          
+          // Buscar la cuenta de débito seleccionada
+          const debitAccount = state.accounts.find(a => a.id === accountId);
+          if (!debitAccount || debitAccount.type !== "debit") {
+            showToast("Para retirar efectivo, selecciona una cuenta de débito como origen", "error");
             return;
           }
+          
+          // Verificar saldo suficiente en débito
+          if (debitAccount.balance < amount) {
+            showToast(`Saldo insuficiente en ${debitAccount.name}. Disponible: ${fmt(debitAccount.balance)}`, "error");
+            return;
+          }
+          
+          // 1. Registrar gasto en la cuenta de débito (resta)
+          await api.post("/transactions", {
+            accountId: accountId,
+            transferAccountId: null,
+            categoryId: categoryId,
+            debtId: null,
+            type: "expense",
+            description: `Retiro de efectivo: ${description}`,
+            amount: amount,
+            currency: state.user?.currency || "MXN",
+            transactionDate: transactionDate,
+            notes: notes
+          });
+          
+          // 2. Registrar ingreso en la cuenta de efectivo (suma)
+          await api.post("/transactions", {
+            accountId: cashAccount.id,
+            transferAccountId: null,
+            categoryId: categoryId,
+            debtId: null,
+            type: "income",
+            description: `Depósito de efectivo: ${description}`,
+            amount: amount,
+            currency: state.user?.currency || "MXN",
+            transactionDate: transactionDate,
+            notes: notes
+          });
+          
+          showToast("Retiro de efectivo registrado", "success");
+          
+        } else {
+          // Transacción normal
+          const body = {
+            accountId: accountId,
+            transferAccountId: type === "transfer" ? transferAccountId : null,
+            categoryId: categoryId,
+            debtId: null,
+            type: type,
+            description: description,
+            amount: amount,
+            currency: state.user?.currency || "MXN",
+            transactionDate: transactionDate,
+            notes: notes
+          };
+          
+          await api.post("/transactions", body);
+          showToast("Transacción guardada", "success");
         }
-        
-        const body = {
-          accountId: accountId,
-          transferAccountId: type === "transfer" ? transferAccountId : null,
-          categoryId: categoryId,
-          debtId: null,
-          type: type,
-          description: description,
-          amount: amount,
-          currency: state.user?.currency || "MXN",
-          transactionDate: transactionDate,
-          notes: notes
-        };
-        
-        console.log("Enviando transacción:", body);
-        await api.post("/transactions", body);
-        showToast("Transacción guardada", "success");
         
         hideForm("transaction-form-wrap", "btn-add-transaction", "+ Nueva");
         document.querySelectorAll("#transaction-form-wrap input, #transaction-form-wrap select").forEach(i => i.value = "");
@@ -1441,6 +1518,11 @@ function wireTxForm() {
         
         await loadTransactions();
         await loadAccounts(); // Recargar cuentas para actualizar saldos
+        
+        // Recargar dashboard si está visible
+        if (state.activeSection === "dashboard") {
+          await loadDashboard();
+        }
         
       } catch (e) {
         console.error("Error al guardar transacción:", e);
@@ -1498,52 +1580,67 @@ function wireAccForm() {
   }
   
   if (saveBtn) {
-    const newSaveBtn = saveBtn.cloneNode(true);
-    saveBtn.parentNode.replaceChild(newSaveBtn, saveBtn);
-    
-    newSaveBtn.addEventListener("click", async () => {
-      if (newSaveBtn.dataset.saving === "true") return;
-      newSaveBtn.dataset.saving = "true";
+      const newSaveBtn = saveBtn.cloneNode(true);
+      saveBtn.parentNode.replaceChild(newSaveBtn, saveBtn);
       
-      try {
-        let institution = institutionSelect?.value || "";
-        if (institution === "Otra") {
-          institution = otherInput?.value.trim() || "";
-          if (!institution) {
-            showToast("Escribe el nombre de la institución", "error");
+      newSaveBtn.addEventListener("click", async () => {
+        if (newSaveBtn.dataset.saving === "true") return;
+        newSaveBtn.dataset.saving = "true";
+        
+        try {
+			
+          const accountType = el("acc-type")?.value;
+          
+		  // Validar cuenta de efectivo única
+		  if (accountType === "cash") {
+		    const existingCashAccount = state.accounts.find(a => a.type === "cash");
+		    if (existingCashAccount) {
+		      showToast(`Ya existe una cuenta de efectivo: "${existingCashAccount.name}". Solo puedes tener una.`, "error");
+		      return;
+		    }
+		  }
+          
+          let institution = institutionSelect?.value || "";
+          if (institution === "Otra") {
+            institution = otherInput?.value.trim() || "";
+            if (!institution) {
+              showToast("Escribe el nombre de la institución", "error");
+              return;
+            }
+          }
+          
+          const body = {
+            type: accountType,
+            name: el("acc-name")?.value.trim(),
+            institution: institution,
+            currency: el("acc-currency")?.value,
+            balance: Number(el("acc-balance")?.value || 0),
+            creditLimit: accountType === "credit" ? Number(el("acc-limit")?.value || 0) : null,
+            closingDay: accountType === "credit" ? Number(el("acc-cut-day")?.value || 0) : null,
+            dueDay: accountType === "credit" ? Number(el("acc-due-day")?.value || 0) : null,
+            active: true,
+          };
+          
+          if (!body.name) {
+            showToast("Ingresa el nombre de la cuenta", "error");
             return;
           }
+          
+          await api.post("/accounts", body);
+          showToast("Cuenta creada", "success");
+          hideForm("account-form-wrap", "btn-add-account", "+ Nueva cuenta");
+          if (institutionSelect) institutionSelect.value = "";
+          if (otherGroup) otherGroup.classList.add("hidden");
+          if (otherInput) otherInput.value = "";
+          await loadAccounts();
+          
+        } catch (e) {
+          showToast(e.message, "error");
+        } finally {
+          newSaveBtn.dataset.saving = "false";
         }
-        
-        const body = {
-          type: el("acc-type")?.value,
-          name: el("acc-name")?.value.trim(),
-          institution: institution,
-          currency: el("acc-currency")?.value,
-          balance: Number(el("acc-balance")?.value || 0),
-          creditLimit: el("acc-type")?.value === "credit" ? Number(el("acc-limit")?.value || 0) : null,
-          closingDay: el("acc-type")?.value === "credit" ? Number(el("acc-cut-day")?.value || 0) : null,
-          dueDay: el("acc-type")?.value === "credit" ? Number(el("acc-due-day")?.value || 0) : null,
-          active: true,
-        };
-        if (!body.name) {
-          showToast("Ingresa el nombre de la cuenta", "error");
-          return;
-        }
-        await api.post("/accounts", body);
-        showToast("Cuenta creada", "success");
-        hideForm("account-form-wrap", "btn-add-account", "+ Nueva cuenta");
-        if (institutionSelect) institutionSelect.value = "";
-        if (otherGroup) otherGroup.classList.add("hidden");
-        if (otherInput) otherInput.value = "";
-        await loadAccounts();
-      } catch (e) {
-        showToast(e.message, "error");
-      } finally {
-        newSaveBtn.dataset.saving = "false";
-      }
-    });
-  }
+      });
+    }
 }
 
 function wireRecurringForm() {
@@ -3083,6 +3180,32 @@ async function loadAppAfterLogin() {
     const avatar = el("user-avatar");
     if (avatar) {
       avatar.textContent = (user.displayName || user.email || "U")[0].toUpperCase();
+    }
+    
+    // Cargar cuentas
+    const accounts = await api.get("/accounts");
+    state.accounts = accounts || [];
+    
+    // Verificar si existe cuenta de efectivo
+    const hasCashAccount = state.accounts.some(a => a.type === "cash");
+    if (!hasCashAccount) {
+      console.log("No hay cuenta de efectivo, creando una automáticamente...");
+      try {
+        await api.post("/accounts", {
+          type: "cash",
+          name: "Efectivo",
+          institution: "Efectivo",
+          currency: user.currency || "MXN",
+          balance: 0,
+          active: true
+        });
+        // Recargar cuentas
+        const updatedAccounts = await api.get("/accounts");
+        state.accounts = updatedAccounts || [];
+        console.log("Cuenta de efectivo creada automáticamente");
+      } catch (err) {
+        console.error("Error al crear cuenta de efectivo:", err);
+      }
     }
     
     wireNav();

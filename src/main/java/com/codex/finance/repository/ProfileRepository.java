@@ -13,15 +13,17 @@ import com.codex.finance.entity.Profile;
 @Repository
 public interface ProfileRepository extends JpaRepository<Profile, UUID> {
 
-	@Query(value = "SELECT p.user_id AS userId, p.user_id AS id, " + "COALESCE(p.full_name, '') AS displayName, "
-			+ "COALESCE(p.currency_code, 'MXN') AS currency, "
-			+ "COALESCE(p.settings->>'payCycle', 'monthly') AS payCycle, " + "p.settings->'payDays' AS payDays, "
-			+ "COALESCE((p.settings->>'monthlyIncome')::DECIMAL, 0) AS monthlyIncome, "
-			+ "p.created_at AS createdAt, p.updated_at AS updatedAt, p.deleted_at AS deletedAt, "
-			+ "CASE WHEN p.deleted_at IS NULL THEN 'synced' ELSE 'deleted' END AS syncStatus, "
-			+ "COALESCE(p.row_version, 1) AS version "
-			+ "FROM profiles p WHERE p.user_id = :userId", nativeQuery = true)
-	Object[] getProfile(@Param("userId") UUID userId);
+	@Query(value = "SELECT p.user_id AS userId, p.user_id AS id, " +
+		       "COALESCE(p.full_name, '') AS displayName, " +
+		       "COALESCE(p.currency_code, 'MXN') AS currency, " +
+		       "COALESCE(p.settings->>'payCycle', 'monthly') AS payCycle, " +
+		       "p.settings AS settings, " +  // ← Devuelve el JSON completo
+		       "COALESCE((p.settings->>'monthlyIncome')::DECIMAL, 0) AS monthlyIncome, " +
+		       "p.created_at AS createdAt, p.updated_at AS updatedAt, p.deleted_at AS deletedAt, " +
+		       "CASE WHEN p.deleted_at IS NULL THEN 'synced' ELSE 'deleted' END AS syncStatus, " +
+		       "COALESCE(p.row_version, 1) AS version " +
+		       "FROM profiles p WHERE p.user_id = :userId", nativeQuery = true)
+		Object[] getProfile(@Param("userId") UUID userId);
 
 	@Query(value = "SELECT COALESCE(settings::text, '{}') FROM profiles WHERE user_id = :userId", nativeQuery = true)
 	String getSettingsJson(@Param("userId") UUID userId);
