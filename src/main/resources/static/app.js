@@ -403,6 +403,7 @@ function renderKPIs() {
   const kpiBalance = el("kpi-balance");
   const kpiDebt = el("kpi-debt");
   const kpiNote = el("kpi-income-note");
+  const kpiTotalDebt = el("kpi-total-debt");
   
   // 1. INGRESO REAL
   const realIncome = state.transactions
@@ -436,10 +437,11 @@ function renderKPIs() {
     const remaining = debt.remainingBalance || debt.principalBalance || 0;
     return sum + remaining;
   }, 0);
-  
+
   console.log("=== DEUDA PENDIENTE DEBUG ===");
   console.log("Deudas:", state.debts);
   console.log("Total deuda pendiente (remainingBalance):", totalDebtPending);
+  
   
   // Mostrar en el DOM
   if (kpiIncome) {
@@ -456,14 +458,14 @@ function renderKPIs() {
     if (balanceNote) balanceNote.textContent = "Débito + Efectivo";
   }
   
-  if (kpiDebt) {
+  if (kpiTotalDebt) {
     if (totalDebtPending === 0) {
-      kpiDebt.textContent = "✓ Sin deudas";
-      const debtNote = kpiDebt.parentElement?.querySelector(".kpi-note");
+      kpiTotalDebt.textContent = "✓ Sin deudas";
+      const debtNote = kpiTotalDebt.parentElement?.querySelector(".kpi-note");
       if (debtNote) debtNote.textContent = "No hay deudas pendientes";
     } else {
-      kpiDebt.textContent = fmt(totalDebtPending, cur);
-      const debtNote = kpiDebt.parentElement?.querySelector(".kpi-note");
+      kpiTotalDebt.textContent = fmt(totalDebtPending, cur);
+      const debtNote = kpiTotalDebt.parentElement?.querySelector(".kpi-note");
       if (debtNote) debtNote.textContent = "Suma de saldos restantes";
     }
   }
