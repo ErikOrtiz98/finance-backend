@@ -1539,3 +1539,38 @@ a { color: inherit; text-decoration: none; }
   border-radius: 99px;
   transition: width 0.3s ease;
 }
+/* Paginación */
+.pagination-wrapper {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 0.75rem;
+  margin-top: 1.5rem;
+  padding: 1rem;
+  background: var(--surface2);
+  border-radius: var(--radius-sm);
+  flex-wrap: wrap;
+}
+
+.pagination-info {
+  font-size: 0.85rem;
+  color: var(--text-muted);
+  background: var(--surface);
+  padding: 0.3rem 0.8rem;
+  border-radius: 99px;
+}
+
+.pagination-wrapper .btn-secondary.btn-sm {
+  padding: 0.4rem 1rem;
+  font-size: 0.8rem;
+}
+
+.pagination-wrapper .btn-secondary.btn-sm:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.pagination-wrapper .period-select {
+  font-size: 0.8rem;
+  padding: 0.3rem 0.6rem;
+}

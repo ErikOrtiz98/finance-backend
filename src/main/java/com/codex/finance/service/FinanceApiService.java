@@ -223,7 +223,8 @@ public class FinanceApiService {
 	    String currency = profileRepo.getUserCurrency(uuid);
 	    
 	    int limit = filters.limit() == null ? 50 : filters.limit();
-	    int offset = filters.offset() == null ? 0 : filters.offset();
+	    int page = filters.offset() == null ? 0 : filters.offset();
+	    int offset = page * limit;
 	    
 	    return movementRepo.findAllMovements(uuid, currency, limit, offset).stream()
 	            .map(mapper::mapToTransactionResponse)

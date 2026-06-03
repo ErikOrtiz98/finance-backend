@@ -227,8 +227,19 @@ let state = {
   activeSection: "dashboard",
 };
 
+// ─── PAGINACIÓN ─────────────────────────────────────────────
+let pagination = {
+  transactions: {
+    currentPage: 0,
+    pageSize: 20,
+    totalPages: 0,
+    hasMore: true,
+    totalItems: 0
+  }
+};
 let editCtx = { type: null, id: null };
 
+// ─── CACHE ─────────────────────────────────────────────
 let cache = {
   transactions: { data: null, timestamp: 0, ttl: 30000 }, // 30 segundos
   accounts: { data: null, timestamp: 0, ttl: 60000 }, // 1 minuto
@@ -325,7 +336,14 @@ async function loadSection(section) {
   try {
     switch (section) {
       case "dashboard": await loadDashboard(); break;
-      case "transactions": await loadTransactions(); break;
+      case "transactions": 
+        // === NUEVO: Resetear paginación al entrar a transacciones ===
+        if (pagination.transactions) {
+          pagination.transactions.currentPage = 0;
+          pagination.transactions.hasMore = true;
+        }
+        await loadTransactions(0, true);
+        break;
       case "accounts": await loadAccounts(); break;
       case "recurring": await loadRecurring(); break;
       case "debts": await loadDebts(); break;
@@ -337,7 +355,7 @@ async function loadSection(section) {
       case "categories": await loadCategories(); break;
       case "profile": await loadProfile(); break;
       case "biweekly": await loadBiweeklySchedule(); break;
-	  case "help": break;
+      case "help": break;
     }
   } catch (e) {
     console.error("Error loading section:", e);
@@ -787,35 +805,109 @@ function renderBiweeklySchedule() {
 }
 
 // ─── TRANSACTIONS ───────────────────────────────────────────
-async function loadTransactions(limit = 50, offset = 0) {
+async function loadTransactions(page = null, reset = true) {
   setLoading(true);
   try {
-    // Agregar paginación a la consulta
+    // Si se especifica página, usarla; si no, usar la actual
+    const targetPage = page !== null ? page : pagination.transactions.currentPage;
+    
+    const limit = pagination.transactions.pageSize;
     const [transactions, categories, accounts] = await Promise.all([
-      api.get(`/transactions?limit=${limit}&offset=${offset}`),
+      api.get(`/transactions?limit=${limit}&page=${targetPage}`),
       api.get("/categories"),
       api.get("/accounts"),
     ]);
-    state.transactions = transactions || [];
+    
+    if (reset || targetPage === 0) {
+      state.transactions = transactions || [];
+    } else {
+      // Para carga infinita (si quisieras scroll infinito)
+      state.transactions = [...state.transactions, ...(transactions || [])];
+    }
+    
     state.categories = categories || [];
     state.accounts = accounts || [];
+    
+    // Actualizar estado de paginación
+    pagination.transactions.currentPage = targetPage;
+    pagination.transactions.hasMore = transactions && transactions.length === limit;
+    
     renderTransactions();
+    renderPaginationControls();  // ← NUEVO: mostrar controles
+    
     populateCategorySelect("tx-category", state.categories);
     populateAccountSelect("tx-account", state.accounts);
-    
-    // Mostrar información de paginación
-    const txList = el("transactions-list");
-    if (txList && transactions && transactions.length >= limit) {
-      const loadMoreBtn = document.createElement("button");
-      loadMoreBtn.textContent = "📥 Cargar más transacciones";
-      loadMoreBtn.className = "btn-secondary btn-sm";
-      loadMoreBtn.style.marginTop = "1rem";
-      loadMoreBtn.onclick = () => loadTransactions(limit, offset + limit);
-      txList.appendChild(loadMoreBtn);
-    }
+  } catch (error) {
+    console.error("Error loading transactions:", error);
+    showToast("Error al cargar transacciones", "error");
   } finally {
     setLoading(false);
   }
+}
+function renderPaginationControls() {
+  const container = el("transactions-list");
+  if (!container) return;
+  
+  // Eliminar paginación anterior
+  const existingPagination = container.querySelector(".pagination-wrapper");
+  if (existingPagination) existingPagination.remove();
+  
+  // Solo mostrar si hay más de una página
+  if (!pagination.transactions.hasMore && pagination.transactions.currentPage === 0) {
+    return;
+  }
+  
+  const wrapper = document.createElement("div");
+  wrapper.className = "pagination-wrapper";
+  
+  // Botón Anterior
+  const prevBtn = document.createElement("button");
+  prevBtn.innerHTML = "◀ Anterior";
+  prevBtn.className = "btn-secondary btn-sm";
+  prevBtn.disabled = pagination.transactions.currentPage === 0;
+  prevBtn.onclick = () => {
+    if (pagination.transactions.currentPage > 0) {
+      loadTransactions(pagination.transactions.currentPage - 1, true);
+    }
+  };
+  
+  // Selector de cantidad por página
+  const pageSizeSelect = document.createElement("select");
+  pageSizeSelect.className = "period-select";
+  pageSizeSelect.style.width = "auto";
+  pageSizeSelect.innerHTML = `
+    <option value="10" ${pagination.transactions.pageSize === 10 ? 'selected' : ''}>10 por página</option>
+    <option value="20" ${pagination.transactions.pageSize === 20 ? 'selected' : ''}>20 por página</option>
+    <option value="50" ${pagination.transactions.pageSize === 50 ? 'selected' : ''}>50 por página</option>
+    <option value="100" ${pagination.transactions.pageSize === 100 ? 'selected' : ''}>100 por página</option>
+  `;
+  pageSizeSelect.onchange = (e) => {
+    pagination.transactions.pageSize = parseInt(e.target.value);
+    pagination.transactions.currentPage = 0;
+    loadTransactions(0, true);
+  };
+  
+  // Info de página
+  const pageInfo = document.createElement("span");
+  pageInfo.className = "pagination-info";
+  pageInfo.textContent = `Página ${pagination.transactions.currentPage + 1}`;
+  
+  // Botón Siguiente
+  const nextBtn = document.createElement("button");
+  nextBtn.innerHTML = "Siguiente ▶";
+  nextBtn.className = "btn-secondary btn-sm";
+  nextBtn.disabled = !pagination.transactions.hasMore;
+  nextBtn.onclick = () => {
+    if (pagination.transactions.hasMore) {
+      loadTransactions(pagination.transactions.currentPage + 1, true);
+    }
+  };
+  
+  wrapper.appendChild(prevBtn);
+  wrapper.appendChild(pageSizeSelect);
+  wrapper.appendChild(pageInfo);
+  wrapper.appendChild(nextBtn);
+  container.appendChild(wrapper);
 }
 
 function renderTransactions() {
@@ -1676,8 +1768,10 @@ function wireTxForm() {
             notes: notes
           };
           
-          await api.post("/transactions", body);
-          showToast("Transacción guardada", "success");
+		  await api.post("/transactions", body);
+		  showToast("Transacción guardada", "success");
+
+		  hideForm("transaction-form-wrap", "btn-add-transaction", "+ Nueva");
         }
         
         hideForm("transaction-form-wrap", "btn-add-transaction", "+ Nueva");
@@ -1686,7 +1780,12 @@ function wireTxForm() {
         if (transferGroup) transferGroup.classList.add("hidden");
         if (typeSelect) typeSelect.value = "expense";
         
-        await loadTransactions();
+		 
+		if (pagination.transactions) {
+		  pagination.transactions.currentPage = 0;
+		  pagination.transactions.hasMore = true;
+		}
+		await loadTransactions(0, true); 
         await loadAccounts(); // Recargar cuentas para actualizar saldos
         
         // Recargar dashboard si está visible
@@ -3476,7 +3575,11 @@ document.addEventListener("click", async (e) => {
       if (!confirm("¿Eliminar esta transacción?")) return;
       await api.delete(`/transactions/${id}`);
       showToast("Transacción eliminada", "success");
-      await loadTransactions();
+	  if (pagination.transactions) {
+	    pagination.transactions.currentPage = 0;
+	    pagination.transactions.hasMore = true;
+	  }
+	  await loadTransactions(0, true);
     }
     if (action === "del-acc") {
       if (!confirm("¿Eliminar esta cuenta?")) return;
