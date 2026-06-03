@@ -719,6 +719,7 @@
           <div id="biweekly-list" class="biweekly-grid"></div>
         </section>
 		<!-- ── MANUAL / AYUDA ── -->
+		<!-- ── MANUAL / AYUDA ── -->
 		<section class="page-section hidden" id="section-help">
 		  <div class="manual-container">
 		    <div class="manual-header">
@@ -759,11 +760,13 @@
 		          <li>✅ Control de ingresos y gastos</li>
 		          <li>✅ Gestión de tarjetas de crédito</li>
 		          <li>✅ Compras a meses sin intereses (MSI)</li>
-		          <li>✅ Pagos recurrentes</li>
-		          <li>✅ Metas financieras</li>
+		          <li>✅ Pagos recurrentes (con fecha de fin y tipo ingreso/gasto)</li>
+		          <li>✅ Metas financieras con aportes automáticos</li>
 		          <li>✅ Presupuestos por categoría</li>
 		          <li>✅ Organización quincenal de pagos</li>
 		          <li>✅ Indicador de sobreendeudamiento</li>
+		          <li>✅ Retiros de efectivo (transferencia débito → efectivo)</li>
+		          <li>✅ Pagos de partialidades desde débito o efectivo</li>
 		        </ul>
 		      </div>
 
@@ -780,6 +783,7 @@
 		        <ol>
 		          <li>Ve a <strong>"Mi perfil"</strong> en el menú lateral</li>
 		          <li>Configura: Ingreso mensual, Moneda, Ciclo base, Días de pago</li>
+		          <li>Selecciona tu <strong>Cuenta de débito principal</strong> para calcular el balance real</li>
 		          <li>Haz clic en <strong>"Guardar perfil"</strong></li>
 		        </ol>
 		      </div>
@@ -790,10 +794,11 @@
 		        <h3>Tarjetas de resumen</h3>
 		        <table class="manual-table">
 		          <tr><th>Indicador</th><th>Descripción</th></tr>
-		          <tr><td>Ingreso del periodo</td><td>Tus ingresos en la quincena/mes actual</td></tr>
-		          <tr><td>Total Gastos</td><td>Suma de todos tus gastos</td></tr>
-		          <tr><td>Balance estimado</td><td>Ingresos - Gastos</td></tr>
-		          <tr><td>Pago de deudas</td><td>Solo pagos a deudas y tarjetas</td></tr>
+		          <tr><td>Ingreso del periodo</td><td>Ingresos reales de tus transacciones</td></tr>
+		          <tr><td>Total Gastos</td><td>Suma de todos tus gastos (compras)</td></tr>
+		          <tr><td>Balance actual</td><td>Saldo real (débito + efectivo)</td></tr>
+		          <tr><td>Pagos realizados</td><td>Pagos a deudas y tarjetas</td></tr>
+		          <tr><td>Deuda pendiente</td><td>Suma de saldos restantes de deudas</td></tr>
 		        </table>
 		        <h3>Indicador de Endeudamiento</h3>
 		        <ul>
@@ -801,6 +806,21 @@
 		          <li>🟡 <strong>Medio (30-50%)</strong>: Precaución</li>
 		          <li>🟠 <strong>Alto (50-70%)</strong>: Alerta</li>
 		          <li>🔴 <strong>Crítico (>70%)</strong>: Urgente</li>
+		        </ul>
+		        <h3>Alertas de Tarjetas de Crédito</h3>
+		        <p>Muestra las fechas límite de pago de tus tarjetas con colores según la urgencia:</p>
+		        <ul>
+		          <li>🔴 <strong>Rojo</strong>: Vence hoy o está vencido</li>
+		          <li>🟠 <strong>Naranja</strong>: Vence en 3 días o menos</li>
+		          <li>🟡 <strong>Amarillo</strong>: Vence en 7 días o menos</li>
+		          <li>🟢 <strong>Verde</strong>: Hay tiempo</li>
+		        </ul>
+		        <h3>Desglose de Cuentas</h3>
+		        <p>Muestra el saldo de todas tus cuentas:</p>
+		        <ul>
+		          <li>💳 Cuentas de débito (⭐ = cuenta principal)</li>
+		          <li>💵 Cuenta de efectivo</li>
+		          <li>💳 Tarjetas de crédito (deuda y disponible)</li>
 		        </ul>
 		      </div>
 
@@ -810,10 +830,11 @@
 		        <h3>Tipos de cuentas</h3>
 		        <table class="manual-table">
 		          <tr><th>Tipo</th><th>Uso</th></tr>
-		          <tr><td>Débito</td><td>Dinero disponible (nómina)</td></tr>
+		          <tr><td>Débito</td><td>Dinero disponible (nómina, ahorro)</td></tr>
 		          <tr><td>Crédito</td><td>Tarjetas de crédito</td></tr>
-		          <tr><td>Efectivo</td><td>Dinero en físico</td></tr>
+		          <tr><td>Efectivo</td><td>Dinero en físico (solo una por usuario)</td></tr>
 		          <tr><td>Ahorro</td><td>Cuentas de ahorro</td></tr>
+		          <tr><td>Préstamo</td><td>Créditos personales</td></tr>
 		        </table>
 		        <h3>Agregar una cuenta</h3>
 		        <ol>
@@ -821,11 +842,22 @@
 		          <li>Haz clic en <strong>"+ Nueva cuenta"</strong></li>
 		          <li>Completa los campos y haz clic en <strong>"Guardar"</strong></li>
 		        </ol>
+		        <p><strong>Nota:</strong> Solo puedes tener una cuenta de efectivo. Si no tienes una, se crea automáticamente.</p>
 		      </div>
 
 		      <!-- 5. TRANSACCIONES -->
 		      <div id="transacciones" class="manual-section">
 		        <h2>5. Gestión de Transacciones</h2>
+		        <h3>Tipos de transacción</h3>
+		        <table class="manual-table">
+		          <tr><th>Tipo</th><th>Descripción</th><th>Ejemplo</th></tr>
+		          <tr><td>Gasto</td><td>Dinero que sale</td><td>Compras, servicios</td></tr>
+		          <tr><td>Ingreso</td><td>Dinero que entra</td><td>Salario, depósitos</td></tr>
+		          <tr><td>Transferencia</td><td>Entre cuentas</td><td>Débito → Efectivo</td></tr>
+		          <tr><td>Pago</td><td>Pago a tarjeta de crédito</td><td>Pagar saldo tarjeta</td></tr>
+		          <tr><td>Retiro de efectivo</td><td>Sacar dinero del cajero</td><td>Resta de débito, suma a efectivo</td></tr>
+		          <tr><td>Ajuste</td><td>Correcciones manuales</td><td>Ajustar saldo</td></tr>
+		        </table>
 		        <h3>Agregar una transacción</h3>
 		        <ol>
 		          <li>Ve a <strong>"Transacciones"</strong></li>
@@ -833,24 +865,30 @@
 		          <li>Completa: Concepto, Monto, Tipo, Categoría, Cuenta, Fecha</li>
 		          <li>Haz clic en <strong>"Guardar"</strong></li>
 		        </ol>
-		        <h3>Tipos de transacción</h3>
-		        <ul>
-		          <li><strong>Gasto</strong>: Dinero que sale</li>
-		          <li><strong>Ingreso</strong>: Dinero que entra</li>
-		          <li><strong>Transferencia</strong>: Entre cuentas</li>
-		          <li><strong>Pago</strong>: Pago a tarjeta de crédito</li>
-		        </ul>
+		        <h3>Retiro de efectivo</h3>
+		        <ol>
+		          <li>Selecciona tipo <strong>"Retiro de efectivo"</strong></li>
+		          <li>Selecciona la cuenta de débito de origen</li>
+		          <li>El sistema automáticamente resta de débito y suma a efectivo</li>
+		        </ol>
 		      </div>
 
 		      <!-- 6. PAGOS RECURRENTES -->
 		      <div id="recurrentes" class="manual-section">
 		        <h2>6. Pagos Recurrentes</h2>
 		        <p>Son gastos o ingresos que se repiten periódicamente (Netflix, renta, Spotify, salario).</p>
+		        <h3>Características</h3>
+		        <ul>
+		          <li><strong>Fecha final:</strong> Puedes definir cuándo termina el pago recurrente</li>
+		          <li><strong>Tipo:</strong> Gasto o Ingreso</li>
+		          <li><strong>Pagar ahora:</strong> Botón para pagar manualmente el pago recurrente</li>
+		        </ul>
 		        <h3>Agregar pago recurrente</h3>
 		        <ol>
 		          <li>Ve a <strong>"Pagos recurrentes"</strong></li>
 		          <li>Haz clic en <strong>"+ Nuevo"</strong></li>
 		          <li>Completa: Nombre, Monto, Tipo, Frecuencia, Próximo vencimiento</li>
+		          <li>Opcional: Fecha final</li>
 		          <li>Haz clic en <strong>"Guardar"</strong></li>
 		        </ol>
 		      </div>
@@ -862,12 +900,17 @@
 		        <ol>
 		          <li>Ve a <strong>"Deudas / Préstamos"</strong></li>
 		          <li>Haz clic en <strong>"+ Nueva deuda"</strong></li>
-		          <li>Completa: Nombre, Frecuencia, Saldo restante, Pago mínimo, Próximo pago</li>
+		          <li>Completa: Nombre, Saldo restante, Pago mínimo, Próximo pago</li>
 		          <li>Haz clic en <strong>"Guardar"</strong></li>
 		        </ol>
+		        <h3>Visualización</h3>
+		        <ul>
+		          <li><strong>Deudas Activas:</strong> Barra de progreso, pagado vs restante</li>
+		          <li><strong>Deudas Saldadas:</strong> Se muestran en sección aparte con badge verde</li>
+		        </ul>
 		      </div>
 
-		      <!-- 8. COMPRAS A MESES -->
+		      <!-- 8. COMPRAS A MESES (MSI) -->
 		      <div id="compras-meses" class="manual-section">
 		        <h2>8. Compras a Meses (MSI)</h2>
 		        <p>Te permite registrar compras a meses con tu tarjeta de crédito.</p>
@@ -879,10 +922,11 @@
 		        <ol>
 		          <li>Ve a <strong>"Cuentas / Tarjetas"</strong></li>
 		          <li>Haz clic en <strong>"+ Compra a meses"</strong></li>
-		          <li>Completa: Tarjeta, Nombre, Monto total, Meses, Interés, Primer pago</li>
+		          <li>Completa: Tarjeta, Nombre, Monto total, Meses, Interés (opcional), Primer pago</li>
 		          <li>Haz clic en <strong>"Guardar"</strong></li>
 		        </ol>
 		        <p><strong>Ejemplo:</strong> Compra de $24,000 a 12 meses sin intereses → Pago mensual de $2,000</p>
+		        <p>El sistema crea automáticamente una deuda y las partialidades correspondientes.</p>
 		      </div>
 
 		      <!-- 9. PARTIALIDADES -->
@@ -894,7 +938,14 @@
 		          <li>Ve a <strong>"Partialidades"</strong></li>
 		          <li>Busca la partialidad pendiente</li>
 		          <li>Haz clic en <strong>"Pagar"</strong></li>
+		          <li>Selecciona la cuenta de origen (débito o efectivo)</li>
+		          <li>Confirma el pago</li>
 		        </ol>
+		        <h3>Visualización</h3>
+		        <ul>
+		          <li><strong>Pendientes:</strong> Sección con botón de pagar</li>
+		          <li><strong>Pagadas:</strong> Sección aparte con badge verde</li>
+		        </ul>
 		      </div>
 
 		      <!-- 10. METAS FINANCIERAS -->
@@ -910,7 +961,9 @@
 		        <h3>Agregar progreso</h3>
 		        <ol>
 		          <li>En la meta, haz clic en <strong>"+ Agregar progreso"</strong></li>
-		          <li>Ingresa el monto y confirma</li>
+		          <li>Selecciona la cuenta de origen (débito o efectivo)</li>
+		          <li>Ingresa el monto y una nota opcional</li>
+		          <li>El sistema registra automáticamente una transacción de gasto</li>
 		        </ol>
 		      </div>
 
@@ -924,6 +977,12 @@
 		          <li>Completa: Categoría, Monto límite, Alerta (%), Periodo</li>
 		          <li>Haz clic en <strong>"Guardar"</strong></li>
 		        </ol>
+		        <h3>Colores de alerta</h3>
+		        <ul>
+		          <li>🟢 <strong>Verde:</strong> Gasto normal (menos del 75%)</li>
+		          <li>🟡 <strong>Amarillo:</strong> Alerta (75-90%)</li>
+		          <li>🔴 <strong>Rojo:</strong> Crítico (>90%)</li>
+		        </ul>
 		      </div>
 
 		      <!-- 12. ORGANIZACIÓN QUINCENAL -->
@@ -934,7 +993,13 @@
 		          <li><strong>Primera quincena</strong>: días 1-15</li>
 		          <li><strong>Segunda quincena</strong>: días 16-31</li>
 		        </ul>
-		        <p><strong>Beneficios:</strong> Sabes si te alcanza antes de gastar, evitas sobregiros, planificas mejor.</p>
+		        <p>Muestra:</p>
+		        <ul>
+		          <li>💰 Ingreso disponible</li>
+		          <li>📋 Total de pagos programados</li>
+		          <li>⚖️ Dinero restante después de pagos</li>
+		          <li>📅 Lista de pagos con fechas</li>
+		        </ul>
 		      </div>
 
 		      <!-- 13. REPORTES Y ESTADÍSTICAS -->
@@ -958,8 +1023,10 @@
 		          <li>Ingreso mensual</li>
 		          <li>Moneda principal (MXN/USD)</li>
 		          <li>Ciclo base (Quincenal/Mensual)</li>
+		          <li><strong>Cuenta de débito principal</strong> (para el balance real del dashboard)</li>
 		          <li>Días de pago</li>
 		        </ul>
+		        <p><strong>La cuenta principal:</strong> El dashboard usa el saldo real de esta cuenta, no un valor estimado.</p>
 		      </div>
 
 		      <!-- 15. RESPALDO DE DATOS -->
@@ -975,7 +1042,7 @@
 		        <ol>
 		          <li>Ve a <strong>"Mi perfil"</strong></li>
 		          <li>Haz clic en <strong>"Importar respaldo"</strong></li>
-		          <li>Selecciona el archivo JSON</li>
+		          <li>Selecciona el archivo JSON previamente exportado</li>
 		        </ol>
 		      </div>
 
@@ -985,9 +1052,11 @@
 		        <table class="manual-table">
 		          <tr><th>Problema</th><th>Solución</th></tr>
 		          <tr><td>No puedo iniciar sesión</td><td>Verifica correo/contraseña</td></tr>
-		          <tr><td>Los números no coinciden</td><td>Revisa transacciones duplicadas</td></tr>
+		          <tr><td>Los números no coinciden</td><td>Selecciona una cuenta principal en perfil</td></tr>
 		          <tr><td>La tarjeta no aparece en compras a meses</td><td>Verifica que sea tipo Crédito</td></tr>
-		          <tr><td>Error al pagar partialidad</td><td>Verifica que tengas cuenta de débito</td></tr>
+		          <tr><td>Error al pagar partialidad</td><td>Verifica que tengas cuenta de débito o efectivo</td></tr>
+		          <tr><td>El saldo del dashboard no es correcto</td><td>Selecciona una cuenta principal en Mi perfil</td></tr>
+		          <tr><td>Retiro de efectivo no funciona</td><td>Debes tener una cuenta de efectivo (se crea sola)</td></tr>
 		        </table>
 		      </div>
 
@@ -1001,6 +1070,8 @@
 		          <tr><td>Saldo disponible</td><td>Límite de crédito - Saldo actual</td></tr>
 		          <tr><td>Día de corte</td><td>Fin del periodo de facturación</td></tr>
 		          <tr><td>Día de pago</td><td>Fecha límite para pagar tu tarjeta</td></tr>
+		          <tr><td>Sobregiro</td><td>Cuando gastas más de tu límite de crédito</td></tr>
+		          <tr><td>Cuenta principal</td><td>Cuenta de débito que el dashboard usa para el balance real</td></tr>
 		        </table>
 		      </div>
 		    </div>
