@@ -339,6 +339,7 @@ async function loadDashboard() {
       api.get("/stats/upcoming"),
       api.get("/stats/categories"),
       api.get("/stats/debt-ratio"),
+	  api.get("/debts"),
     ]);
     
     state.transactions = transactions || [];
@@ -346,6 +347,7 @@ async function loadDashboard() {
     state.upcoming = upcoming;
     state.categoryStats = catStats || [];
     state.debtRatio = debtRatio;
+	state.debts = debts || [];
 
     renderKPIs();
     renderUpcoming("upcoming-list", state.upcoming?.next7Days || []);

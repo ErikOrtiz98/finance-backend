@@ -403,6 +403,10 @@ public class FinanceApiService {
 	    System.out.println("debitAccountId recibido: " + request.debitAccountId());
 	    System.out.println("currency: " + request.currency());
 	    System.out.println("notes: " + request.notes());
+	    System.out.println("id: " + installmentUuid);
+	    System.out.println("userid: " + uuid);
+	    System.out.println("debitAccountId: " + debitAccountUuid);
+	    
 	    
 	    // Obtener la installment
 	    Object[] installmentRow = installmentRepo.getInstallmentById(uuid, installmentUuid);
