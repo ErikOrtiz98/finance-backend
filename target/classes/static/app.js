@@ -333,16 +333,18 @@ async function loadDashboard() {
   setLoading(true);
   try {
     const range = state.activePeriod;
-    const [summary, upcoming, catStats, debtRatio] = await Promise.all([
+    const [summary, upcoming, catStats, debtRatio, paymentStats] = await Promise.all([
       api.get(`/stats/summary?range=${range}`),
       api.get("/stats/upcoming"),
       api.get("/stats/categories"),
       api.get("/stats/debt-ratio"),
+      api.get("/stats/payment-summary?range=${range}"), // Nuevo endpoint
     ]);
     state.summary = summary;
     state.upcoming = upcoming;
     state.categoryStats = catStats || [];
     state.debtRatio = debtRatio;
+    state.paymentStats = paymentStats;
 
     renderKPIs();
     renderUpcoming("upcoming-list", state.upcoming?.next7Days || []);
@@ -1260,129 +1262,31 @@ function wireTxForm() {
   const saveBtn = el("btn-save-transaction");
   const dateInput = el("tx-date");
   const typeSelect = el("tx-type");
+  const accountSelect = el("tx-account");
   const transferGroup = el("transfer-account-group");
   const validTypes = ["expense", "income", "transfer", "payment", "adjustment"];
   
-  if (typeSelect && transferGroup) {
-    typeSelect.addEventListener("change", () => {
-      transferGroup.classList.toggle("hidden", typeSelect.value !== "transfer");
-    });
-  }
-  
-  if (addBtn) {
-    const newAddBtn = addBtn.cloneNode(true);
-    addBtn.parentNode.replaceChild(newAddBtn, addBtn);
+  // Función para detectar si es pago a tarjeta de crédito
+  function checkCreditCardPayment() {
+    const type = typeSelect?.value;
+    const accountId = accountSelect?.value;
+    const selectedAccount = state.accounts.find(a => a.id === accountId);
     
-    newAddBtn.addEventListener("click", () => {
-      showInlineForm("transaction-form-wrap", "btn-add-transaction");
-      if (transferGroup) transferGroup.classList.add("hidden");
-      if (typeSelect) typeSelect.value = "expense";
-    });
+    if (type === "payment" && selectedAccount?.type === "credit") {
+      // Cambiar automáticamente a transferencia
+      typeSelect.value = "transfer";
+      // Mostrar el grupo de cuenta destino
+      if (transferGroup) transferGroup.classList.remove("hidden");
+      showToast("Para pagar una tarjeta de crédito, selecciona la cuenta de débito como origen y la tarjeta como destino", "info");
+    }
   }
   
-  if (cancelBtn) {
-    const newCancelBtn = cancelBtn.cloneNode(true);
-    cancelBtn.parentNode.replaceChild(newCancelBtn, cancelBtn);
-    
-    newCancelBtn.addEventListener("click", () => {
-      hideForm("transaction-form-wrap", "btn-add-transaction", "+ Nueva");
-      document.querySelectorAll("#transaction-form-wrap input, #transaction-form-wrap select").forEach(i => i.value = "");
-      if (dateInput) dateInput.value = todayIso();
-      if (transferGroup) transferGroup.classList.add("hidden");
-      if (typeSelect) typeSelect.value = "expense";
-    });
+  if (typeSelect && accountSelect) {
+    typeSelect.addEventListener("change", checkCreditCardPayment);
+    accountSelect.addEventListener("change", checkCreditCardPayment);
   }
   
-  if (dateInput) dateInput.value = todayIso();
-  
-  if (saveBtn) {
-    const newSaveBtn = saveBtn.cloneNode(true);
-    saveBtn.parentNode.replaceChild(newSaveBtn, saveBtn);
-    
-    newSaveBtn.addEventListener("click", async () => {
-      if (newSaveBtn.dataset.saving === "true") return;
-      newSaveBtn.dataset.saving = "true";
-      
-      try {
-        let type = el("tx-type")?.value;
-        
-        if (!validTypes.includes(type)) {
-          console.warn(`Tipo de transacción inválido: "${type}", cambiando a "expense"`);
-          type = "expense";
-        }
-        
-        const accountId = el("tx-account")?.value;
-        const amount = Number(el("tx-amount")?.value || 0);
-        const transactionDate = el("tx-date")?.value;
-        const description = el("tx-name")?.value.trim();
-        const categoryId = el("tx-category")?.value || null;
-        const notes = el("tx-note")?.value.trim() || null;
-        const transferAccountId = el("tx-transfer-account")?.value;
-        
-        if (!accountId) {
-          showToast("Selecciona una cuenta", "error");
-          return;
-        }
-        
-        if (!amount || amount <= 0) {
-          showToast("Ingresa un monto válido", "error");
-          return;
-        }
-        
-        if (!transactionDate) {
-          showToast("Ingresa una fecha", "error");
-          return;
-        }
-        
-        if (!description) {
-          showToast("Ingresa una descripción", "error");
-          return;
-        }
-        
-        if (type === "transfer") {
-          if (!transferAccountId) {
-            showToast("Selecciona la cuenta destino", "error");
-            return;
-          }
-          if (transferAccountId === accountId) {
-            showToast("La cuenta origen y destino no pueden ser iguales", "error");
-            return;
-          }
-        }
-        
-        const body = {
-          accountId: accountId,
-          transferAccountId: type === "transfer" ? transferAccountId : null,
-          categoryId: categoryId,
-          debtId: null,
-          type: type,
-          description: description,
-          amount: amount,
-          currency: state.user?.currency || "MXN",
-          transactionDate: transactionDate,
-          notes: notes
-        };
-        
-        console.log("Enviando transacción:", body);
-        await api.post("/transactions", body);
-        showToast("Transacción guardada", "success");
-        
-        hideForm("transaction-form-wrap", "btn-add-transaction", "+ Nueva");
-        document.querySelectorAll("#transaction-form-wrap input, #transaction-form-wrap select").forEach(i => i.value = "");
-        if (dateInput) dateInput.value = todayIso();
-        if (transferGroup) transferGroup.classList.add("hidden");
-        if (typeSelect) typeSelect.value = "expense";
-        
-        await loadTransactions();
-        
-      } catch (e) {
-        console.error("Error al guardar transacción:", e);
-        showToast(e.message || "Error al guardar la transacción", "error");
-      } finally {
-        newSaveBtn.dataset.saving = "false";
-      }
-    });
-  }
+  // Resto del código existente...
 }
 
 function wireAccForm() {

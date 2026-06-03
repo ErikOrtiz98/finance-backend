@@ -47,6 +47,7 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RestController;
 
+import java.math.BigDecimal;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.util.List;
@@ -410,5 +411,10 @@ public class ContractApiController {
 	public ContractDtos.InstallmentResponse payCreditCardInstallment(@AuthenticationPrincipal Jwt jwt,
 			@PathVariable String id, @Valid @RequestBody ContractDtos.PayInstallmentRequest request) {
 		return service.payCreditCardInstallment(jwt.getSubject(), id, request);
+	}
+	@GetMapping("/stats/payment-summary")
+	public Map<String, BigDecimal> getPaymentSummary(@AuthenticationPrincipal Jwt jwt,
+	                                                  @RequestParam(required = false) String range) {
+	    return service.getPaymentSummary(jwt.getSubject(), range);
 	}
 }

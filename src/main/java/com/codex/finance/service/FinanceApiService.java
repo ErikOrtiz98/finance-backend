@@ -1124,5 +1124,24 @@ public class FinanceApiService {
 		Object[] updatedInstallment = installmentRepo.getInstallmentById(uuid, installmentUuid);
 		return mapper.mapToInstallmentResponse(updatedInstallment);
 	}
+	@Transactional(readOnly = true)
+	public Map<String, BigDecimal> getPaymentSummary(String userId, String range) {
+	    UUID uuid = UUID.fromString(userId);
+	    LocalDate[] window = resolveWindow(range, null, null);
+	    LocalDate startDate = window[0];
+	    LocalDate endDate = window[1];
+	    
+	    // Pagos a tarjeta de crédito (transferencias)
+	    BigDecimal creditCardPayments = movementRepo.getCreditCardPayments(uuid, startDate, endDate);
+	    
+	    // Pagos a deudas
+	    BigDecimal debtPayments = movementRepo.getDebtPayments(uuid, startDate, endDate);
+	    
+	    return Map.of(
+	        "creditCardPayments", creditCardPayments,
+	        "debtPayments", debtPayments,
+	        "totalPayments", creditCardPayments.add(debtPayments)
+	    );
+	}
 
 }
