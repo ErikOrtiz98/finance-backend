@@ -176,19 +176,32 @@ public class FinanceMapper {
 	}
 
 	public ContractDtos.BudgetResponse mapToBudgetResponse(Object[] row) {
-		row = unwrap(row);
-		return new ContractDtos.BudgetResponse(toString(row[0]), // id
-				toString(row[1]), // categoryId
-				toString(row[2]), // categoryName
-				toString(row[3]), // period
-				toLocalDate(row[4]), // periodStart
-				toLocalDate(row[5]), // periodEnd
-				toBigDecimal(row[6]), // amountLimit
-				toBigDecimal(row[7]), // alertThreshold
-				toBigDecimal(row[8]), // spentAmount
-				toBigDecimal(row[9]), // usagePercentage
-				Boolean.TRUE.equals(row[10]) // isAlert
-		);
+	    if (row == null) {
+	        return null;
+	    }
+	    row = unwrap(row);
+	    
+	    // Verificar que el array tiene suficientes elementos
+	    if (row.length < 11) {
+	        System.err.println("Error: row length is " + row.length + ", expected at least 11");
+	        // Devolver un objeto con valores por defecto
+	        return new ContractDtos.BudgetResponse(null, null, null, null, null, null, 
+	                BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO, false);
+	    }
+	    
+	    return new ContractDtos.BudgetResponse(
+	        toString(row[0]),      // id
+	        toString(row[1]),      // categoryId
+	        toString(row[2]),      // categoryName
+	        toString(row[3]),      // period
+	        toLocalDate(row[4]),   // periodStart
+	        toLocalDate(row[5]),   // periodEnd
+	        toBigDecimal(row[6]),  // amountLimit
+	        toBigDecimal(row[7]),  // alertThreshold
+	        toBigDecimal(row[8]),  // spentAmount
+	        toBigDecimal(row[9]),  // usagePercentage
+	        Boolean.TRUE.equals(row[10]) // isAlert
+	    );
 	}
 
 	// ==================== TYPE CONVERTERS ====================

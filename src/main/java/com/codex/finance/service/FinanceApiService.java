@@ -565,18 +565,23 @@ public class FinanceApiService {
 		return mapper.mapToBudgetResponse(lastBudget);
 	}
 
-	public ContractDtos.BudgetResponse updateBudget(String userId, String id,
-			ContractDtos.UpsertBudgetRequest request) {
-		UUID uuid = UUID.fromString(userId);
-		UUID budgetUuid = UUID.fromString(id);
-		UUID categoryUuid = request.categoryId() != null ? UUID.fromString(request.categoryId()) : null;
-		BigDecimal alertThreshold = request.alertThreshold() != null
-				? request.alertThreshold().divide(BigDecimal.valueOf(100))
-				: null;
-		budgetRepo.updateBudget(uuid, budgetUuid, categoryUuid, request.period(), request.periodStart(),
-				request.periodEnd(), request.amountLimit(), alertThreshold);
-		Object[] row = budgetRepo.getBudgetById(uuid, budgetUuid);
-		return mapper.mapToBudgetResponse(row);
+	public ContractDtos.BudgetResponse updateBudget(String userId, String id, ContractDtos.UpsertBudgetRequest request) {
+	    UUID uuid = UUID.fromString(userId);
+	    UUID budgetUuid = UUID.fromString(id);
+	    UUID categoryUuid = request.categoryId() != null ? UUID.fromString(request.categoryId()) : null;
+	    BigDecimal alertThreshold = request.alertThreshold() != null ? 
+	            request.alertThreshold().divide(BigDecimal.valueOf(100)) : null;
+
+	    // Actualizar el presupuesto
+	    budgetRepo.updateBudget(uuid, budgetUuid, categoryUuid, request.period(),
+	            request.periodStart(), request.periodEnd(), request.amountLimit(), alertThreshold);
+	    
+	    // Obtener el presupuesto actualizado
+	    Object[] row = budgetRepo.getBudgetById(uuid, budgetUuid);
+	    if (row == null) {
+	        throw new ApiException(HttpStatus.NOT_FOUND, "Budget not found after update");
+	    }
+	    return mapper.mapToBudgetResponse(row);
 	}
 
 	public void deleteBudget(String userId, String id) {
