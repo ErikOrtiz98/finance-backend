@@ -396,16 +396,20 @@ function renderKPIs() {
   const kpiIncome = el("kpi-income");
   const kpiObligations = el("kpi-obligations");
   const kpiBalance = el("kpi-balance");
-  const kpiDebt = el("kpi-debt");
+  const kpiPayments = el("kpi-payments");        // NUEVO
+  const kpiTotalDebt = el("kpi-total-debt");    // NUEVO
   const kpiNote = el("kpi-income-note");
   
   if (kpiIncome) kpiIncome.textContent = fmt(s.income || 0, cur);
   
   const totalObligations = (s.expenses || 0);
-  
   if (kpiObligations) kpiObligations.textContent = fmt(totalObligations, cur);
   if (kpiBalance) kpiBalance.textContent = fmt(s.availableBalance || 0, cur);
-  if (kpiDebt) kpiDebt.textContent = fmt(s.debtPayments || 0, cur);
+  
+  // NUEVOS KPI
+  if (kpiPayments) kpiPayments.textContent = fmt(s.debtPayments || 0, cur);
+  if (kpiTotalDebt) kpiTotalDebt.textContent = fmt(s.totalRemainingDebt || 0, cur);
+  
   if (kpiNote && state.user) kpiNote.textContent = `Periodo ${state.activePeriod === "biweekly" ? "Quincenal" : "Mensual"}`;
 }
 
@@ -626,17 +630,40 @@ function renderAccounts() {
   c.innerHTML = state.accounts.map(acc => {
     const typeClass = acc.type === "credit" ? "credit" : "";
     const typeLabel = {
-      checking: "Débito", credit: "Tarjeta de crédito",
-      savings: "Ahorro", loan: "Préstamo", cash: "Efectivo"
+      debit: "Débito", 
+      credit: "Tarjeta de crédito",
+      checking: "Débito", 
+      savings: "Ahorro", 
+      loan: "Préstamo", 
+      cash: "Efectivo",
+      investment: "Inversión"
     }[acc.type] || acc.type;
-    const creditLine = acc.creditLimit ? `
-      <div class="account-limit">Límite: ${fmt(acc.creditLimit, acc.currency || cur)} · Disponible: ${fmt((acc.creditLimit || 0) - (acc.balance || 0), acc.currency || cur)}</div>
-    ` : "";
+    
+    let creditLine = "";
+    if (acc.type === "credit" && acc.creditLimit) {
+      const balance = Number(acc.balance || 0);
+      const limit = Number(acc.creditLimit);
+      const available = limit - balance;
+      const isOverdrawn = available < 0;
+      
+      creditLine = `
+        <div class="account-limit ${isOverdrawn ? 'overdrawn' : ''}">
+          <span>Límite: ${fmt(limit, acc.currency || cur)}</span>
+          <span>Disponible: ${fmt(available, acc.currency || cur)}</span>
+          ${isOverdrawn ? '<span class="badge badge-red">Sobregirado</span>' : ''}
+        </div>
+      `;
+    } else if (acc.type === "credit" && !acc.creditLimit) {
+      creditLine = `<div class="account-limit warning">⚠️ Sin límite de crédito configurado</div>`;
+    }
+    
     return `
       <div class="account-card ${typeClass}">
-        <div class="account-name">${acc.name}</div>
-        <div class="account-type">${typeLabel}${acc.institution ? ` · ${acc.institution}` : ""}</div>
-        <div class="account-balance">${fmt(acc.balance, acc.currency || cur)}</div>
+        <div class="account-name">${escapeHtml(acc.name)}</div>
+        <div class="account-type">${typeLabel}${acc.institution ? ` · ${escapeHtml(acc.institution)}` : ""}</div>
+        <div class="account-balance ${acc.type === 'credit' && acc.balance > 0 ? 'debt' : ''}">
+          ${fmt(acc.balance, acc.currency || cur)}
+        </div>
         ${creditLine}
         <div class="account-actions">
           <button class="btn-edit-sm" data-action="edit-acc" data-id="${acc.id}">Editar</button>

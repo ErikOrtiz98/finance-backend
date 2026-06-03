@@ -394,21 +394,24 @@ public class FinanceApiService {
 	    UUID debtId = UUID.fromString(mapper.toString(unwrappedInstallment[1])); // debt_id
 	    BigDecimal amount = mapper.toBigDecimal(unwrappedInstallment[3]); // amount de la partialidad
 	    
+	    // Obtener el account_id de la installment (si existe, para tarjetas de crédito)
+	    UUID accountId = null;
+	    if (unwrappedInstallment.length > 8 && unwrappedInstallment[8] != null) {
+	        accountId = UUID.fromString(mapper.toString(unwrappedInstallment[8]));
+	    }
+	    
 	    // Marcar como pagada
 	    int updated = installmentRepo.markAsPaid(uuid, installmentUuid);
 	    if (updated == 0) {
 	        throw new ApiException(HttpStatus.NOT_FOUND, "installment not found or already paid");
 	    }
 	    
-	    // Actualizar SOLO el saldo restante de la deuda
+	    // 1. Actualizar el saldo restante de la DEUDA
 	    Object[] debtRow = debtRepo.getDebtById(uuid, debtId);
 	    if (debtRow != null) {
 	        Object[] unwrappedDebt = mapper.unwrap(debtRow);
 	        
-	        // ÍNDICES CORREGIDOS según la consulta getDebtById
 	        BigDecimal currentRemaining = mapper.toBigDecimal(unwrappedDebt[3]); // remaining_balance
-	        BigDecimal principalBalance = mapper.toBigDecimal(unwrappedDebt[4]); // original_amount (NO DEBE CAMBIAR)
-	        BigDecimal fixedPayment = mapper.toBigDecimal(unwrappedDebt[5]);     // fixed_payment (NO DEBE CAMBIAR)
 	        BigDecimal newRemaining = currentRemaining.subtract(amount);
 	        
 	        if (newRemaining.compareTo(BigDecimal.ZERO) < 0) {
@@ -416,19 +419,23 @@ public class FinanceApiService {
 	        }
 	        
 	        System.out.println("=== MARK INSTALLMENT AS PAID DEBUG ===");
-	        System.out.println("Principal Balance (NO CAMBIA): " + principalBalance);
-	        System.out.println("Current remaining: " + currentRemaining);
-	        System.out.println("Fixed payment (NO CAMBIA): " + fixedPayment);
 	        System.out.println("Payment amount: " + amount);
+	        System.out.println("Current remaining: " + currentRemaining);
 	        System.out.println("New remaining: " + newRemaining);
+	        System.out.println("Account ID (tarjeta): " + accountId);
 	        
-	        // Actualizar SOLO remaining_balance
-	        String sql = "UPDATE debts SET remaining_balance = :newRemaining, updated_at = NOW() " +
-	                     "WHERE id = :id AND user_id = :userId AND deleted_at IS NULL";
-	        jdbcTemplate.update(sql, 
-	            java.util.Map.of("newRemaining", newRemaining, 
-	                           "id", debtId, 
-	                           "userId", uuid));
+	        // Actualizar SOLO remaining_balance de la deuda
+	        String sqlDebt = "UPDATE debts SET remaining_balance = remaining_balance - ?, updated_at = NOW() " +
+	                "WHERE id = ? AND user_id = ? AND deleted_at IS NULL";
+	        jdbcTemplate.update(sqlDebt, amount, debtId, uuid);
+	    }
+	    
+	    // 2. Actualizar el saldo de la TARJETA DE CRÉDITO (restar el pago)
+	    if (accountId != null) {
+	        String sqlAccount = "UPDATE accounts SET current_balance = current_balance - ?, updated_at = NOW() " +
+	                "WHERE id = ? AND user_id = ? AND deleted_at IS NULL AND account_type = 'credit'";
+	        int updatedAccount = jdbcTemplate.update(sqlAccount, amount, accountId, uuid);
+	        System.out.println("Saldo de tarjeta actualizado. Filas afectadas: " + updatedAccount);
 	    }
 	    
 	    Object[] row = installmentRepo.getInstallmentById(uuid, installmentUuid);
@@ -580,98 +587,63 @@ public class FinanceApiService {
 
 	// ==================== SUMMARY ====================
 	@Transactional(readOnly = true)
-	public ContractDtos.SummaryResponse summary(String userId, String range, LocalDate from, LocalDate to,
-			String accountId) {
-		UUID uuid = UUID.fromString(userId);
-		String currency = profileRepo.getUserCurrency(uuid);
-
-		LocalDate[] window = resolveWindow(range, from, to);
-		LocalDate startDate = window[0];
-		LocalDate endDate = window[1];
-
-		// Obtener la cuenta principal del perfil
-		Object[] profileRow = profileRepo.getProfile(uuid);
-		String mainAccountId = null;
-		BigDecimal monthlyIncome = BigDecimal.ZERO;
-
-		if (profileRow != null) {
-			profileRow = mapper.unwrap(profileRow);
-			if (profileRow.length > 6 && profileRow[6] != null) {
-				monthlyIncome = mapper.toBigDecimal(profileRow[6]);
-			}
-			// Extraer mainAccountId del settings (índice 5)
-			Object settings = profileRow[5];
-			if (settings != null) {
-				try {
-					Map<String, Object> settingsMap = objectMapper.readValue(settings.toString(),
-							new TypeReference<Map<String, Object>>() {
-							});
-					Object mainId = settingsMap.get("mainAccountId");
-					if (mainId != null) {
-						mainAccountId = mainId.toString();
-					}
-				} catch (Exception e) {
-					// Ignorar
-				}
-			}
-		}
-
-		BigDecimal realIncome = BigDecimal.ZERO;
-		BigDecimal expenses = BigDecimal.ZERO;
-		BigDecimal debtPayments = BigDecimal.ZERO;
-		BigDecimal fixedPayments = BigDecimal.ZERO;
-
-		if (startDate != null && endDate != null) {
-			Object[] summaryRow;
-
-			// Si hay cuenta principal, usarla
-			if (mainAccountId != null && !mainAccountId.isEmpty()) {
-				summaryRow = movementRepo.getSummaryByDateRangeAndAccount(uuid, startDate, endDate,
-						UUID.fromString(mainAccountId));
-			} else if (accountId != null && !accountId.isEmpty()) {
-				summaryRow = movementRepo.getSummaryByDateRangeAndAccount(uuid, startDate, endDate,
-						UUID.fromString(accountId));
-			} else {
-				summaryRow = movementRepo.getSummaryByDateRangeFromDebitAccount(uuid, startDate, endDate);
-			}
-
-			if (summaryRow != null) {
-				summaryRow = mapper.unwrap(summaryRow);
-				realIncome = mapper.toBigDecimal(summaryRow[0]);
-				expenses = mapper.toBigDecimal(summaryRow[1]);
-				debtPayments = mapper.toBigDecimal(summaryRow[2]);
-				fixedPayments = mapper.toBigDecimal(summaryRow[3]);
-			}
-		}
-
-		// Calcular el ingreso final - PRIORIZAR ingresos reales de la cuenta
-		BigDecimal finalIncome = realIncome;
-
-		// Solo usar monthlyIncome estimado si no hay ingresos reales en la cuenta
-		// principal
-		if (realIncome.compareTo(BigDecimal.ZERO) == 0 && monthlyIncome.compareTo(BigDecimal.ZERO) > 0) {
-			if ("biweekly".equals(range)) {
-				finalIncome = monthlyIncome.divide(BigDecimal.valueOf(2), 2, java.math.RoundingMode.HALF_UP);
-				System.out.println("Usando ingreso estimado (sin movimientos reales): " + finalIncome);
-			} else {
-				finalIncome = monthlyIncome;
-			}
-		} else {
-			System.out.println("Usando ingreso real de la cuenta: " + finalIncome);
-		}
-
-		BigDecimal totalExpenses = expenses.add(fixedPayments).add(debtPayments);
-		BigDecimal availableBalance = finalIncome.subtract(totalExpenses);
-
-		// Calcular balance REAL de la cuenta principal
-		BigDecimal realBalance = BigDecimal.ZERO;
-		if (mainAccountId != null && !mainAccountId.isEmpty()) {
-			realBalance = accountRepo.getAccountBalance(uuid, UUID.fromString(mainAccountId));
-			System.out.println("Saldo real de la cuenta principal: " + realBalance);
-		}
-
-		return new ContractDtos.SummaryResponse(finalIncome, expenses, fixedPayments, debtPayments,
-				realBalance.compareTo(BigDecimal.ZERO) > 0 ? realBalance : availableBalance, currency);
+	public ContractDtos.SummaryResponse summary(String userId, String range, LocalDate from, LocalDate to, String accountId) {
+	    UUID uuid = UUID.fromString(userId);
+	    String currency = profileRepo.getUserCurrency(uuid);
+	    
+	    LocalDate[] window = resolveWindow(range, from, to);
+	    LocalDate startDate = window[0];
+	    LocalDate endDate = window[1];
+	    
+	    BigDecimal realIncome = BigDecimal.ZERO;
+	    BigDecimal expenses = BigDecimal.ZERO;
+	    BigDecimal debtPayments = BigDecimal.ZERO;  // Pagos realizados en el periodo
+	    BigDecimal fixedPayments = BigDecimal.ZERO;
+	    
+	    if (startDate != null && endDate != null) {
+	        Object[] summaryRow = movementRepo.getSummaryByDateRange(uuid, startDate, endDate);
+	        if (summaryRow != null) {
+	            summaryRow = mapper.unwrap(summaryRow);
+	            realIncome = mapper.toBigDecimal(summaryRow[0]);
+	            expenses = mapper.toBigDecimal(summaryRow[1]);
+	            debtPayments = mapper.toBigDecimal(summaryRow[2]);  // Pagos realizados
+	            fixedPayments = mapper.toBigDecimal(summaryRow[3]);
+	        }
+	    }
+	    
+	    // Obtener deuda total pendiente
+	    BigDecimal totalDebt = debtRepo.getTotalRemainingBalance(uuid);
+	    
+	    BigDecimal monthlyIncome = BigDecimal.ZERO;
+	    Object[] profileRow = profileRepo.getProfile(uuid);
+	    if (profileRow != null) {
+	        profileRow = mapper.unwrap(profileRow);
+	        if (profileRow.length > 6 && profileRow[6] != null) {
+	            monthlyIncome = mapper.toBigDecimal(profileRow[6]);
+	        }
+	    }
+	    
+	    BigDecimal finalIncome = realIncome;
+	    if (realIncome.compareTo(BigDecimal.ZERO) == 0 && monthlyIncome.compareTo(BigDecimal.ZERO) > 0) {
+	        if ("biweekly".equals(range)) {
+	            finalIncome = monthlyIncome.divide(BigDecimal.valueOf(2), 2, java.math.RoundingMode.HALF_UP);
+	        } else {
+	            finalIncome = monthlyIncome;
+	        }
+	    }
+	    
+	    BigDecimal totalExpenses = expenses.add(fixedPayments).add(debtPayments);
+	    BigDecimal availableBalance = finalIncome.subtract(totalExpenses);
+	    
+	    return new ContractDtos.SummaryResponse(
+	        finalIncome,           // income
+	        expenses,              // expenses
+	        fixedPayments,         // fixedPayments
+	        debtPayments,          // debtPayments (pagos realizados en el periodo)
+	        totalDebt,             // totalRemainingDebt (NUEVO)
+	        availableBalance,      // availableBalance
+	        currency
+	    );
 	}
 
 	@Transactional(readOnly = true)
@@ -1013,120 +985,75 @@ public class FinanceApiService {
 	}
 
 	// ==================== CREDIT CARD INSTALLMENT (Compra a meses)
-	// ====================
 	@Transactional
-	public List<ContractDtos.InstallmentResponse> createCreditCardPurchase(String userId,
-			ContractDtos.CreditCardPurchaseRequest request) {
-		System.out.println("=== CREATE CREDIT CARD PURCHASE DEBUG ===");
-		System.out.println("Request Account ID: " + request.accountId());
-		System.out.println("Request Name: " + request.name());
-		System.out.println("Request Total Amount: " + request.totalAmount());
-		System.out.println("Request Months: " + request.months());
-
-		UUID uuid = UUID.fromString(userId);
-		UUID accountUuid = UUID.fromString(request.accountId());
-
-		// Validar que la cuenta existe y es de crédito
-		Object[] accountRow = accountRepo.getAccountById(accountUuid, uuid);
-		if (accountRow == null) {
-			throw new ApiException(HttpStatus.NOT_FOUND, "account not found");
-		}
-		Object[] unwrappedAccount = mapper.unwrap(accountRow);
-
-		System.out.println("=== ACCOUNT ROW DETAILS ===");
-		System.out.println("Row length: " + unwrappedAccount.length);
-		for (int i = 0; i < unwrappedAccount.length; i++) {
-			System.out.println("  Index " + i + ": " + unwrappedAccount[i] + " (type: "
-					+ (unwrappedAccount[i] == null ? "null" : unwrappedAccount[i].getClass().getSimpleName()) + ")");
-		}
-
-		// Intentar obtener el tipo desde diferentes índices
-		String accountType = null;
-		// Índice 2 es account_type según la query
-		if (unwrappedAccount.length > 2) {
-			accountType = mapper.toString(unwrappedAccount[2]);
-			System.out.println("Account Type from index 2: '" + accountType + "'");
-		}
-
-		// Si no funciona, buscar en otros índices
-		if (accountType == null || (!"credit".equals(accountType) && !"debit".equals(accountType))) {
-			for (int i = 0; i < unwrappedAccount.length; i++) {
-				String val = mapper.toString(unwrappedAccount[i]);
-				if ("credit".equals(val) || "debit".equals(val) || "savings".equals(val)) {
-					accountType = val;
-					System.out.println("Found account type at index " + i + ": '" + accountType + "'");
-					break;
-				}
-			}
-		}
-
-		if (!"credit".equals(accountType)) {
-			throw new ApiException(HttpStatus.BAD_REQUEST,
-					"installments only supported for credit cards. Account ID: " + request.accountId()
-							+ ", Type found: '" + accountType + "', Row length: " + unwrappedAccount.length);
-		}
-
-		// Obtener el balance - puede estar en índice 5 o 6 dependiendo de la query
-		BigDecimal currentBalance = BigDecimal.ZERO;
-		if (unwrappedAccount.length > 5) {
-			currentBalance = mapper.toBigDecimal(unwrappedAccount[5]);
-			System.out.println("Current Balance from index 5: " + currentBalance);
-		}
-		if (currentBalance.compareTo(BigDecimal.ZERO) == 0 && unwrappedAccount.length > 6) {
-			currentBalance = mapper.toBigDecimal(unwrappedAccount[6]);
-			System.out.println("Current Balance from index 6: " + currentBalance);
-		}
-
-		// Calcular el pago mensual
-		int months = request.months();
-		BigDecimal totalAmount = request.totalAmount();
-		BigDecimal interestRate = request.interestRate() != null ? request.interestRate() : BigDecimal.ZERO;
-
-		// Calcular monto mensual con o sin interés
-		BigDecimal monthlyAmount;
-		if (interestRate.compareTo(BigDecimal.ZERO) > 0) {
-			BigDecimal rate = interestRate.divide(BigDecimal.valueOf(100)).divide(BigDecimal.valueOf(12), 10,
-					java.math.RoundingMode.HALF_UP);
-			BigDecimal factor = rate.add(BigDecimal.ONE).pow(months);
-			monthlyAmount = totalAmount.multiply(rate).multiply(factor).divide(factor.subtract(BigDecimal.ONE), 2,
-					java.math.RoundingMode.HALF_UP);
-		} else {
-			monthlyAmount = totalAmount.divide(BigDecimal.valueOf(months), 2, java.math.RoundingMode.HALF_UP);
-		}
-		System.out.println("Monthly Amount: " + monthlyAmount);
-
-		// Crear la deuda asociada
-		String debtName = request.name() != null ? request.name() : "Compra a " + months + " meses";
-		Object[] newDebt = debtRepo.createDebt(uuid, debtName, totalAmount, monthlyAmount, "monthly",
-				request.firstDueDate().toString(), "Compra a meses con tarjeta de crédito");
-		Object[] unwrappedDebt = mapper.unwrap(newDebt);
-		UUID debtUuid = UUID.fromString(mapper.toString(unwrappedDebt[0]));
-		System.out.println("Debt created with ID: " + debtUuid);
-
-		// Crear las partialidades (una por cada mes)
-		List<ContractDtos.InstallmentResponse> installments = new ArrayList<>();
-		LocalDate dueDate = request.firstDueDate();
-
-		for (int i = 1; i <= months; i++) {
-			System.out.println("Creating installment " + i + " for date: " + dueDate);
-			installmentRepo.createCreditCardInstallment(uuid, debtUuid, accountUuid, i, monthlyAmount, dueDate,
-					totalAmount, interestRate, false);
-			dueDate = dueDate.plusMonths(1);
-		}
-
-		// Actualizar el saldo de la tarjeta de crédito (aumentar la deuda)
-		BigDecimal newBalance = currentBalance.add(totalAmount);
-		System.out.println("Updating balance from " + currentBalance + " to " + newBalance);
-		accountRepo.updateBalance(accountUuid, uuid, newBalance);
-
-		// Obtener todas las partialidades creadas
-		List<Object[]> createdInstallments = installmentRepo.listInstallmentsByAccount(uuid, accountUuid);
-		for (Object[] row : createdInstallments) {
-			installments.add(mapper.mapToInstallmentResponse(row));
-		}
-
-		System.out.println("=== CREDIT CARD PURCHASE COMPLETED ===");
-		return installments;
+	public List<ContractDtos.InstallmentResponse> createCreditCardPurchase(String userId, ContractDtos.CreditCardPurchaseRequest request) {
+	    UUID uuid = UUID.fromString(userId);
+	    UUID accountUuid = UUID.fromString(request.accountId());
+	    
+	    // Validar que la cuenta existe y es de crédito
+	    Object[] accountRow = accountRepo.getAccountById(accountUuid, uuid);
+	    if (accountRow == null) {
+	        throw new ApiException(HttpStatus.NOT_FOUND, "account not found");
+	    }
+	    Object[] unwrappedAccount = mapper.unwrap(accountRow);
+	    String accountType = mapper.toString(unwrappedAccount[2]);
+	    if (!"credit".equals(accountType)) {
+	        throw new ApiException(HttpStatus.BAD_REQUEST, "installments only supported for credit cards");
+	    }
+	    
+	    int months = request.months();
+	    BigDecimal totalAmount = request.totalAmount();
+	    BigDecimal interestRate = request.interestRate() != null ? request.interestRate() : BigDecimal.ZERO;
+	    
+	    // Calcular pago mensual
+	    BigDecimal monthlyAmount;
+	    if (interestRate.compareTo(BigDecimal.ZERO) > 0) {
+	        BigDecimal rate = interestRate.divide(BigDecimal.valueOf(100)).divide(BigDecimal.valueOf(12), 10, java.math.RoundingMode.HALF_UP);
+	        BigDecimal factor = rate.add(BigDecimal.ONE).pow(months);
+	        monthlyAmount = totalAmount.multiply(rate).multiply(factor)
+	                .divide(factor.subtract(BigDecimal.ONE), 2, java.math.RoundingMode.HALF_UP);
+	    } else {
+	        monthlyAmount = totalAmount.divide(BigDecimal.valueOf(months), 2, java.math.RoundingMode.HALF_UP);
+	    }
+	    
+	    // Crear la deuda asociada (NO actualizar saldo de tarjeta aquí)
+	    String debtName = request.name() != null ? request.name() : "Compra a " + months + " meses";
+	    Object[] newDebt = debtRepo.createDebt(
+	        uuid,
+	        debtName,
+	        totalAmount,
+	        monthlyAmount,
+	        "monthly",
+	        request.firstDueDate().toString(),
+	        "Compra a meses con tarjeta de crédito"
+	    );
+	    Object[] unwrappedDebt = mapper.unwrap(newDebt);
+	    UUID debtUuid = UUID.fromString(mapper.toString(unwrappedDebt[0]));
+	    
+	    // Crear las partialidades (una por cada mes)
+	    LocalDate dueDate = request.firstDueDate();
+	    for (int i = 1; i <= months; i++) {
+	        installmentRepo.createCreditCardInstallment(
+	            uuid, debtUuid, accountUuid, i, monthlyAmount, dueDate,
+	            totalAmount, interestRate, false
+	        );
+	        dueDate = dueDate.plusMonths(1);
+	    }
+	    
+	    // NO actualizar el saldo de la tarjeta aquí
+	    // El saldo se actualizará SOLO cuando se pague cada partialidad
+	    
+	    System.out.println("Compra a " + months + " meses registrada.");
+	    System.out.println("Pago mensual: " + monthlyAmount);
+	    System.out.println("Total compra: " + totalAmount);
+	    
+	    List<Object[]> createdInstallments = installmentRepo.listInstallmentsByAccount(uuid, accountUuid);
+	    List<ContractDtos.InstallmentResponse> installments = new ArrayList<>();
+	    for (Object[] row : createdInstallments) {
+	        installments.add(mapper.mapToInstallmentResponse(row));
+	    }
+	    
+	    return installments;
 	}
 
 	// Método para pagar una partialidad de tarjeta de crédito

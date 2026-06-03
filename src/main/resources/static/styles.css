@@ -459,6 +459,8 @@ a { color: inherit; text-decoration: none; }
 .kpi-income   .kpi-value { color: var(--gold-lt); }
 .kpi-balance  .kpi-value { color: var(--green); }
 .kpi-debt     .kpi-value { color: var(--red); }
+.kpi-payments .kpi-value { color: var(--blue); }
+.kpi-total-debt .kpi-value { color: var(--red); }
 .kpi-note { font-size: 0.8rem; color: var(--text-muted); }
 
 /* ─── DASH GRID ──────────────────────────────────────────── */
@@ -1291,4 +1293,38 @@ a { color: inherit; text-decoration: none; }
 
 .data-row.installment-paid {
   background: rgba(52, 211, 153, 0.05);
+}
+/* Account limit styles */
+.account-limit {
+  display: flex;
+  justify-content: space-between;
+  font-size: 0.8rem;
+  color: var(--text-muted);
+  margin: 0.5rem 0;
+  padding: 0.25rem 0;
+  border-top: 1px solid var(--border);
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.account-limit.overdrawn {
+  color: var(--red);
+  border-top-color: var(--red);
+}
+
+.account-limit.warning {
+  color: var(--amber);
+}
+
+.account-balance.debt {
+  color: var(--red);
+}
+
+.badge-red {
+  background: rgba(248, 113, 113, 0.15);
+  color: var(--red);
+  padding: 0.2rem 0.5rem;
+  border-radius: 99px;
+  font-size: 0.7rem;
+  font-weight: 500;
 }

@@ -123,4 +123,8 @@ public interface DebtRepository extends JpaRepository<Debt, UUID> {
     int deductRemainingBalance(@Param("debtId") UUID debtId, 
                                @Param("userId") UUID userId, 
                                @Param("amount") BigDecimal amount);
+    
+    @Query(value = "SELECT COALESCE(SUM(remaining_balance), 0) FROM debts "
+    	       + "WHERE user_id = :userId AND deleted_at IS NULL", nativeQuery = true)
+    	BigDecimal getTotalRemainingBalance(@Param("userId") UUID userId);
 }

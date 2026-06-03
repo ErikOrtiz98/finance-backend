@@ -119,7 +119,7 @@ public final class ContractDtos {
 	}
 
 	public record SummaryResponse(BigDecimal income, BigDecimal expenses, BigDecimal fixedPayments,
-			BigDecimal debtPayments, BigDecimal availableBalance, String currency) {
+			BigDecimal debtPayments,BigDecimal totalRemainingDebt, BigDecimal availableBalance, String currency) {
 	}
 
 	public record CategoryStatResponse(String categoryId, String categoryName, BigDecimal amount,
