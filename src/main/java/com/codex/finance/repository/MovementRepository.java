@@ -16,18 +16,21 @@ import java.util.UUID;
 @Repository
 public interface MovementRepository extends JpaRepository<Movement, UUID> {
 
-	@Query(value = "SELECT m.id, m.user_id AS userId, m.account_id AS accountId, "
-			+ "m.transfer_account_id AS transferAccountId, m.category_id AS categoryId, "
-			+ "m.movement_type AS type, m.description, m.amount, "
-			+ "COALESCE(m.metadata->>'currency', :currency) AS currency, "
-			+ "m.movement_date AS transactionDate, COALESCE(m.metadata->>'notes', '') AS notes, "
-			+ "m.created_at AS createdAt, m.updated_at AS updatedAt, m.deleted_at AS deletedAt, "
-			+ "CASE WHEN m.deleted_at IS NULL THEN 'synced' ELSE 'deleted' END AS syncStatus, "
-			+ "COALESCE(m.row_version, 1) AS version "
-			+ "FROM movements m WHERE m.user_id = :userId AND m.deleted_at IS NULL "
-			+ "ORDER BY m.movement_date DESC, m.created_at DESC LIMIT :limit", nativeQuery = true)
-	List<Object[]> findAllMovements(@Param("userId") UUID userId, @Param("currency") String currency,
-			@Param("limit") Integer limit);
+	@Query(value = "SELECT m.id, m.user_id AS userId, m.account_id AS accountId, " +
+		       "m.transfer_account_id AS transferAccountId, m.category_id AS categoryId, " +
+		       "m.movement_type AS type, m.description, m.amount, " +
+		       "COALESCE(m.metadata->>'currency', :currency) AS currency, " +
+		       "m.movement_date AS transactionDate, COALESCE(m.metadata->>'notes', '') AS notes, " +
+		       "m.created_at AS createdAt, m.updated_at AS updatedAt, m.deleted_at AS deletedAt, " +
+		       "CASE WHEN m.deleted_at IS NULL THEN 'synced' ELSE 'deleted' END AS syncStatus, " +
+		       "COALESCE(m.row_version, 1) AS version " +
+		       "FROM movements m WHERE m.user_id = :userId AND m.deleted_at IS NULL " +
+		       "ORDER BY m.movement_date DESC, m.created_at DESC " +
+		       "LIMIT :limit OFFSET :offset", nativeQuery = true)
+		List<Object[]> findAllMovements(@Param("userId") UUID userId, 
+		                                @Param("currency") String currency,
+		                                @Param("limit") Integer limit,
+		                                @Param("offset") Integer offset);
 
 	@Modifying
 	@Query(value = "INSERT INTO movements (user_id, account_id, transfer_account_id, category_id, "

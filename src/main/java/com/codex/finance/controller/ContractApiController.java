@@ -147,14 +147,17 @@ public class ContractApiController {
 	}
 
 	@GetMapping("/transactions")
-	public List<TransactionResponse> listTransactions(@AuthenticationPrincipal Jwt jwt,
-			@RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate from,
-			@RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate to,
-			@RequestParam(required = false) String accountId, @RequestParam(required = false) String categoryId,
-			@RequestParam(required = false) String type, @RequestParam(required = false) Integer limit,
-			@RequestParam(required = false) String cursor) {
-		return service.listTransactions(jwt.getSubject(),
-				new TransactionFilters(from, to, accountId, categoryId, type, limit, cursor));
+	public List<ContractDtos.TransactionResponse> listTransactions(
+	        @AuthenticationPrincipal Jwt jwt,
+	        @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate from,
+	        @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate to,
+	        @RequestParam(required = false) String accountId,
+	        @RequestParam(required = false) String categoryId,
+	        @RequestParam(required = false) String type,
+	        @RequestParam(required = false, defaultValue = "50") Integer limit,
+	        @RequestParam(required = false, defaultValue = "0") Integer offset,
+	        @RequestParam(required = false) String cursor) {
+	    return service.listTransactions(jwt.getSubject(), new TransactionFilters(from, to, accountId, categoryId, type, limit, offset, cursor));
 	}
 
 	@PostMapping("/transactions")

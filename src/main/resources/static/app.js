@@ -229,6 +229,23 @@ let state = {
 
 let editCtx = { type: null, id: null };
 
+let cache = {
+  transactions: { data: null, timestamp: 0, ttl: 30000 }, // 30 segundos
+  accounts: { data: null, timestamp: 0, ttl: 60000 }, // 1 minuto
+};
+
+async function getCached(endpoint, cacheKey, ttl = 30000) {
+  const now = Date.now();
+  const cached = cache[cacheKey];
+  if (cached && cached.data && (now - cached.timestamp) < ttl) {
+    console.log(`Usando caché para ${endpoint}`);
+    return cached.data;
+  }
+  const data = await api.get(endpoint);
+  cache[cacheKey] = { data: data, timestamp: now, ttl: ttl };
+  return data;
+}
+
 // ─── UTILS ─────────────────────────────────────────────────
 function fmt(amount, currency = "MXN") {
   return new Intl.NumberFormat("es-MX", { style: "currency", currency, minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(Number(amount || 0));
@@ -332,15 +349,15 @@ async function loadSection(section) {
 async function loadDashboard() {
   setLoading(true);
   try {
-    const range = state.activePeriod;
-    const [transactions, accounts, upcoming, catStats, debtRatio, debts] = await Promise.all([
-      api.get("/transactions"),
-      api.get("/accounts"),
-      api.get("/stats/upcoming"),
-      api.get("/stats/categories"),
-      api.get("/stats/debt-ratio"),
-	  api.get("/debts"),
-    ]);
+	const range = state.activePeriod;
+	const [transactions, accounts, upcoming, catStats, debtRatio, debts] = await Promise.all([
+	  getCached("/transactions", "transactions", 30000),
+	  getCached("/accounts", "accounts", 60000),
+	  api.get("/stats/upcoming"),
+	  api.get("/stats/categories"),
+	  api.get("/stats/debt-ratio"),
+	  getCached("/debts", "debts", 30000),
+	]);
     
     state.transactions = transactions || [];
     state.accounts = accounts || [];
@@ -770,11 +787,12 @@ function renderBiweeklySchedule() {
 }
 
 // ─── TRANSACTIONS ───────────────────────────────────────────
-async function loadTransactions() {
+async function loadTransactions(limit = 50, offset = 0) {
   setLoading(true);
   try {
+    // Agregar paginación a la consulta
     const [transactions, categories, accounts] = await Promise.all([
-      api.get("/transactions"),
+      api.get(`/transactions?limit=${limit}&offset=${offset}`),
       api.get("/categories"),
       api.get("/accounts"),
     ]);
@@ -784,6 +802,17 @@ async function loadTransactions() {
     renderTransactions();
     populateCategorySelect("tx-category", state.categories);
     populateAccountSelect("tx-account", state.accounts);
+    
+    // Mostrar información de paginación
+    const txList = el("transactions-list");
+    if (txList && transactions && transactions.length >= limit) {
+      const loadMoreBtn = document.createElement("button");
+      loadMoreBtn.textContent = "📥 Cargar más transacciones";
+      loadMoreBtn.className = "btn-secondary btn-sm";
+      loadMoreBtn.style.marginTop = "1rem";
+      loadMoreBtn.onclick = () => loadTransactions(limit, offset + limit);
+      txList.appendChild(loadMoreBtn);
+    }
   } finally {
     setLoading(false);
   }
@@ -2506,19 +2535,60 @@ function renderGoals() {
 
 function buildAddProgressModal(goal) {
   const cur = state.user?.currency || "MXN";
+  
+  // Obtener cuentas disponibles para el aporte
+  const sourceAccounts = state.accounts.filter(a => a.type === "debit" || a.type === "cash");
+  
+  if (sourceAccounts.length === 0) {
+    showToast("No tienes cuentas de débito o efectivo para aportar", "error");
+    return;
+  }
+  
   openModal(`Agregar progreso a "${goal.name}"`, `
     <div class="form-grid">
       <div class="field-group field-full">
+        <label class="field-label">¿De dónde viene el dinero?</label>
+        <select id="progress-source-account" class="field-input">
+          <option value="">Seleccionar cuenta</option>
+          ${sourceAccounts.map(a => 
+            `<option value="${a.id}">${a.type === "debit" ? "💳" : "💵"} ${a.name} - Saldo: ${fmt(a.balance)}</option>`
+          ).join("")}
+        </select>
+      </div>
+      <div class="field-group field-full">
         <label class="field-label">Monto a agregar</label>
         <input id="progress-amount" class="field-input" type="number" step="0.01" placeholder="0.00" />
-        <small class="text-muted" style="margin-top:0.5rem">Progreso actual: ${fmt(goal.currentProgress, cur)}<br>
-        Meta: ${fmt(goal.targetAmount, cur)}</small>
+        <small class="text-muted" style="margin-top:0.5rem">
+          Progreso actual: ${fmt(goal.currentProgress, cur)}<br>
+          Meta: ${fmt(goal.targetAmount, cur)}<br>
+          Restante: ${fmt(goal.targetAmount - goal.currentProgress, cur)}
+        </small>
+      </div>
+      <div class="field-group field-full">
+        <label class="field-label">Nota (opcional)</label>
+        <input id="progress-note" class="field-input" type="text" placeholder="Ej: Ahorro quincenal" />
       </div>
     </div>
   `, async () => {
+    const sourceAccountId = el("progress-source-account")?.value;
     const amount = Number(el("progress-amount")?.value || 0);
+    const note = el("progress-note")?.value || `Aporte a meta: ${goal.name}`;
+    
+    if (!sourceAccountId) {
+      showToast("Selecciona una cuenta de origen", "error");
+      return;
+    }
+    
     if (amount <= 0) {
       showToast("Ingresa un monto válido", "error");
+      return;
+    }
+    
+    const sourceAccount = state.accounts.find(a => a.id === sourceAccountId);
+    
+    // Verificar saldo suficiente
+    if (sourceAccount.balance < amount) {
+      showToast(`Saldo insuficiente en ${sourceAccount.name}. Disponible: ${fmt(sourceAccount.balance)}`, "error");
       return;
     }
     
@@ -2528,17 +2598,42 @@ function buildAddProgressModal(goal) {
       return;
     }
     
-    await api.patch(`/financial-goals/${goal.id}`, {
-      name: goal.name,
-      targetAmount: goal.targetAmount,
-      currentProgress: newProgress,
-      targetDate: goal.targetDate,
-      status: newProgress >= goal.targetAmount ? "achieved" : goal.status
-    });
-    
-    showToast(`¡Progreso actualizado! Ahora tienes ${fmt(newProgress, cur)}`, "success");
-    closeModal();
-    await loadGoals();
+    try {
+      // 1. Registrar la transacción de gasto
+      await api.post("/transactions", {
+        accountId: sourceAccountId,
+        transferAccountId: null,
+        categoryId: null,
+        debtId: null,
+        type: "expense",
+        description: note,
+        amount: amount,
+        currency: state.user?.currency || "MXN",
+        transactionDate: todayIso(),
+        notes: `Aporte a meta: ${goal.name}`
+      });
+      
+      // 2. Actualizar el progreso de la meta
+      await api.patch(`/financial-goals/${goal.id}`, {
+        name: goal.name,
+        targetAmount: goal.targetAmount,
+        currentProgress: newProgress,
+        targetDate: goal.targetDate,
+        status: newProgress >= goal.targetAmount ? "achieved" : goal.status
+      });
+      
+      showToast(`¡Aporte registrado! Ahora tienes ${fmt(newProgress, cur)} de ${fmt(goal.targetAmount, cur)}`, "success");
+      closeModal();
+      await loadGoals();
+      await loadTransactions();
+      await loadAccounts();
+      if (state.activeSection === "dashboard") {
+        await loadDashboard();
+      }
+    } catch (e) {
+      console.error("Error al agregar progreso:", e);
+      showToast(e.message, "error");
+    }
   });
 }
 

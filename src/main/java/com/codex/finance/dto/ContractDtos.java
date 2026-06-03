@@ -84,7 +84,7 @@ public final class ContractDtos {
 	}
 
 	public record TransactionFilters(LocalDate from, LocalDate to, String accountId, String categoryId, String type,
-			Integer limit, String cursor) {
+			Integer limit, Integer offset, String cursor) {
 	}
 
 	public record DebtResponse(String id, String userId, String name, BigDecimal principalBalance,  BigDecimal remainingBalance,

@@ -218,11 +218,16 @@ public class FinanceApiService {
 	// ==================== TRANSACTIONS ====================
 	@Transactional(readOnly = true)
 	public List<ContractDtos.TransactionResponse> listTransactions(String userId,
-			ContractDtos.TransactionFilters filters) {
-		UUID uuid = UUID.fromString(userId);
-		String currency = profileRepo.getUserCurrency(uuid);
-		return movementRepo.findAllMovements(uuid, currency, filters.limit() == null ? 100 : filters.limit()).stream()
-				.map(mapper::mapToTransactionResponse).collect(Collectors.toList());
+	        ContractDtos.TransactionFilters filters) {
+	    UUID uuid = UUID.fromString(userId);
+	    String currency = profileRepo.getUserCurrency(uuid);
+	    
+	    int limit = filters.limit() == null ? 50 : filters.limit();
+	    int offset = filters.offset() == null ? 0 : filters.offset();
+	    
+	    return movementRepo.findAllMovements(uuid, currency, limit, offset).stream()
+	            .map(mapper::mapToTransactionResponse)
+	            .collect(Collectors.toList());
 	}
 
 	public ContractDtos.TransactionResponse createTransaction(String userId,
