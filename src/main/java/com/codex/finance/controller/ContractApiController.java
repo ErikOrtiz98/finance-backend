@@ -412,9 +412,4 @@ public class ContractApiController {
 			@PathVariable String id, @Valid @RequestBody ContractDtos.PayInstallmentRequest request) {
 		return service.payCreditCardInstallment(jwt.getSubject(), id, request);
 	}
-	@GetMapping("/stats/payment-summary")
-	public Map<String, BigDecimal> getPaymentSummary(@AuthenticationPrincipal Jwt jwt,
-	                                                  @RequestParam(required = false) String range) {
-	    return service.getPaymentSummary(jwt.getSubject(), range);
-	}
 }
