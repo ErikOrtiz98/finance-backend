@@ -333,17 +333,22 @@ async function loadDashboard() {
   setLoading(true);
   try {
     const range = state.activePeriod;
-    const [summary, upcoming, catStats, debtRatio, paymentStats] = await Promise.all([
+    // Cargar transacciones y cuentas junto con los stats
+    const [summary, upcoming, catStats, debtRatio, transactions, accounts] = await Promise.all([
       api.get(`/stats/summary?range=${range}`),
       api.get("/stats/upcoming"),
       api.get("/stats/categories"),
       api.get("/stats/debt-ratio"),
+      api.get("/transactions"),
+      api.get("/accounts"),
     ]);
+    
     state.summary = summary;
     state.upcoming = upcoming;
     state.categoryStats = catStats || [];
     state.debtRatio = debtRatio;
-    state.paymentStats = paymentStats;
+    state.transactions = transactions || [];
+    state.accounts = accounts || [];
 
     renderKPIs();
     renderUpcoming("upcoming-list", state.upcoming?.next7Days || []);
@@ -391,41 +396,59 @@ function renderDebtRatioGauge(containerId, debtRatio) {
 }
 
 function renderKPIs() {
-  const s = state.summary || {};
   const cur = state.user?.currency || "MXN";
   
   const kpiIncome = el("kpi-income");
   const kpiObligations = el("kpi-obligations");
   const kpiBalance = el("kpi-balance");
-  const kpiPayments = el("kpi-payments");
-  const kpiTotalDebt = el("kpi-total-debt");
+  const kpiDebt = el("kpi-debt");
   const kpiNote = el("kpi-income-note");
   
-  if (kpiIncome) kpiIncome.textContent = fmt(s.income || 0, cur);
+  // 1. INGRESO REAL del periodo (solo transacciones tipo income)
+  const realIncome = state.transactions
+    .filter(tx => tx.type === "income")
+    .reduce((sum, tx) => sum + (tx.amount || 0), 0);
   
-  const totalObligations = (s.expenses || 0);
-  if (kpiObligations) kpiObligations.textContent = fmt(totalObligations, cur);
+  // 2. GASTOS REALES (expense, withdrawal, payment)
+  const totalExpenses = state.transactions
+    .filter(tx => tx.type === "expense" || tx.type === "withdrawal" || tx.type === "payment")
+    .reduce((sum, tx) => sum + (tx.amount || 0), 0);
   
-  // CORREGIDO: Usar saldo real de la cuenta principal en lugar de calcular
-  // Buscar la cuenta principal seleccionada por el usuario
-  const mainAccountId = state.user?.mainAccountId;
-  const mainAccount = state.accounts.find(a => a.id === mainAccountId);
-  const realBalance = mainAccount ? mainAccount.balance : (s.availableBalance || 0);
+  // 3. SALDO REAL (débito + efectivo)
+  const debitAccounts = state.accounts.filter(a => a.type === "debit");
+  const cashAccounts = state.accounts.filter(a => a.type === "cash");
+  const totalDebitBalance = debitAccounts.reduce((sum, acc) => sum + (acc.balance || 0), 0);
+  const totalCashBalance = cashAccounts.reduce((sum, acc) => sum + (acc.balance || 0), 0);
+  const realBalance = totalDebitBalance + totalCashBalance;
+  
+  // 4. PAGOS REALIZADOS (solo tipo payment)
+  const realDebtPayments = state.transactions
+    .filter(tx => tx.type === "payment")
+    .reduce((sum, tx) => sum + (tx.amount || 0), 0);
+  
+  // Mostrar en el DOM
+  if (kpiIncome) {
+    kpiIncome.textContent = fmt(realIncome, cur);
+    const incomeNote = kpiIncome.parentElement?.querySelector(".kpi-note");
+    if (incomeNote) incomeNote.textContent = "Ingresos reales del periodo";
+  }
+  
+  if (kpiObligations) {
+    kpiObligations.textContent = fmt(totalExpenses, cur);
+  }
   
   if (kpiBalance) {
     kpiBalance.textContent = fmt(realBalance, cur);
-    // Agregar tooltip para explicar
-    kpiBalance.title = mainAccount ? `Saldo real de ${mainAccount.name}` : "Balance basado en movimientos";
+    const balanceNote = kpiBalance.parentElement?.querySelector(".kpi-note");
+    if (balanceNote) balanceNote.textContent = "Saldo real (débito + efectivo)";
   }
   
-  if (kpiPayments) kpiPayments.textContent = fmt(s.debtPayments || 0, cur);
-  if (kpiTotalDebt) kpiTotalDebt.textContent = fmt(s.totalRemainingDebt || 0, cur);
+  if (kpiDebt) {
+    kpiDebt.textContent = fmt(realDebtPayments, cur);
+  }
   
   if (kpiNote && state.user) {
     kpiNote.textContent = `Periodo ${state.activePeriod === "biweekly" ? "Quincenal" : "Mensual"}`;
-    if (mainAccount) {
-      kpiNote.innerHTML += ` · Cuenta: ${mainAccount.name}`;
-    }
   }
 }
 
@@ -589,6 +612,7 @@ function renderTransactions() {
   
   c.innerHTML = sorted.map(tx => {
     const isExpense = tx.type === "expense";
+    const isWithdrawal = tx.type === "withdrawal";
     const isPaymentToCredit = tx.type === "payment";
     const cat = state.categories.find(c => c.id === tx.categoryId);
     const acc = state.accounts.find(a => a.id === tx.accountId);
@@ -596,20 +620,32 @@ function renderTransactions() {
     
     let amountClass = "expense";
     let amountPrefix = "-";
+    let icon = cat?.icon || (isExpense ? "💸" : "💰");
+    
     if (tx.type === "income") {
       amountClass = "income";
       amountPrefix = "+";
+    } else if (isWithdrawal) {
+      amountClass = "expense";
+      amountPrefix = "💵 ";
+      icon = "💵";
     } else if (isPaymentToCredit && isCreditAccount) {
       amountClass = "income";
       amountPrefix = "↓";
     }
     
+    // Texto de la cuenta según su tipo
+    let accountText = acc?.name || "—";
+    if (acc?.type === "credit") accountText = `💳 ${accountText}`;
+    if (acc?.type === "debit") accountText = `💳 ${accountText}`;
+    if (acc?.type === "cash") accountText = `💵 ${accountText}`;
+    
     return `
       <div class="data-row">
-        <div class="data-row-icon">${cat?.icon || (isExpense ? "💸" : "💰")}</div>
+        <div class="data-row-icon">${icon}</div>
         <div class="data-row-info">
           <div class="data-row-name">${tx.description || tx.name}</div>
-          <div class="data-row-meta">${cat?.name || "—"} · ${acc?.name || "—"} · ${relativeDate(tx.transactionDate)}</div>
+          <div class="data-row-meta">${cat?.name || "—"} · ${accountText} · ${relativeDate(tx.transactionDate)}</div>
         </div>
         <div class="data-row-amount ${amountClass}">
           ${amountPrefix}${fmt(tx.amount, cur)}
@@ -1276,32 +1312,26 @@ function wireTxForm() {
   const saveBtn = el("btn-save-transaction");
   const dateInput = el("tx-date");
   const typeSelect = el("tx-type");
-  const accountSelect = el("tx-account");
   const transferGroup = el("transfer-account-group");
-  const validTypes = ["expense", "income", "transfer", "payment", "adjustment"];
+  const validTypes = ["expense", "income", "transfer", "payment", "adjustment", "withdrawal"];
   
-  // Función para detectar si es pago a tarjeta de crédito
-  function checkCreditCardPayment() {
-    const type = typeSelect?.value;
-    const accountId = accountSelect?.value;
-    const selectedAccount = state.accounts.find(a => a.id === accountId);
-    
-    if (type === "payment" && selectedAccount?.type === "credit") {
-      // Cambiar automáticamente a transferencia
-      typeSelect.value = "transfer";
-      // Mostrar el grupo de cuenta destino
-      if (transferGroup) transferGroup.classList.remove("hidden");
-      showToast("💡 Para pagar tu tarjeta de crédito: selecciona tu cuenta de débito como origen y la tarjeta como destino", "info");
-    } else if (type === "transfer") {
-      if (transferGroup) transferGroup.classList.remove("hidden");
-    } else {
-      if (transferGroup) transferGroup.classList.add("hidden");
-    }
-  }
-  
-  if (typeSelect && accountSelect) {
-    typeSelect.addEventListener("change", checkCreditCardPayment);
-    accountSelect.addEventListener("change", checkCreditCardPayment);
+  // Mostrar/ocultar campos según el tipo
+  if (typeSelect && transferGroup) {
+    typeSelect.addEventListener("change", () => {
+      const selectedType = typeSelect.value;
+      transferGroup.classList.toggle("hidden", selectedType !== "transfer");
+      
+      // Para retiros de efectivo, sugerir cuenta de efectivo
+      if (selectedType === "withdrawal") {
+        const accountSelect = el("tx-account");
+        if (accountSelect) {
+          const cashAccount = state.accounts.find(a => a.type === "cash");
+          if (cashAccount) {
+            accountSelect.value = cashAccount.id;
+          }
+        }
+      }
+    });
   }
   
   if (addBtn) {
@@ -1341,9 +1371,9 @@ function wireTxForm() {
       try {
         let type = el("tx-type")?.value;
         
-        // Validar que el tipo sea válido
+        // Validar tipo
         if (!validTypes.includes(type)) {
-          console.warn(`Tipo de transacción inválido: "${type}", cambiando a "expense"`);
+          console.warn(`Tipo inválido: "${type}", cambiando a "expense"`);
           type = "expense";
         }
         
@@ -1375,7 +1405,6 @@ function wireTxForm() {
           return;
         }
         
-        // Validar transferencia
         if (type === "transfer") {
           if (!transferAccountId) {
             showToast("Selecciona la cuenta destino", "error");
@@ -1411,6 +1440,7 @@ function wireTxForm() {
         if (typeSelect) typeSelect.value = "expense";
         
         await loadTransactions();
+        await loadAccounts(); // Recargar cuentas para actualizar saldos
         
       } catch (e) {
         console.error("Error al guardar transacción:", e);
