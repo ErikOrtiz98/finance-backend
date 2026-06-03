@@ -89,6 +89,7 @@ public interface InstallmentRepository extends JpaRepository<Installment, UUID> 
 		       "WHERE i.user_id = :userId " +
 		       "AND i.paid = false " +
 		       "AND i.deleted_at IS NULL " +
+		       "AND i.due_date IS NOT NULL " + 
 		       "AND i.due_date BETWEEN :startDate AND :endDate " +
 		       "ORDER BY i.due_date ASC", nativeQuery = true)
 		List<Object[]> getUpcomingInstallments(@Param("userId") UUID userId,

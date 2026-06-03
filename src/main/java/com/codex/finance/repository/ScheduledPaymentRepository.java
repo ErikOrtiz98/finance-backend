@@ -117,13 +117,17 @@ public interface ScheduledPaymentRepository extends JpaRepository<ScheduledPayme
 			@Param("endDate") LocalDate endDate, @Param("categoryId") UUID categoryId,
 			@Param("paymentType") String paymentType);
 
-	@Query(value = "SELECT sp.id, sp.name, sp.amount, sp.frequency, sp.next_date, sp.end_date, "
-			+ "c.name as category_name " + "FROM scheduled_payments sp "
-			+ "LEFT JOIN categories c ON c.id = sp.category_id "
-			+ "WHERE sp.user_id = :userId AND sp.deleted_at IS NULL " + "AND sp.payment_type = 'expense' "
-			+ "AND sp.next_date <= :endDate " + "AND (sp.end_date IS NULL OR sp.end_date >= :startDate) "
-			+ "ORDER BY sp.next_date ASC", nativeQuery = true)
+	@Query(value = "SELECT sp.id, sp.name, sp.amount, sp.next_date " +
+		       "FROM scheduled_payments sp " +
+		       "WHERE sp.user_id = :userId " +
+		       "AND sp.deleted_at IS NULL " +
+		       "AND sp.active = true " +
+		       "AND sp.payment_type = 'expense' " +
+		       "AND sp.next_date IS NOT NULL " +
+		       "AND sp.next_date BETWEEN :startDate AND :endDate " +
+		       "ORDER BY sp.next_date ASC", nativeQuery = true)
 	List<Object[]> getUpcomingRecurringPaymentsInRange(@Param("userId") UUID userId,
-			@Param("startDate") LocalDate startDate, @Param("endDate") LocalDate endDate);
+		                                                    @Param("startDate") LocalDate startDate,
+		                                                    @Param("endDate") LocalDate endDate);
 
 }

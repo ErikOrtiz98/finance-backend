@@ -1,24 +1,37 @@
 package com.codex.finance.service;
 
-import com.codex.finance.client.SupabaseAuthClient;
-import com.codex.finance.dto.ContractDtos;
-import com.codex.finance.exception.ApiException;
-import com.codex.finance.mapper.FinanceMapper;
-import com.codex.finance.repository.*;
-import com.fasterxml.jackson.core.type.TypeReference;
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import org.springframework.http.HttpStatus;
-import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
-import org.springframework.jdbc.core.JdbcTemplate;
-
 import java.math.BigDecimal;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.ZoneId;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Comparator;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.UUID;
 import java.util.stream.Collectors;
+
+import org.springframework.http.HttpStatus;
+import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
+import com.codex.finance.client.SupabaseAuthClient;
+import com.codex.finance.dto.ContractDtos;
+import com.codex.finance.exception.ApiException;
+import com.codex.finance.mapper.FinanceMapper;
+import com.codex.finance.repository.AccountRepository;
+import com.codex.finance.repository.BudgetRepository;
+import com.codex.finance.repository.CategoryRepository;
+import com.codex.finance.repository.DebtRepository;
+import com.codex.finance.repository.FinancialGoalRepository;
+import com.codex.finance.repository.InstallmentRepository;
+import com.codex.finance.repository.MovementRepository;
+import com.codex.finance.repository.ProfileRepository;
+import com.codex.finance.repository.ScheduledPaymentRepository;
+import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.ObjectMapper;
 
 @Service
 @Transactional
@@ -685,52 +698,86 @@ public class FinanceApiService {
 	    LocalDate today = LocalDate.now();
 	    LocalDate monthEnd = today.withDayOfMonth(today.lengthOfMonth());
 	    
-	    // Pagos recurrentes del mes actual
-	    List<Object[]> recurringRows = scheduledPaymentRepo.getUpcomingRecurringPaymentsInRange(uuid, today, monthEnd);
-	    if (recurringRows != null) {
-	        for (Object[] row : recurringRows) {
-	            items.add(new ContractDtos.UpcomingItemResponse(
-	                "recurring",
-	                mapper.toString(row[0]),
-	                mapper.toString(row[1]),
-	                mapper.toLocalDate(row[3]),
-	                mapper.toBigDecimal(row[2])
-	            ));
-	        }
-	    }
+	    System.out.println("=== UPCOMING DEBUG ===");
+	    System.out.println("Today: " + today);
+	    System.out.println("Month end: " + monthEnd);
 	    
-	    // Deudas con vencimiento en el mes actual
-	    List<Object[]> debtRows = debtRepo.getUpcomingDebtsInRange(uuid, today, monthEnd);
-	    if (debtRows != null) {
-	        for (Object[] row : debtRows) {
-	            BigDecimal amount = mapper.toBigDecimal(row[4]);
-	            if (amount.compareTo(BigDecimal.ZERO) > 0) {
-	                items.add(new ContractDtos.UpcomingItemResponse(
-	                    "debt",
-	                    mapper.toString(row[0]),
-	                    mapper.toString(row[1]),
-	                    mapper.toLocalDate(row[3]),
-	                    amount
-	                ));
+	    // 1. Pagos recurrentes
+	    try {
+	        List<Object[]> recurringRows = scheduledPaymentRepo.getUpcomingRecurringPaymentsInRange(uuid, today, monthEnd);
+	        System.out.println("Recurring rows: " + (recurringRows == null ? "null" : recurringRows.size()));
+	        if (recurringRows != null) {
+	            for (Object[] row : recurringRows) {
+	                Object[] unwrapped = mapper.unwrap(row);
+	                LocalDate dueDate = mapper.toLocalDate(unwrapped[3]);
+	                if (dueDate != null) {
+	                    items.add(new ContractDtos.UpcomingItemResponse(
+	                        "recurring",
+	                        mapper.toString(unwrapped[0]),
+	                        mapper.toString(unwrapped[1]),
+	                        dueDate,
+	                        mapper.toBigDecimal(unwrapped[2])
+	                    ));
+	                }
 	            }
 	        }
+	    } catch (Exception e) {
+	        System.err.println("Error loading recurring payments: " + e.getMessage());
 	    }
 	    
-	    // Partialidades con vencimiento en el mes actual
-	    List<Object[]> installmentRows = installmentRepo.getUpcomingInstallments(uuid, today, monthEnd);
-	    if (installmentRows != null) {
-	        for (Object[] row : installmentRows) {
-	            items.add(new ContractDtos.UpcomingItemResponse(
-	                "installment",
-	                mapper.toString(row[0]),
-	                mapper.toString(row[1]),
-	                mapper.toLocalDate(row[2]),
-	                mapper.toBigDecimal(row[3])
-	            ));
+	    // 2. Deudas
+	    try {
+	        List<Object[]> debtRows = debtRepo.getUpcomingDebtsInRange(uuid, today, monthEnd);
+	        System.out.println("Debt rows: " + (debtRows == null ? "null" : debtRows.size()));
+	        if (debtRows != null) {
+	            for (Object[] row : debtRows) {
+	                Object[] unwrapped = mapper.unwrap(row);
+	                LocalDate dueDate = mapper.toLocalDate(unwrapped[3]);
+	                BigDecimal amount = mapper.toBigDecimal(unwrapped[4]);
+	                if (dueDate != null && amount != null && amount.compareTo(BigDecimal.ZERO) > 0) {
+	                    items.add(new ContractDtos.UpcomingItemResponse(
+	                        "debt",
+	                        mapper.toString(unwrapped[0]),
+	                        mapper.toString(unwrapped[1]),
+	                        dueDate,
+	                        amount
+	                    ));
+	                }
+	            }
 	        }
+	    } catch (Exception e) {
+	        System.err.println("Error loading debts: " + e.getMessage());
 	    }
 	    
-	    items.sort(Comparator.comparing(ContractDtos.UpcomingItemResponse::dueDate));
+	    // 3. Partialidades
+	    try {
+	        List<Object[]> installmentRows = installmentRepo.getUpcomingInstallments(uuid, today, monthEnd);
+	        System.out.println("Installment rows: " + (installmentRows == null ? "null" : installmentRows.size()));
+	        if (installmentRows != null) {
+	            for (Object[] row : installmentRows) {
+	                Object[] unwrapped = mapper.unwrap(row);
+	                LocalDate dueDate = mapper.toLocalDate(unwrapped[2]);
+	                BigDecimal amount = mapper.toBigDecimal(unwrapped[3]);
+	                if (dueDate != null && amount != null && amount.compareTo(BigDecimal.ZERO) > 0) {
+	                    items.add(new ContractDtos.UpcomingItemResponse(
+	                        "installment",
+	                        mapper.toString(unwrapped[0]),
+	                        mapper.toString(unwrapped[1]),
+	                        dueDate,
+	                        amount
+	                    ));
+	                }
+	            }
+	        }
+	    } catch (Exception e) {
+	        System.err.println("Error loading installments: " + e.getMessage());
+	    }
+	    
+	    // Ordenar por fecha
+	    items.sort(Comparator.comparing(ContractDtos.UpcomingItemResponse::dueDate, Comparator.nullsLast(Comparator.naturalOrder())));
+	    
+	    System.out.println("Total items: " + items.size());
+	    
 	    return new ContractDtos.UpcomingResponse(items);
 	}
 
@@ -921,7 +968,6 @@ public class FinanceApiService {
 	public ContractDtos.SyncPullResponse pullSync(String userId, Instant since, String entity) {
 		Instant serverTime = Instant.now();
 		List<ContractDtos.SyncEntityChange> changes = new ArrayList<>();
-		UUID uuid = UUID.fromString(userId);
 		if (entity == null || entity.equals("me")) {
 			ContractDtos.MeResponse me = getMe(userId);
 			if (since == null || isAfterOrEqual(me.updatedAt(), since))

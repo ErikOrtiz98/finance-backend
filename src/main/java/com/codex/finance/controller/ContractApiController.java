@@ -17,7 +17,6 @@ import com.codex.finance.dto.ContractDtos.SessionResponse;
 import com.codex.finance.dto.ContractDtos.SignInRequest;
 import com.codex.finance.dto.ContractDtos.SignOutRequest;
 import com.codex.finance.dto.ContractDtos.SignUpRequest;
-import com.codex.finance.dto.ContractDtos.SummaryResponse;
 import com.codex.finance.dto.ContractDtos.SyncConflictResolutionRequest;
 import com.codex.finance.dto.ContractDtos.SyncPullResponse;
 import com.codex.finance.dto.ContractDtos.SyncPushRequest;
@@ -47,7 +46,6 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RestController;
 
-import java.math.BigDecimal;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.util.List;
@@ -381,7 +379,6 @@ public class ContractApiController {
 	public Map<String, String> health() {
 		return Map.of("status", "ok");
 	}
-	// ==================== NUEVOS ENDPOINTS ====================
 
 	@GetMapping("/stats/debt-ratio")
 	public ContractDtos.DebtRatioResponse getDebtRatio(@AuthenticationPrincipal Jwt jwt) {
