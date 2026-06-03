@@ -420,7 +420,11 @@ public class FinanceApiService {
 	    // Obtener el account_id de la installment (si existe, para tarjetas de crédito)
 	    UUID accountId = null;
 	    if (unwrappedInstallment.length > 8 && unwrappedInstallment[8] != null) {
-	        accountId = UUID.fromString(mapper.toString(unwrappedInstallment[8]));
+	        String accountIdStr = mapper.toString(unwrappedInstallment[8]);
+	        if (accountIdStr != null && !accountIdStr.isEmpty()) {
+	            accountId = UUID.fromString(accountIdStr);
+	            System.out.println("Account ID (tarjeta) encontrado: " + accountId);
+	        }
 	    }
 	    
 	    // 1. Registrar transacción de PAGO en la cuenta de origen (débito/efectivo) - RESTA

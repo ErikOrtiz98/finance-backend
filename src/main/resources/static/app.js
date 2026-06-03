@@ -333,7 +333,7 @@ async function loadDashboard() {
   setLoading(true);
   try {
     const range = state.activePeriod;
-    const [transactions, accounts, upcoming, catStats, debtRatio] = await Promise.all([
+    const [transactions, accounts, upcoming, catStats, debtRatio, debts] = await Promise.all([
       api.get("/transactions"),
       api.get("/accounts"),
       api.get("/stats/upcoming"),

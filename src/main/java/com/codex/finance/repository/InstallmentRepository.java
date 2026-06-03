@@ -39,10 +39,13 @@ public interface InstallmentRepository extends JpaRepository<Installment, UUID> 
 	List<Object[]> listInstallmentsByAccount(@Param("userId") UUID userId, @Param("accountId") UUID accountId);
 
 	@Query(value = "SELECT i.id, i.debt_id, i.number, i.amount, i.due_date, i.paid, i.paid_at, "
-			+ "i.payment_movement_id, i.created_at, i.updated_at, i.deleted_at, "
-			+ "CASE WHEN i.deleted_at IS NULL THEN 'synced' ELSE 'deleted' END AS syncStatus, "
-			+ "COALESCE(i.row_version, 1) AS version " + "FROM installments i " + "WHERE i.user_id = :userId "
-			+ "AND i.id = :id " + "AND i.deleted_at IS NULL", nativeQuery = true)
+	        + "i.payment_movement_id, i.account_id, i.created_at, i.updated_at, i.deleted_at, "
+	        + "CASE WHEN i.deleted_at IS NULL THEN 'synced' ELSE 'deleted' END AS syncStatus, "
+	        + "COALESCE(i.row_version, 1) AS version " 
+	        + "FROM installments i " 
+	        + "WHERE i.user_id = :userId "
+	        + "AND i.id = :id " 
+	        + "AND i.deleted_at IS NULL", nativeQuery = true)
 	Object[] getInstallmentById(@Param("userId") UUID userId, @Param("id") UUID id);
 
 	@Modifying
