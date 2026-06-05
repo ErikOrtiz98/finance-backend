@@ -1728,16 +1728,28 @@ function wireTxForm() {
   const dateInput = el("tx-date");
   const typeSelect = el("tx-type");
   const transferGroup = el("transfer-account-group");
+  const withdrawalSourceGroup = el("withdrawal-source-group");
   const validTypes = ["expense", "income", "transfer", "payment", "adjustment", "withdrawal"];
   
+  function populateWithdrawalSource() {
+    const sel = el("tx-withdrawal-source");
+    if (!sel) return;
+    const sourceAccounts = state.accounts.filter(a => a.type === "debit" || a.type === "credit");
+    sel.innerHTML = sourceAccounts.map(a =>
+      `<option value="${a.id}" ${state.user?.mainAccountId === a.id ? 'selected' : ''}>${a.name} (${a.type === 'credit' ? 'Crédito' : 'Débito'})</option>`
+    ).join("");
+  }
+  
   // Mostrar/ocultar campos según el tipo
-  if (typeSelect && transferGroup) {
+  if (typeSelect) {
     typeSelect.addEventListener("change", () => {
       const selectedType = typeSelect.value;
-      transferGroup.classList.toggle("hidden", selectedType !== "transfer");
+      if (transferGroup) transferGroup.classList.toggle("hidden", selectedType !== "transfer");
+      if (withdrawalSourceGroup) withdrawalSourceGroup.classList.toggle("hidden", selectedType !== "withdrawal");
       
-      // Para retiros de efectivo, sugerir cuenta de efectivo
+      // Para retiros de efectivo, sugerir cuenta de efectivo como destino
       if (selectedType === "withdrawal") {
+        populateWithdrawalSource();
         const accountSelect = el("tx-account");
         if (accountSelect) {
           const cashAccount = state.accounts.find(a => a.type === "cash");
@@ -1795,42 +1807,42 @@ function wireTxForm() {
         
         // Validaciones...
         
-        // Si es retiro de efectivo, debemos RESTAR de la cuenta de débito y SUMAR a la cuenta de efectivo
+        // Si es retiro de efectivo, debemos RESTAR de la cuenta origen y SUMAR a la cuenta de efectivo
         if (type === "withdrawal") {
-          // Buscar la cuenta de efectivo del usuario
+          const sourceId = el("tx-withdrawal-source")?.value;
+          if (!sourceId) {
+            showToast("Selecciona la cuenta de origen", "error");
+            return;
+          }
+          const sourceAccount = state.accounts.find(a => a.id === sourceId);
+          if (!sourceAccount || (sourceAccount.type !== "debit" && sourceAccount.type !== "credit")) {
+            showToast("La cuenta de origen debe ser de débito o crédito", "error");
+            return;
+          }
           const cashAccount = state.accounts.find(a => a.type === "cash");
           if (!cashAccount) {
             showToast("No se encontró una cuenta de efectivo. Crea una primero.", "error");
             return;
           }
-          
-          // Buscar la cuenta de débito seleccionada
-          const debitAccount = state.accounts.find(a => a.id === accountId);
-          if (!debitAccount || debitAccount.type !== "debit") {
-            showToast("Para retirar efectivo, selecciona una cuenta de débito como origen", "error");
+          if (sourceAccount.type === "debit" && sourceAccount.balance < amount) {
+            showToast(`Saldo insuficiente en ${sourceAccount.name}. Disponible: ${fmt(sourceAccount.balance)}`, "error");
             return;
           }
-          
-          // Verificar saldo suficiente en débito
-          if (debitAccount.balance < amount) {
-            showToast(`Saldo insuficiente en ${debitAccount.name}. Disponible: ${fmt(debitAccount.balance)}`, "error");
-            return;
-          }
-          
-          // 1. Registrar gasto en la cuenta de débito (resta)
+
+          // 1. Registrar gasto en la cuenta origen (resta)
           await api.post("/transactions", {
-            accountId: accountId,
+            accountId: sourceId,
             transferAccountId: null,
             categoryId: categoryId,
             debtId: null,
             type: "expense",
             description: `Retiro de efectivo: ${description}`,
             amount: amount,
-            currency: debitAccount?.currency || state.user?.currency || "MXN",
+            currency: sourceAccount?.currency || state.user?.currency || "MXN",
             transactionDate: transactionDate,
             notes: notes
           });
-          
+
           // 2. Registrar ingreso en la cuenta de efectivo (suma)
           await api.post("/transactions", {
             accountId: cashAccount.id,
@@ -1844,7 +1856,7 @@ function wireTxForm() {
             transactionDate: transactionDate,
             notes: notes
           });
-          
+
           showToast("Retiro de efectivo registrado", "success");
           
         } else {
