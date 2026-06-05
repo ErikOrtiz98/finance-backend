@@ -194,10 +194,14 @@ async function signUp(email, password, displayName) {
 
 function logout() {
   const refreshToken = localStorage.getItem("fin_refresh");
+  const accessToken = localStorage.getItem("fin_token");
   if (refreshToken) {
     fetch(`${API_BASE}/auth/sign-out`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: {
+        "Content-Type": "application/json",
+        "Authorization": `Bearer ${accessToken}`
+      },
       body: JSON.stringify({ refreshToken })
     }).catch(() => {});
   }
