@@ -1,5 +1,6 @@
 package com.codex.finance.repository;
 
+import com.codex.finance.dto.ContractDtos;
 import com.codex.finance.entity.Movement;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Modifying;
@@ -128,10 +129,9 @@ public interface MovementRepository extends JpaRepository<Movement, UUID> {
 		       "COALESCE(SUM(CASE WHEN movement_type = 'income' THEN amount ELSE 0 END), 0) AS income, " +
 		       "COALESCE(SUM(CASE WHEN movement_type = 'expense' THEN amount ELSE 0 END), 0) AS expenses, " +
 		       "COALESCE(SUM(CASE WHEN movement_type = 'payment' AND transfer_account_id IS NULL THEN amount ELSE 0 END), 0) AS debtPayments, " +
-		       "0 AS fixedPayments " +
 		       "FROM movements WHERE user_id = :userId AND deleted_at IS NULL " +
 		       "AND movement_date >= :from AND movement_date <= :to", nativeQuery = true)
-		Object[] getSummaryByDateRange(@Param("userId") UUID userId, 
+	ContractDtos.SummaryRowRaw getSummaryByDateRange(@Param("userId") UUID userId, 
 		                               @Param("from") LocalDate from, 
 		                               @Param("to") LocalDate to);
 

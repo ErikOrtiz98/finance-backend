@@ -227,4 +227,10 @@ public final class ContractDtos {
 		    @NotBlank String currency,
 		    String notes
 		) {}
+	public record SummaryRowRaw(
+		BigDecimal income,
+		BigDecimal expenses,
+		BigDecimal debtPayments,
+		BigDecimal fixedPayments
+	) {}
 }

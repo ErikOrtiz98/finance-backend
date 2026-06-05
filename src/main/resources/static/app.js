@@ -231,7 +231,7 @@ let state = {
 let pagination = {
   transactions: {
     currentPage: 0,
-    pageSize: 20,
+    pageSize: 50,
     totalPages: 0,
     hasMore: true,
     totalItems: 0
@@ -288,6 +288,14 @@ function showToast(msg, type = "info") {
   toast.textContent = msg;
   container.appendChild(toast);
   setTimeout(() => toast.remove(), 3500);
+}
+
+function normalizeWithdrawal(tx) {
+  const desc = (tx.description || tx.name || "").toLowerCase();
+  if (desc.startsWith("depósito de efectivo:")) {
+    return { ...tx, _ignoreInKPIs: true };
+  }
+  return tx;
 }
 
 function setLoading(show) {
@@ -440,14 +448,15 @@ function renderKPIs() {
   const kpiNote = el("kpi-income-note");
   
   // 1. INGRESO REAL
-  const realIncome = state.transactions
-    .filter(tx => tx.type === "income")
-    .reduce((sum, tx) => sum + (tx.amount || 0), 0);
-  
-  // 2. TOTAL GASTOS (solo expense, NO withdrawal, NO payment)
-  const totalExpenses = state.transactions
-    .filter(tx => tx.type === "expense")
-    .reduce((sum, tx) => sum + (tx.amount || 0), 0);
+ const cleanTx = state.transactions.map(normalizeWithdrawal);
+
+const realIncome = cleanTx
+  .filter(tx => tx.type === "income" && !tx._ignoreInKPIs)
+  .reduce((sum, tx) => sum + tx.amount, 0);
+
+const totalExpenses = cleanTx
+  .filter(tx => tx.type === "expense" && !tx._ignoreInKPIs)
+  .reduce((sum, tx) => sum + tx.amount, 0);
   
   // 3. SALDO REAL (débito + efectivo)
   const debitAccounts = state.accounts.filter(a => a.type === "debit");
@@ -3681,6 +3690,11 @@ document.addEventListener("click", async (e) => {
 	      if (!installment) throw new Error("No se encontró la partialidad");
 	      
 	      const sourceAccount = state.accounts.find(a => a.id === sourceAccountId);
+
+	      if (sourceAccount.balance < installment.amount) {
+	        showToast(`Saldo insuficiente en ${sourceAccount.name}. Disponible: ${fmt(sourceAccount.balance)}`, "error");
+	        return;
+	      }
 	      
 	      // 1. Registrar gasto en la cuenta de origen (resta)
 	      await api.post("/transactions", {
