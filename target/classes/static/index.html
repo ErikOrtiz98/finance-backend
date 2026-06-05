@@ -146,6 +146,10 @@
             <svg viewBox="0 0 20 20"><rect x="2" y="12" width="3" height="6" fill="currentColor"/><rect x="8" y="8" width="3" height="10" fill="currentColor"/><rect x="14" y="4" width="3" height="14" fill="currentColor"/></svg>
             Reportes
           </button>
+          <button class="nav-item" data-section="compare">
+            <svg viewBox="0 0 20 20"><path d="M4 4h4v12H4zM12 4h4v12h-4z" stroke="currentColor" stroke-width="1.5" fill="none"/><path d="M2 10l3-3-3-3M18 10l-3 3 3 3" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" fill="none"/></svg>
+            Comparador
+          </button>
         </div>
 
         <div class="nav-group">
@@ -201,10 +205,6 @@
             <h2 class="page-title" id="page-title">Dashboard</h2>
           </div>
           <div class="topbar-right">
-            <select id="period-select" class="period-select">
-              <option value="biweekly">Quincenal</option>
-              <option value="monthly">Mensual</option>
-            </select>
             <div class="avatar" id="user-avatar">U</div>
           </div>
         </header>
@@ -718,6 +718,26 @@
           </div>
           <div id="biweekly-list" class="biweekly-grid"></div>
         </section>
+
+        <!-- ── COMPARADOR ── -->
+        <section class="page-section hidden" id="section-compare">
+          <div class="section-header">
+            <h3 class="card-title">Comparador de Meses</h3>
+          </div>
+          <div class="compare-controls">
+            <div class="compare-month-picker">
+              <label>Mes 1</label>
+              <input type="month" id="compare-m1" class="field-input" />
+            </div>
+            <div class="compare-month-picker">
+              <label>Mes 2</label>
+              <input type="month" id="compare-m2" class="field-input" />
+            </div>
+            <button id="compare-btn" class="btn-primary">Comparar</button>
+          </div>
+          <div id="compare-results" class="compare-results"></div>
+        </section>
+
 		<!-- ── MANUAL / AYUDA ── -->
 		<!-- ── MANUAL / AYUDA ── -->
 		<section class="page-section hidden" id="section-help">

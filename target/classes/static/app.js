@@ -194,10 +194,14 @@ async function signUp(email, password, displayName) {
 
 function logout() {
   const refreshToken = localStorage.getItem("fin_refresh");
+  const accessToken = localStorage.getItem("fin_token");
   if (refreshToken) {
     fetch(`${API_BASE}/auth/sign-out`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: {
+        "Content-Type": "application/json",
+        "Authorization": `Bearer ${accessToken}`
+      },
       body: JSON.stringify({ refreshToken })
     }).catch(() => {});
   }
@@ -231,7 +235,7 @@ let state = {
 let pagination = {
   transactions: {
     currentPage: 0,
-    pageSize: 20,
+    pageSize: 50,
     totalPages: 0,
     hasMore: true,
     totalItems: 0
@@ -290,6 +294,14 @@ function showToast(msg, type = "info") {
   setTimeout(() => toast.remove(), 3500);
 }
 
+function normalizeWithdrawal(tx) {
+  const desc = (tx.description || tx.name || "").toLowerCase();
+  if (desc.startsWith("depósito de efectivo:") || desc.startsWith("retiro de efectivo:") || desc.startsWith("compra a meses:")) {
+    return { ...tx, _ignoreInKPIs: true };
+  }
+  return tx;
+}
+
 function setLoading(show) {
   const loader = el("global-loader");
   if (loader) loader.classList.toggle("hidden", !show);
@@ -310,6 +322,7 @@ const SECTION_TITLES = {
   categories: "Categorías",
   profile: "Mi perfil",
   biweekly: "Organización Quincenal",
+  compare: "Comparador de Meses",
   help: "Ayuda / Manual",
 };
 
@@ -355,6 +368,7 @@ async function loadSection(section) {
       case "categories": await loadCategories(); break;
       case "profile": await loadProfile(); break;
       case "biweekly": await loadBiweeklySchedule(); break;
+      case "compare": await loadCompare(); break;
       case "help": break;
     }
   } catch (e) {
@@ -440,21 +454,20 @@ function renderKPIs() {
   const kpiNote = el("kpi-income-note");
   
   // 1. INGRESO REAL
-  const realIncome = state.transactions
-    .filter(tx => tx.type === "income")
-    .reduce((sum, tx) => sum + (tx.amount || 0), 0);
+ const cleanTx = state.transactions.map(normalizeWithdrawal);
+
+const realIncome = cleanTx
+  .filter(tx => tx.type === "income" && !tx._ignoreInKPIs)
+  .reduce((sum, tx) => sum + tx.amount, 0);
+
+const totalExpenses = cleanTx
+  .filter(tx => tx.type === "expense" && !tx._ignoreInKPIs)
+  .reduce((sum, tx) => sum + tx.amount, 0);
   
-  // 2. TOTAL GASTOS (solo expense, NO withdrawal, NO payment)
-  const totalExpenses = state.transactions
-    .filter(tx => tx.type === "expense")
-    .reduce((sum, tx) => sum + (tx.amount || 0), 0);
-  
-  // 3. SALDO REAL (débito + efectivo)
-  const debitAccounts = state.accounts.filter(a => a.type === "debit");
-  const cashAccounts = state.accounts.filter(a => a.type === "cash");
-  const totalDebitBalance = debitAccounts.reduce((sum, acc) => sum + (acc.balance || 0), 0);
-  const totalCashBalance = cashAccounts.reduce((sum, acc) => sum + (acc.balance || 0), 0);
-  const totalRealBalance = totalDebitBalance + totalCashBalance;
+  // 3. SALDO REAL (débito + efectivo + ahorro + inversión)
+  const balanceTypes = ["debit", "cash", "savings", "investment"];
+  const balanceAccounts = state.accounts.filter(a => balanceTypes.includes(a.type));
+  const totalRealBalance = balanceAccounts.reduce((sum, acc) => sum + (acc.balance || 0), 0);
   
   // 4. PAGOS REALIZADOS - TODAS las transacciones tipo "payment"
   const realDebtPayments = state.transactions
@@ -487,7 +500,7 @@ function renderKPIs() {
   if (kpiBalance) {
     kpiBalance.textContent = fmt(totalRealBalance, cur);
     const balanceNote = kpiBalance.parentElement?.querySelector(".kpi-note");
-    if (balanceNote) balanceNote.textContent = "Débito + Efectivo";
+    if (balanceNote) balanceNote.textContent = "Débito + Efectivo + Ahorro + Inversión";
   }
   
   if (kpiTotalDebt) {
@@ -802,6 +815,87 @@ function renderBiweeklySchedule() {
       </div>
     </div>
   `).join("");
+}
+
+// ─── COMPARADOR ────────────────────────────────────────────
+async function loadCompare() {
+  setLoading(true);
+  try {
+    const m1 = el("compare-m1");
+    const m2 = el("compare-m2");
+    if (!m1.value || !m2.value) {
+      const now = new Date();
+      const def1 = `${now.getFullYear()}-${String(now.getMonth() - 1 < 0 ? 12 : now.getMonth()).padStart(2, "0")}`;
+      const def2 = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
+      if (!m1.value) m1.value = def1;
+      if (!m2.value) m2.value = def2;
+    }
+    el("compare-btn").addEventListener("click", doCompare);
+    doCompare();
+  } catch (e) {
+    console.error("Error loading compare:", e);
+  } finally {
+    setLoading(false);
+  }
+}
+
+async function doCompare() {
+  const m1 = el("compare-m1").value;
+  const m2 = el("compare-m2").value;
+  if (!m1 || !m2) { showToast("Selecciona ambos meses", "error"); return; }
+  setLoading(true);
+  try {
+    const data = await api.get(`/reports/compare?m1=${m1}&m2=${m2}`);
+    renderCompare(data);
+  } catch (e) {
+    console.error("Error comparing:", e);
+    showToast("Error al comparar meses", "error");
+  } finally {
+    setLoading(false);
+  }
+}
+
+function renderCompare(data) {
+  const c = el("compare-results");
+  if (!c) return;
+  const cur = state.user?.currency || "MXN";
+
+  c.innerHTML = `
+    <div class="compare-grid">
+      ${buildCompareCard(data.month1, cur)}
+      ${buildCompareCard(data.month2, cur)}
+    </div>
+    <div class="compare-diffs">
+      <h4>Diferencias</h4>
+      <div class="diff-row"><span>Ingresos</span><strong class="${data.month2.totalIncome - data.month1.totalIncome >= 0 ? 'text-success' : 'text-danger'}">${fmt(data.month2.totalIncome - data.month1.totalIncome, cur)}</strong></div>
+      <div class="diff-row"><span>Gastos</span><strong class="${data.month2.totalExpenses - data.month1.totalExpenses <= 0 ? 'text-success' : 'text-danger'}">${fmt(data.month2.totalExpenses - data.month1.totalExpenses, cur)}</strong></div>
+      <div class="diff-row"><span>Ahorro</span><strong class="${data.month2.totalSavings - data.month1.totalSavings >= 0 ? 'text-success' : 'text-danger'}">${fmt(data.month2.totalSavings - data.month1.totalSavings, cur)}</strong></div>
+    </div>
+  `;
+}
+
+function buildCompareCard(month, cur) {
+  return `
+    <div class="compare-card">
+      <h4 class="compare-month-title">${month.yearMonth}</h4>
+      <div class="compare-stats">
+        <div class="stat-row"><span>💰 Ingresos</span><strong>${fmt(month.totalIncome, cur)}</strong></div>
+        <div class="stat-row"><span>💸 Gastos</span><strong>${fmt(month.totalExpenses, cur)}</strong></div>
+        <div class="stat-row"><span>🏦 Ahorro</span><strong class="${month.totalSavings >= 0 ? 'text-success' : 'text-danger'}">${fmt(month.totalSavings, cur)}</strong></div>
+      </div>
+      ${month.topExpenses && month.topExpenses.length > 0 ? `
+        <div class="compare-categories">
+          <h5>Gastos por categoría</h5>
+          ${month.topExpenses.map(cat => `
+            <div class="cat-row">
+              <div class="cat-meta"><span>${cat.categoryName}</span><span>${fmt(cat.amount, cur)} (${cat.percentage}%)</span></div>
+              <div class="bar-track"><div class="bar-fill" style="width:${cat.percentage}%"></div></div>
+            </div>
+          `).join("")}
+        </div>
+      ` : '<p class="text-muted">Sin gastos en este mes</p>'}
+    </div>
+  `;
 }
 
 // ─── TRANSACTIONS ───────────────────────────────────────────
@@ -1283,7 +1377,7 @@ function renderInstallments() {
                 ${account ? `<span class="badge badge-blue">${account.name}</span>` : ""}
               </div>
               <div class="data-row-meta">
-                Vence: ${relativeDate(inst.dueDate)} · Monto: ${fmt(inst.amount, cur)}
+                Vence: ${new Date(inst.dueDate).toLocaleDateString("es-MX", { day: "numeric", month: "short", year: "numeric" })} · Monto: ${fmt(inst.amount, cur)}
               </div>
             </div>
             <div class="data-row-amount expense">
@@ -1732,7 +1826,7 @@ function wireTxForm() {
             type: "expense",
             description: `Retiro de efectivo: ${description}`,
             amount: amount,
-            currency: state.user?.currency || "MXN",
+            currency: debitAccount?.currency || state.user?.currency || "MXN",
             transactionDate: transactionDate,
             notes: notes
           });
@@ -1746,7 +1840,7 @@ function wireTxForm() {
             type: "income",
             description: `Depósito de efectivo: ${description}`,
             amount: amount,
-            currency: state.user?.currency || "MXN",
+            currency: cashAccount?.currency || state.user?.currency || "MXN",
             transactionDate: transactionDate,
             notes: notes
           });
@@ -1755,6 +1849,7 @@ function wireTxForm() {
           
         } else {
           // Transacción normal
+          const txAccount = state.accounts.find(a => a.id === accountId);
           const body = {
             accountId: accountId,
             transferAccountId: type === "transfer" ? transferAccountId : null,
@@ -1763,7 +1858,7 @@ function wireTxForm() {
             type: type,
             description: description,
             amount: amount,
-            currency: state.user?.currency || "MXN",
+            currency: txAccount?.currency || state.user?.currency || "MXN",
             transactionDate: transactionDate,
             notes: notes
           };
@@ -2510,7 +2605,7 @@ function wireBudgetForm() {
           periodStart: el("budget-start")?.value,
           periodEnd: el("budget-end")?.value,
           amountLimit: Number(el("budget-limit")?.value || 0),
-          alertThreshold: alertValue / 100
+          alertThreshold: alertValue
         };
         if (!body.categoryId || !body.amountLimit) {
           showToast("Completa categoría y monto límite", "error");
@@ -2699,6 +2794,7 @@ function buildAddProgressModal(goal) {
     
     try {
       // 1. Registrar la transacción de gasto
+      const srcAccount = state.accounts.find(a => a.id === sourceAccountId);
       await api.post("/transactions", {
         accountId: sourceAccountId,
         transferAccountId: null,
@@ -2707,7 +2803,7 @@ function buildAddProgressModal(goal) {
         type: "expense",
         description: note,
         amount: amount,
-        currency: state.user?.currency || "MXN",
+        currency: srcAccount?.currency || state.user?.currency || "MXN",
         transactionDate: todayIso(),
         notes: `Aporte a meta: ${goal.name}`
       });
@@ -3353,7 +3449,7 @@ function buildEditBudgetModal(budget) {
       periodStart: el("m-budget-start")?.value,
       periodEnd: el("m-budget-end")?.value,
       amountLimit: Number(el("m-budget-limit")?.value || 0),
-      alertThreshold: alertValue / 100,
+      alertThreshold: alertValue,
     };
     if (!body.categoryId || !body.amountLimit || !body.periodStart || !body.periodEnd) {
       showToast("Completa categoría, monto y rango de fechas", "error");
@@ -3681,46 +3777,18 @@ document.addEventListener("click", async (e) => {
 	      if (!installment) throw new Error("No se encontró la partialidad");
 	      
 	      const sourceAccount = state.accounts.find(a => a.id === sourceAccountId);
-	      
-	      // 1. Registrar gasto en la cuenta de origen (resta)
-	      await api.post("/transactions", {
-	        accountId: sourceAccountId,
-	        transferAccountId: null,
-	        categoryId: null,
-	        debtId: installment.debtId,
-	        type: "payment",
-	        description: `Pago de partialidad #${installment.number} - ${installment.debtName || "Deuda"}`,
-	        amount: installment.amount,
-	        currency: state.user?.currency || "MXN",
-	        transactionDate: todayIso(),
-	        notes: notes
-	      });
-	      
-	      // 2. Si la partialidad está asociada a una tarjeta de crédito, reducir su saldo
-	      if (installment.accountId) {
-	        const creditAccount = state.accounts.find(a => a.id === installment.accountId);
-	        if (creditAccount && creditAccount.type === "credit") {
-	          await api.post("/transactions", {
-	            accountId: installment.accountId,
-	            transferAccountId: null,
-	            categoryId: null,
-	            debtId: null,
-	            type: "payment",
-	            description: `Pago recibido - Partialidad #${installment.number}`,
-	            amount: installment.amount,
-	            currency: state.user?.currency || "MXN",
-	            transactionDate: todayIso(),
-	            notes: notes
-	          });
-	        }
+
+	      if (sourceAccount.balance < installment.amount) {
+	        showToast(`Saldo insuficiente en ${sourceAccount.name}. Disponible: ${fmt(sourceAccount.balance)}`, "error");
+	        return;
 	      }
 	      
-	      // 3. Marcar partialidad como pagada en el backend
-		  await api.post(`/installments/${id}/pay`, {
-		    debitAccountId: sourceAccountId,
-		    currency: state.user?.currency || "MXN",
-		    notes: notes
-		  });
+	      // Marcar partialidad como pagada (backend crea transacciones + actualiza saldos)
+	      await api.post(`/installments/${id}/pay`, {
+	        debitAccountId: sourceAccountId,
+	        currency: sourceAccount?.currency || state.user?.currency || "MXN",
+	        notes: notes
+	      });
 	      
 	      showToast(`Partialidad pagada desde ${sourceAccount.name}`, "success");
 	      closeModal();
@@ -3789,19 +3857,20 @@ document.addEventListener("click", async (e) => {
 	    }
 	    
 	    try {
-	      // Crear transacción de gasto
-	      await api.post("/transactions", {
-	        accountId: sourceAccountId,
-	        transferAccountId: null,
-	        categoryId: recurring.categoryId,
-	        debtId: null,
-	        type: "expense",
-	        description: recurring.name,
-	        amount: recurring.amount,
-	        currency: state.user?.currency || "MXN",
-	        transactionDate: todayIso(),
-	        notes: notes
-	      });
+      // Crear transacción de gasto
+      const payRecAccount = state.accounts.find(a => a.id === sourceAccountId);
+      await api.post("/transactions", {
+        accountId: sourceAccountId,
+        transferAccountId: null,
+        categoryId: recurring.categoryId,
+        debtId: null,
+        type: "expense",
+        description: recurring.name,
+        amount: recurring.amount,
+        currency: payRecAccount?.currency || state.user?.currency || "MXN",
+        transactionDate: todayIso(),
+        notes: notes
+      });
 	      
 	      // Actualizar siguiente fecha del pago recurrente
 	      let nextDate = new Date(recurring.nextDueDate);

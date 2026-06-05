@@ -227,6 +227,14 @@ public final class ContractDtos {
 		    @NotBlank String currency,
 		    String notes
 		) {}
+	// ==================== COMPARE ====================
+	public record MonthData(String yearMonth, BigDecimal totalIncome, BigDecimal totalExpenses,
+			BigDecimal totalSavings, List<CategoryStatResponse> topExpenses) {
+	}
+
+	public record MonthCompareResponse(MonthData month1, MonthData month2) {
+	}
+
 	public record SummaryRowRaw(
 		BigDecimal income,
 		BigDecimal expenses,

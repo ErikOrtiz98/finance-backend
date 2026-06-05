@@ -1,0 +1,720 @@
+
+
+# REGLAS DE NEGOCIO - SISTEMA DE FINANZAS PERSONALES
+
+## 1. AUTENTICACIÓN Y USUARIOS
+
+| ID | Regla | Implementación |
+|----|-------|----------------|
+| **RN-001** | El usuario debe registrarse con email válido y contraseña (mínimo 8 caracteres) | `signUp()` en `FinanceApiService` |
+| **RN-002** | El login genera Access Token y Refresh Token | `signIn()` llama a `SupabaseAuthClient` |
+| **RN-003** | El token puede ser renovado mediante refresh token | `refresh()` en controller |
+| **RN-004** | El cierre de sesión invalida el refresh token | `signOut()` en controller |
+| **RN-005** | Cada usuario tiene un perfil único con configuración personalizada | `profiles` table |
+
+---
+
+## 2. PERFIL Y CONFIGURACIÓN
+
+| ID | Regla | Implementación |
+|----|-------|----------------|
+| **RN-006** | El perfil almacena: nombre, moneda, ciclo de pago, días de pago, ingreso mensual | `settings` JSON en `profiles` |
+| **RN-007** | El usuario puede seleccionar una **cuenta de débito principal** (`mainAccountId`) | `UpdateMeRequest.mainAccountId` |
+| **RN-008** | El dashboard usa `mainAccountId` para calcular el balance real | `summary()` método |
+| **RN-009** | Si no hay `mainAccountId`, se usan ingresos estimados | Fallback en `summary()` |
+
+---
+
+## 3. CUENTAS
+
+| ID | Regla | Implementación |
+|----|-------|----------------|
+| **RN-010** | Tipos de cuenta: `debit`, `credit`, `savings`, `cash`, `loan`, `investment` | `account_type` enum en BD |
+| **RN-011** | Solo puede existir **UNA** cuenta de tipo `cash` por usuario | Validación en `createAccount()` |
+| **RN-012** | Si no existe cuenta `cash`, se crea automáticamente al iniciar sesión | `loadAppAfterLogin()` en frontend |
+| **RN-013** | Cuentas de crédito requieren `creditLimit` obligatorio | `validate_account_payload()` trigger |
+| **RN-014** | Las cuentas tienen soft delete (`deleted_at`) | `softDelete()` en repositorio |
+| **RN-015** | El saldo se actualiza automáticamente con cada movimiento | `apply_movement_balance()` trigger |
+| **RN-016** | Se puede actualizar el saldo de una cuenta manualmente | `updateBalance()` en repositorio |
+
+---
+
+## 4. TRANSACCIONES
+
+| ID | Regla | Implementación |
+|----|-------|----------------|
+| **RN-017** | Tipos válidos: `income`, `expense`, `transfer`, `payment`, `adjustment` | `movement_type` enum |
+| **RN-018** | `expense` reduce saldo de la cuenta | `movement_effect()` función |
+| **RN-019** | `income` aumenta saldo de la cuenta | `movement_effect()` función |
+| **RN-020** | `transfer` requiere cuenta origen y destino diferentes | Validación en trigger |
+| **RN-021** | `payment` se usa para pagar tarjetas de crédito | Manejo especial en `createTransaction()` |
+| **RN-022** | `adjustment` permite valores positivos o negativos | `movement_effect()` función |
+| **RN-023** | Toda transacción debe tener monto > 0 (excepto adjustment) | Validación en trigger |
+| **RN-024** | Transacciones con `deleted_at` no afectan balances | `apply_movement_balance()` verifica |
+| **RN-025** | Paginación de transacciones: `limit` (default 50) y `offset` | `listTransactions()` con paginación |
+
+---
+
+## 5. PAGOS RECURRENTES
+
+| ID | Regla | Implementación |
+|----|-------|----------------|
+| **RN-026** | Frecuencias válidas: `weekly`, `biweekly`, `monthly`, `quarterly`, `yearly`, `custom` | `payment_frequency` enum |
+| **RN-027** | Pueden ser de tipo `expense` o `income` | `payment_type` campo |
+| **RN-028** | Se puede definir fecha final (`end_date`) | `UpsertRecurringPaymentRequest.endDate` |
+| **RN-029** | Se muestran en "Próximos vencimientos" del dashboard | `upcoming()` método |
+| **RN-030** | Botón "Pagar ahora" crea transacción y actualiza `next_due_date` | Evento `pay-rec` en frontend |
+
+---
+
+## 6. DEUDAS
+
+| ID | Regla | Implementación |
+|----|-------|----------------|
+| **RN-031** | Toda deuda tiene: nombre, saldo restante, pago mínimo, frecuencia, próxima fecha | `UpsertDebtRequest` |
+| **RN-032** | El saldo restante no puede exceder el saldo total | Validación en trigger |
+| **RN-033** | Deudas con `remaining_balance > 0` son **activas** | `renderDebts()` filtra |
+| **RN-034** | Deudas con `remaining_balance <= 0` son **saldadas** y van a sección aparte | `renderDebts()` sección `paid-section` |
+| **RN-035** | Al pagar una partialidad, se reduce `remaining_balance` de la deuda | `markInstallmentAsPaid()` actualiza con `jdbcTemplate` |
+
+---
+
+## 7. PARTIALIDADES (INSTALLMENTS)
+
+| ID | Regla | Implementación |
+|----|-------|----------------|
+| **RN-036** | Una partialidad pertenece a una deuda (`debt_id`) | Campo en tabla `installments` |
+| **RN-037** | Puede estar asociada a una tarjeta de crédito (`account_id`) | Campo en tabla `installments` |
+| **RN-038** | Al pagar una partialidad, se debe seleccionar cuenta de origen (débito o efectivo) | Modal en `pay-inst` event |
+| **RN-039** | Pagar una partialidad: crea gasto en origen, reduce deuda, reduce saldo de tarjeta si aplica | `markInstallmentAsPaid()` |
+| **RN-040** | Una partialidad pagada no puede pagarse de nuevo | `markAsPaid()` verifica `paid = false` |
+| **RN-041** | Partialidades pagadas se muestran en sección separada | `renderInstallments()` |
+
+---
+
+## 8. COMPRAS A MESES (MSI)
+
+| ID | Regla | Implementación |
+|----|-------|----------------|
+| **RN-042** | Solo se pueden registrar con tarjetas de crédito | Validación `account_type = 'credit'` |
+| **RN-043** | Se crea automáticamente una deuda asociada | `createCreditCardPurchase()` |
+| **RN-044** | Se genera una partialidad por cada mes | Bucle `for (int i = 1; i <= months; i++)` |
+| **RN-045** | Calcula pago mensual: `total / meses` (sin interés) o fórmula con interés compuesto | Lógica en `createCreditCardPurchase()` |
+| **RN-046** | **NO** actualiza saldo de tarjeta al crear la compra | Comentario explicativo en código |
+| **RN-047** | El saldo de la tarjeta se reduce SOLO al pagar cada partialidad | `markInstallmentAsPaid()` actualiza tarjeta |
+
+---
+
+## 9. METAS FINANCIERAS
+
+| ID | Regla | Implementación |
+|----|-------|----------------|
+| **RN-048** | Estados válidos: `active`, `paused`, `achieved`, `cancelled` | `goal_status` enum |
+| **RN-049** | El progreso no puede exceder el monto objetivo | Validación en frontend |
+| **RN-050** | Al agregar progreso, se debe seleccionar cuenta de origen | Modal en `add-progress-goal` |
+| **RN-051** | Agregar progreso crea automáticamente una transacción de tipo `expense` | `api.post("/transactions")` en modal |
+| **RN-052** | Al alcanzar 100%, la meta cambia a `achieved` automáticamente | Lógica en `buildAddProgressModal()` |
+
+---
+
+## 10. PRESUPUESTOS
+
+| ID | Regla | Implementación |
+|----|-------|----------------|
+| **RN-053** | Un presupuesto pertenece a una categoría | `category_id` en `budgets` |
+| **RN-054** | Tiene monto límite y umbral de alerta (porcentaje) | `amount_limit`, `alert_threshold` |
+| **RN-055** | El sistema calcula gasto real vs límite | Query en `BudgetRepository` |
+| **RN-056** | Si gasto > umbral, se muestra alerta visual | `isAlert` en respuesta |
+
+---
+
+## 11. DASHBOARD - KPI
+
+| ID | Regla | Fórmula |
+|----|-------|---------|
+| **RN-057** | Ingreso del periodo | `SUM(transactions WHERE type = 'income')` |
+| **RN-058** | Total Gastos | `SUM(transactions WHERE type = 'expense')` |
+| **RN-059** | Balance actual | `SUM(debitAccounts.balance) + SUM(cashAccounts.balance)` |
+| **RN-060** | Pagos realizados | `SUM(transactions WHERE type = 'payment')` |
+| **RN-061** | Deuda pendiente | `SUM(debts.remaining_balance)` |
+| **RN-062** | Indicador de Endeudamiento | `(debtPayments / income) × 100` |
+
+---
+
+## 12. DASHBOARD - COMPONENTES VISUALES
+
+| ID | Regla | Implementación |
+|----|-------|----------------|
+| **RN-063** | Desglose de cuentas: débito (⭐ principal), efectivo, tarjetas de crédito | `renderAccountsBreakdown()` |
+| **RN-064** | Alertas de tarjetas: colores según días hasta vencimiento | `renderCreditCardAlerts()` |
+| **RN-065** | Próximos vencimientos: pagos recurrentes + deudas + partialidades | `upcoming()` método |
+| **RN-066** | Gasto por categoría: barras con porcentaje | `renderCategoryBars()` |
+
+---
+
+## 13. ORGANIZACIÓN QUINCENAL
+
+| ID | Regla | Implementación |
+|----|-------|----------------|
+| **RN-067** | Divide mes en: días 1-15 y 16-31 | `firstHalfStart/End`, `secondHalfStart/End` |
+| **RN-068** | Muestra ingresos disponibles por quincena | `biweeklyIncome = monthlyIncome / 2` |
+| **RN-069** | Incluye pagos recurrentes y deudas en el rango | `getPaymentsInRange()` |
+| **RN-070** | El monto de deuda es `LEAST(fixed_payment, remaining_balance)` | Query en `DebtRepository` |
+
+---
+
+## 14. SOBREENDEUDAMIENTO
+
+| ID | Regla | Rango |
+|----|-------|-------|
+| **RN-071** | Nivel **BAJO** | ≤ 30% |
+| **RN-072** | Nivel **MEDIO** | 31% - 50% |
+| **RN-073** | Nivel **ALTO** | 51% - 70% |
+| **RN-074** | Nivel **CRÍTICO** | > 70% |
+
+---
+
+## 15. SEGURIDAD Y AUDITORÍA
+
+| ID | Regla | Implementación |
+|----|-------|----------------|
+| **RN-075** | RLS en Supabase: usuario solo ve sus datos | Políticas RLS en cada tabla |
+| **RN-076** | Soft delete: registros marcados con `deleted_at` | Métodos `softDelete()` |
+| **RN-077** | Control de concurrencia con `row_version` | Campo en todas las tablas |
+| **RN-078** | `setAuthContext()` para operaciones JPA | `setAuthContext(userId)` antes de inserts |
+| **RN-079** | Validación de propiedad de cuenta antes de movimiento | `validate_movement_payload()` trigger |
+
+---
+
+## 16. RESPALDOS
+
+| ID | Regla | Implementación |
+|----|-------|----------------|
+| **RN-080** | Usuario puede exportar todos sus datos como JSON | `exportBackup()` endpoint |
+| **RN-081** | Usuario puede importar respaldo JSON | `importBackup()` endpoint |
+
+---
+
+## 17. PAGINACIÓN
+
+| ID | Regla | Implementación |
+|----|-------|----------------|
+| **RN-082** | Transacciones: `limit` (default 50) y `offset` | `TransactionFilters` con `limit`, `offset` |
+| **RN-083** | El frontend maneja página actual y botones siguiente/anterior | `pagination.transactions` en frontend |
+| **RN-084** | Al cambiar sección, se reinicia la paginación | `loadSection()` resetea `currentPage = 0` |
+
+---
+
+## 18. FRONTEND - ESTADO Y CACHÉ
+
+| ID | Regla | Implementación |
+|----|-------|----------------|
+| **RN-085** | Cache de datos: transacciones (30s), cuentas (60s), deudas (30s) | `getCached()` función |
+| **RN-086** | Al guardar/eliminar, se invalida caché y recarga | `loadTransactions(0, true)` |
+
+---
+
+## 19. VALIDACIONES DE NEGOCIO ESPECÍFICAS
+
+| ID | Regla | Dónde se valida |
+|----|-------|-----------------|
+| **RN-087** | No pagar partialidad si saldo origen es insuficiente | Frontend verifica `sourceAccount.balance < amount` |
+| **RN-088** | No retirar efectivo sin cuenta de débito origen | Frontend valida `debitAccount` |
+| **RN-089** | No eliminar cuenta con transacciones asociadas | BD: `ON DELETE RESTRICT` |
+| **RN-090** | No crear cuenta de efectivo duplicada | Frontend valida existencia |
+| **RN-091** | No crear categoría sin nombre | Frontend valida `!body.name` |
+
+---
+
+## 20. FLUJOS ESPECIALES
+
+| ID | Regla | Flujo |
+|----|-------|-------|
+| **RN-092** | Pago de partialidad | Seleccionar origen → Crear gasto → Reducir deuda → Reducir tarjeta (si aplica) |
+| **RN-093** | Retiro de efectivo | Seleccionar débito origen → Restar de débito → Sumar a efectivo |
+| **RN-094** | Aporte a meta | Seleccionar origen → Crear gasto → Actualizar progreso |
+| **RN-095** | Compra a meses | Seleccionar tarjeta → Crear deuda → Crear N partialidades → NO actualizar saldo tarjeta |
+
+---
+
+## DIAGRAMA DE ESTADOS
+
+```
+Deuda: Activa (remaining_balance > 0) → Pagos → Saldada (remaining_balance ≤ 0)
+Partialidad: Pendiente (paid = false) → Pagar → Pagada (paid = true)
+Meta: Activa → Agregar progreso → Alcanzada (progress = target)
+Pago recurrente: Activo → Pagar ahora → Actualiza next_due_date
+```
+
+---
+
+## ENTIDADES Y RESPONSABILIDADES
+
+| Entidad | Propósito |
+|---------|-----------|
+| `Profile` | Configuración del usuario |
+| `Account` | Cuentas bancarias, tarjetas, efectivo |
+| `Movement` | Transacciones de dinero |
+| `Category` | Clasificación de movimientos |
+| `Debt` | Deudas y préstamos |
+| `Installment` | Partialidades de deudas |
+| `ScheduledPayment` | Pagos/ingresos recurrentes |
+| `FinancialGoal` | Metas de ahorro |
+| `Budget` | Presupuestos por categoría |
+
+# MAPA DE FLUJO DEL SISTEMA
+
+## Diagrama de Flujo General
+
+```
+┌─────────────────────────────────────────────────────────────────────────────────────┐
+│                              USUARIO                                                  │
+└─────────────────────────────────────────────────────────────────────────────────────┘
+                                      │
+                                      ▼
+┌─────────────────────────────────────────────────────────────────────────────────────┐
+│                          1. AUTENTICACIÓN                                            │
+│  ┌─────────────┐    ┌─────────────┐    ┌─────────────┐    ┌─────────────┐           │
+│  │  Sign Up    │───▶│  Sign In    │───▶│  Refresh    │───▶│  Sign Out   │           │
+│  └─────────────┘    └─────────────┘    └─────────────┘    └─────────────┘           │
+└─────────────────────────────────────────────────────────────────────────────────────┘
+                                      │
+                                      ▼
+┌─────────────────────────────────────────────────────────────────────────────────────┐
+│                          2. DASHBOARD                                                │
+│  ┌─────────────────────────────────────────────────────────────────────────────┐   │
+│  │                         KPI CARDS                                             │   │
+│  │  ┌──────────┐ ┌──────────┐ ┌──────────┐ ┌──────────┐ ┌──────────┐          │   │
+│  │  │ Ingresos │ │  Gastos  │ │ Balance  │ │  Pagos   │ │  Deuda   │          │   │
+│  │  └──────────┘ └──────────┘ └──────────┘ └──────────┘ └──────────┘          │   │
+│  └─────────────────────────────────────────────────────────────────────────────┘   │
+│                                      │                                              │
+│  ┌─────────────────────────────────────────────────────────────────────────────┐   │
+│  │                      COMPONENTES VISUALES                                    │   │
+│  │  ┌──────────────────┐ ┌──────────────────┐ ┌──────────────────┐             │   │
+│  │  │  Endeudamiento   │ │ Desglose Cuentas │ │Alertas Tarjetas │             │   │
+│  │  │     (Gauge)      │ │                  │ │                 │             │   │
+│  │  └──────────────────┘ └──────────────────┘ └──────────────────┘             │   │
+│  └─────────────────────────────────────────────────────────────────────────────┘   │
+│                                      │                                              │
+│  ┌─────────────────────────────────────────────────────────────────────────────┐   │
+│  │                      PRÓXIMOS VENCIMIENTOS                                    │   │
+│  │  ┌────────────┐ ┌────────────┐ ┌────────────┐                               │   │
+│  │  │ Recurrentes│ │   Deudas   │ │Partialidades│                               │   │
+│  │  └────────────┘ └────────────┘ └────────────┘                               │   │
+│  └─────────────────────────────────────────────────────────────────────────────┘   │
+└─────────────────────────────────────────────────────────────────────────────────────┘
+                                      │
+                                      ▼
+┌─────────────────────────────────────────────────────────────────────────────────────┐
+│                          3. MÓDULOS PRINCIPALES                                      │
+│                                                                                      │
+│  ┌──────────────┐ ┌──────────────┐ ┌──────────────┐ ┌──────────────┐                │
+│  │ Transactions│ │   Accounts   │ │  Recurring   │ │    Debts     │                │
+│  │   (CRUD)     │ │   (CRUD)     │ │   (CRUD)     │ │   (CRUD)     │                │
+│  └──────────────┘ └──────────────┘ └──────────────┘ └──────────────┘                │
+│                                                                                      │
+│  ┌──────────────┐ ┌──────────────┐ ┌──────────────┐ ┌──────────────┐                │
+│  │ Installments│ │    Goals     │ │   Budgets    │ │   Reports    │                │
+│  │   (CRUD)     │ │   (CRUD)     │ │   (CRUD)     │ │   (View)     │                │
+│  └──────────────┘ └──────────────┘ └──────────────┘ └──────────────┘                │
+└─────────────────────────────────────────────────────────────────────────────────────┘
+```
+
+## Flujo de Creación de Compra a Meses (MSI)
+
+```
+┌─────────────────────────────────────────────────────────────────────────────────────┐
+│                      COMPRA A MESES (MSI)                                            │
+└─────────────────────────────────────────────────────────────────────────────────────┘
+                                      │
+                                      ▼
+┌─────────────────────────────────────────────────────────────────────────────────────┐
+│  1. Usuario selecciona tarjeta de crédito                                            │
+│     - Valida que sea tipo 'credit'                                                   │
+│     - Verifica límite disponible                                                     │
+└─────────────────────────────────────────────────────────────────────────────────────┘
+                                      │
+                                      ▼
+┌─────────────────────────────────────────────────────────────────────────────────────┐
+│  2. Ingresa datos de la compra                                                       │
+│     - Nombre, Monto total, Meses, Interés (opcional), Primer pago                   │
+└─────────────────────────────────────────────────────────────────────────────────────┘
+                                      │
+                                      ▼
+┌─────────────────────────────────────────────────────────────────────────────────────┐
+│  3. Backend procesa                                                                  │
+│     - Calcula pago mensual (total / meses o con interés)                            │
+│     - Crea deuda asociada                                                            │
+│     - Crea N partialidades (una por mes)                                            │
+│     - NO actualiza saldo de tarjeta                                                  │
+└─────────────────────────────────────────────────────────────────────────────────────┘
+                                      │
+                                      ▼
+┌─────────────────────────────────────────────────────────────────────────────────────┐
+│  4. Usuario paga partialidades mensualmente                                          │
+│     - Selecciona cuenta origen (débito/efectivo)                                     │
+│     - Se crea transacción de gasto                                                   │
+│     - Se reduce saldo de tarjeta                                                     │
+│     - Se reduce remaining_balance de la deuda                                        │
+└─────────────────────────────────────────────────────────────────────────────────────┘
+```
+
+## Flujo de Pago de Partialidad
+
+```
+┌─────────────────────────────────────────────────────────────────────────────────────┐
+│                      PAGO DE PARTIALIDAD                                             │
+└─────────────────────────────────────────────────────────────────────────────────────┘
+                                      │
+                                      ▼
+┌─────────────────────────────────────────────────────────────────────────────────────┐
+│  1. Usuario hace clic en "Pagar"                                                     │
+└─────────────────────────────────────────────────────────────────────────────────────┘
+                                      │
+                                      ▼
+┌─────────────────────────────────────────────────────────────────────────────────────┐
+│  2. Modal: Seleccionar cuenta origen                                                 │
+│     - Opciones: Cuentas de débito o efectivo                                        │
+│     - Verifica saldo suficiente                                                      │
+└─────────────────────────────────────────────────────────────────────────────────────┘
+                                      │
+                                      ▼
+┌─────────────────────────────────────────────────────────────────────────────────────┐
+│  3. Backend procesa                                                                  │
+│     ┌─────────────────────────────────────────────────────────────────────────┐     │
+│     │ a. Crea transacción de gasto en cuenta origen (RESTA)                   │     │
+│     │ b. Si tiene account_id, crea transacción en tarjeta (RESTA)             │     │
+│     │ c. Marca partialidad como pagada                                        │     │
+│     │ d. Actualiza remaining_balance de la deuda                              │     │
+│     │ e. Actualiza current_balance de la tarjeta (si aplica)                  │     │
+│     └─────────────────────────────────────────────────────────────────────────┘     │
+└─────────────────────────────────────────────────────────────────────────────────────┘
+                                      │
+                                      ▼
+┌─────────────────────────────────────────────────────────────────────────────────────┐
+│  4. Frontend recarga                                                                 │
+│     - Partialidades, Deudas, Cuentas, Dashboard                                     │
+└─────────────────────────────────────────────────────────────────────────────────────┘
+```
+
+---
+
+# TABLA DE PARÁMETROS POR ENTIDAD
+
+## 1. TABLA `profiles`
+
+| Campo | Tipo | Descripción | Ejemplo |
+|-------|------|-------------|---------|
+| `user_id` | UUID | ID del usuario (PK) | `a7992e67-2be0-4485-9006-3d11f3ec3fc3` |
+| `full_name` | CITEXT | Nombre del usuario | `"erik ortiz"` |
+| `avatar_url` | TEXT | URL del avatar | `null` |
+| `locale` | TEXT | Configuración regional | `"es-MX"` |
+| `timezone` | TEXT | Zona horaria | `"America/Mexico_City"` |
+| `currency_code` | CHAR(3) | Moneda principal | `"MXN"` |
+| `settings` | JSONB | Configuración adicional | `{"payCycle":"biweekly","payDays":[1,15],"monthlyIncome":29500,"mainAccountId":"..."}` |
+| `preferences` | JSONB | Preferencias de usuario | `{}` |
+| `created_at` | TIMESTAMPTZ | Fecha de creación | `2026-06-01T07:30:36Z` |
+| `updated_at` | TIMESTAMPTZ | Última actualización | `2026-06-02T10:13:37Z` |
+| `deleted_at` | TIMESTAMPTZ | Soft delete | `null` |
+| `row_version` | BIGINT | Control de concurrencia | `10` |
+
+### `settings` JSON - Parámetros internos:
+
+| Campo | Tipo | Descripción |
+|-------|------|-------------|
+| `payCycle` | String | `"biweekly"` o `"monthly"` |
+| `payDays` | Array | Días de pago: `[1,15]` o `[15]` |
+| `monthlyIncome` | Number | Ingreso mensual estimado |
+| `mainAccountId` | UUID | ID de la cuenta de débito principal |
+
+---
+
+## 2. TABLA `accounts`
+
+| Campo | Tipo | Descripción | Ejemplo |
+|-------|------|-------------|---------|
+| `id` | UUID | ID único de la cuenta (PK) | `2f6e6ab9-0902-4858-b642-8b8e5b868243` |
+| `user_id` | UUID | Usuario propietario (FK) | `a7992e67-2be0-4485-9006-3d11f3ec3fc3` |
+| `name` | CITEXT | Nombre de la cuenta | `"debito"` |
+| `account_type` | ENUM | Tipo: `debit`,`credit`,`savings`,`cash`,`loan`,`investment` | `"debit"` |
+| `bank_name` | CITEXT | Nombre del banco | `"Citibanamex"` |
+| `current_balance` | NUMERIC(18,2) | Saldo actual | `12800.00` |
+| `credit_limit` | NUMERIC(18,2) | Límite de crédito (solo credit) | `25000.00` |
+| `statement_close_day` | SMALLINT | Día de corte (1-31) | `9` |
+| `payment_due_day` | SMALLINT | Día de pago (1-31) | `29` |
+| `is_active` | BOOLEAN | Cuenta activa | `true` |
+| `metadata` | JSONB | Datos adicionales | `{"currency":"MXN"}` |
+| `created_at` | TIMESTAMPTZ | Creación | `2026-06-02T05:21:46Z` |
+| `updated_at` | TIMESTAMPTZ | Actualización | `2026-06-03T06:36:16Z` |
+| `deleted_at` | TIMESTAMPTZ | Soft delete | `null` |
+| `row_version` | BIGINT | Concurrencia | `10` |
+
+---
+
+## 3. TABLA `movements`
+
+| Campo | Tipo | Descripción | Ejemplo |
+|-------|------|-------------|---------|
+| `id` | UUID | ID único (PK) | `abc-123...` |
+| `user_id` | UUID | Usuario propietario (FK) | `a7992e67-...` |
+| `account_id` | UUID | Cuenta origen (FK) | `2f6e6ab9-...` |
+| `transfer_account_id` | UUID | Cuenta destino (FK, solo transfer) | `f6ba01c6-...` |
+| `category_id` | UUID | Categoría (FK) | `cat-123...` |
+| `debt_id` | UUID | Deuda asociada (FK) | `debt-123...` |
+| `movement_type` | ENUM | Tipo: `income`,`expense`,`transfer`,`payment`,`adjustment` | `"expense"` |
+| `amount` | NUMERIC(18,2) | Monto | `1500.00` |
+| `description` | TEXT | Descripción | `"Supermercado"` |
+| `movement_date` | DATE | Fecha de la transacción | `2026-06-01` |
+| `tags` | TEXT[] | Etiquetas | `[]` |
+| `metadata` | JSONB | Datos adicionales | `{"currency":"MXN","notes":""}` |
+| `created_at` | TIMESTAMPTZ | Creación | `2026-06-01T...` |
+| `updated_at` | TIMESTAMPTZ | Actualización | `2026-06-01T...` |
+| `deleted_at` | TIMESTAMPTZ | Soft delete | `null` |
+| `row_version` | BIGINT | Concurrencia | `1` |
+
+### `metadata` JSON - Parámetros:
+
+| Campo | Tipo | Descripción |
+|-------|------|-------------|
+| `currency` | String | Moneda de la transacción |
+| `notes` | String | Notas adicionales |
+
+---
+
+## 4. TABLA `categories`
+
+| Campo | Tipo | Descripción | Ejemplo |
+|-------|------|-------------|---------|
+| `id` | UUID | ID único (PK) | `cat-123...` |
+| `user_id` | UUID | Usuario propietario (FK) | `a7992e67-...` |
+| `name` | CITEXT | Nombre categoría | `"Alimentación"` |
+| `icon` | TEXT | Emoji/icono | `"🍔"` |
+| `color` | TEXT | Color hexadecimal | `"#6ee7b7"` |
+| `category_type` | ENUM | Tipo: `expense`,`income`,`both` | `"expense"` |
+| `is_system` | BOOLEAN | Categoría del sistema | `false` |
+| `created_at` | TIMESTAMPTZ | Creación | `...` |
+| `updated_at` | TIMESTAMPTZ | Actualización | `...` |
+| `deleted_at` | TIMESTAMPTZ | Soft delete | `null` |
+| `row_version` | BIGINT | Concurrencia | `1` |
+
+---
+
+## 5. TABLA `debts`
+
+| Campo | Tipo | Descripción | Ejemplo |
+|-------|------|-------------|---------|
+| `id` | UUID | ID único (PK) | `debt-123...` |
+| `user_id` | UUID | Usuario propietario (FK) | `a7992e67-...` |
+| `account_id` | UUID | Cuenta asociada (FK) | `2f6e6ab9-...` |
+| `name` | CITEXT | Nombre de la deuda | `"Préstamo HSBC"` |
+| `debt_type` | ENUM | Tipo: `loan`,`credit_card`,`msi`,`financing` | `"loan"` |
+| `original_amount` | NUMERIC(18,2) | Monto original | `20000.00` |
+| `remaining_balance` | NUMERIC(18,2) | Saldo restante | `15000.00` |
+| `interest_rate` | NUMERIC(7,4) | Tasa de interés (%) | `12.50` |
+| `fixed_payment` | NUMERIC(18,2) | Pago fijo mensual | `1500.00` |
+| `minimum_payment` | NUMERIC(18,2) | Pago mínimo | `500.00` |
+| `payment_to_avoid_interest` | NUMERIC(18,2) | Pago para evitar intereses | `1500.00` |
+| `total_installments` | INTEGER | Total de partialidades | `12` |
+| `remaining_installments` | INTEGER | Partialidades restantes | `10` |
+| `statement_close_day` | SMALLINT | Día de corte | `9` |
+| `due_day` | SMALLINT | Día de pago | `29` |
+| `start_date` | DATE | Fecha inicio | `2026-01-01` |
+| `end_date` | DATE | Fecha fin | `2026-12-31` |
+| `metadata` | JSONB | Datos adicionales | `{"frequency":"monthly","nextDueDate":"2026-06-15","notes":""}` |
+| `created_at` | TIMESTAMPTZ | Creación | `...` |
+| `updated_at` | TIMESTAMPTZ | Actualización | `...` |
+| `deleted_at` | TIMESTAMPTZ | Soft delete | `null` |
+| `row_version` | BIGINT | Concurrencia | `1` |
+
+### `metadata` JSON - Parámetros:
+
+| Campo | Tipo | Descripción |
+|-------|------|-------------|
+| `frequency` | String | Frecuencia de pago: `weekly`,`biweekly`,`monthly`, etc. |
+| `nextDueDate` | String | Próxima fecha de pago |
+| `notes` | String | Notas adicionales |
+
+---
+
+## 6. TABLA `installments`
+
+| Campo | Tipo | Descripción | Ejemplo |
+|-------|------|-------------|---------|
+| `id` | UUID | ID único (PK) | `inst-123...` |
+| `debt_id` | UUID | Deuda asociada (FK) | `debt-123...` |
+| `account_id` | UUID | Tarjeta de crédito asociada (FK) | `2f6e6ab9-...` |
+| `user_id` | UUID | Usuario propietario (FK) | `a7992e67-...` |
+| `number` | INTEGER | Número de partialidad | `1` |
+| `amount` | NUMERIC(18,2) | Monto de la partialidad | `1666.67` |
+| `due_date` | DATE | Fecha de vencimiento | `2026-06-15` |
+| `paid` | BOOLEAN | ¿Pagada? | `false` |
+| `paid_at` | TIMESTAMPTZ | Fecha de pago | `null` |
+| `payment_movement_id` | UUID | Movimiento de pago asociado | `null` |
+| `original_purchase_amount` | NUMERIC(18,2) | Monto original de compra (MSI) | `20000.00` |
+| `interest_rate` | NUMERIC(7,4) | Tasa de interés aplicada | `0` |
+| `created_at` | TIMESTAMPTZ | Creación | `...` |
+| `updated_at` | TIMESTAMPTZ | Actualización | `...` |
+| `deleted_at` | TIMESTAMPTZ | Soft delete | `null` |
+| `row_version` | BIGINT | Concurrencia | `1` |
+
+---
+
+## 7. TABLA `scheduled_payments`
+
+| Campo | Tipo | Descripción | Ejemplo |
+|-------|------|-------------|---------|
+| `id` | UUID | ID único (PK) | `sp-123...` |
+| `user_id` | UUID | Usuario propietario (FK) | `a7992e67-...` |
+| `account_id` | UUID | Cuenta asociada (FK) | `2f6e6ab9-...` |
+| `category_id` | UUID | Categoría (FK) | `cat-123...` |
+| `name` | CITEXT | Nombre del pago | `"Netflix"` |
+| `amount` | NUMERIC(18,2) | Monto | `219.00` |
+| `frequency` | ENUM | Frecuencia: `weekly`,`biweekly`,`monthly`, etc. | `"monthly"` |
+| `payment_type` | ENUM | Tipo: `expense` o `income` | `"expense"` |
+| `next_date` | DATE | Próxima fecha de pago | `2026-06-15` |
+| `end_date` | DATE | Fecha final (opcional) | `null` |
+| `last_date` | DATE | Última fecha procesada | `null` |
+| `mandatory` | BOOLEAN | ¿Pago obligatorio? | `false` |
+| `active` | BOOLEAN | ¿Activo? | `true` |
+| `metadata` | JSONB | Datos adicionales | `{"currency":"MXN"}` |
+| `created_at` | TIMESTAMPTZ | Creación | `...` |
+| `updated_at` | TIMESTAMPTZ | Actualización | `...` |
+| `deleted_at` | TIMESTAMPTZ | Soft delete | `null` |
+| `row_version` | BIGINT | Concurrencia | `1` |
+
+---
+
+## 8. TABLA `financial_goals`
+
+| Campo | Tipo | Descripción | Ejemplo |
+|-------|------|-------------|---------|
+| `id` | UUID | ID único (PK) | `goal-123...` |
+| `user_id` | UUID | Usuario propietario (FK) | `a7992e67-...` |
+| `name` | CITEXT | Nombre de la meta | `"Viaje a Cancún"` |
+| `target_amount` | NUMERIC(18,2) | Monto objetivo | `15000.00` |
+| `current_progress` | NUMERIC(18,2) | Progreso actual | `5000.00` |
+| `target_date` | DATE | Fecha objetivo | `2026-12-31` |
+| `status` | ENUM | Estado: `active`,`paused`,`achieved`,`cancelled` | `"active"` |
+| `metadata` | JSONB | Datos adicionales | `{}` |
+| `created_at` | TIMESTAMPTZ | Creación | `...` |
+| `updated_at` | TIMESTAMPTZ | Actualización | `...` |
+| `deleted_at` | TIMESTAMPTZ | Soft delete | `null` |
+| `row_version` | BIGINT | Concurrencia | `1` |
+
+---
+
+## 9. TABLA `budgets`
+
+| Campo | Tipo | Descripción | Ejemplo |
+|-------|------|-------------|---------|
+| `id` | UUID | ID único (PK) | `budget-123...` |
+| `user_id` | UUID | Usuario propietario (FK) | `a7992e67-...` |
+| `category_id` | UUID | Categoría (FK) | `cat-123...` |
+| `budget_period` | ENUM | Periodo: `weekly`,`biweekly`,`monthly`,`custom` | `"monthly"` |
+| `period_start` | DATE | Inicio del periodo | `2026-06-01` |
+| `period_end` | DATE | Fin del periodo | `2026-06-30` |
+| `amount_limit` | NUMERIC(18,2) | Límite de gasto | `3000.00` |
+| `alert_threshold` | NUMERIC(5,4) | Umbral de alerta (0-1) | `0.80` |
+| `metadata` | JSONB | Datos adicionales | `{}` |
+| `created_at` | TIMESTAMPTZ | Creación | `...` |
+| `updated_at` | TIMESTAMPTZ | Actualización | `...` |
+| `deleted_at` | TIMESTAMPTZ | Soft delete | `null` |
+| `row_version` | BIGINT | Concurrencia | `1` |
+
+---
+
+## 10. ENUMS - VALORES POSIBLES
+
+| Enum | Valores | Uso |
+|------|---------|-----|
+| `account_type` | `debit`, `credit`, `savings`, `cash`, `loan`, `investment` | Tipo de cuenta |
+| `category_type` | `income`, `expense`, `transfer`, `both` | Tipo de categoría |
+| `movement_type` | `income`, `expense`, `transfer`, `payment`, `adjustment` | Tipo de transacción |
+| `debt_type` | `loan`, `credit_card`, `msi`, `financing` | Tipo de deuda |
+| `payment_frequency` | `weekly`, `biweekly`, `monthly`, `quarterly`, `yearly`, `custom` | Frecuencia de pago |
+| `budget_period` | `weekly`, `biweekly`, `monthly`, `custom` | Periodo de presupuesto |
+| `goal_status` | `active`, `paused`, `achieved`, `cancelled` | Estado de meta |
+| `notification_type` | `info`, `warning`, `success`, `overdue`, `budget_alert`, `goal_alert`, `debt_alert` | Tipo de notificación |
+
+---
+
+## RELACIONES ENTRE TABLAS
+
+```
+                    ┌─────────────────┐
+                    │     users       │
+                    │   (auth.users)  │
+                    └────────┬────────┘
+                             │
+        ┌────────────────────┼────────────────────┐
+        │                    │                    │
+        ▼                    ▼                    ▼
+┌───────────────┐    ┌───────────────┐    ┌───────────────┐
+│   profiles    │    │   accounts    │    │  categories   │
+│   (1:1)       │    │   (1:N)       │    │   (1:N)       │
+└───────────────┘    └───────┬───────┘    └───────┬───────┘
+                             │                    │
+                             ▼                    │
+                    ┌───────────────┐             │
+                    │  movements    │◄────────────┘
+                    │   (N:1)       │
+                    └───────┬───────┘
+                            │
+        ┌───────────────────┼───────────────────┐
+        │                   │                   │
+        ▼                   ▼                   ▼
+┌───────────────┐    ┌───────────────┐    ┌───────────────┐
+│    debts      │    │ installments  │    │scheduled_payments│
+│   (1:N)       │    │   (N:1)       │    │   (1:N)       │
+└───────┬───────┘    └───────────────┘    └───────────────┘
+        │
+        ▼
+┌───────────────┐    ┌───────────────┐    ┌───────────────┐
+│financial_goals│    │   budgets     │    │ notifications │
+│   (1:N)       │    │   (1:N)       │    │   (1:N)       │
+└───────────────┘    └───────────────┘    └───────────────┘
+```
+
+---
+
+## DIAGRAMA DE FLUJO DE DATOS - TRANSACCIONES
+
+```
+                    ┌─────────────────────────────────────┐
+                    │         USUARIO                      │
+                    └─────────────────┬───────────────────┘
+                                      │
+                    ┌─────────────────▼───────────────────┐
+                    │      Frontend (app.js)              │
+                    │  - Validaciones                     │
+                    │  - UI/UX                            │
+                    └─────────────────┬───────────────────┘
+                                      │
+                    ┌─────────────────▼───────────────────┐
+                    │      API (/transactions)            │
+                    │  POST /transactions                 │
+                    └─────────────────┬───────────────────┘
+                                      │
+                    ┌─────────────────▼───────────────────┐
+                    │   FinanceApiService                 │
+                    │  - setAuthContext()                 │
+                    │  - Validar tipo                     │
+                    │  - Sanitizar movimiento_type        │
+                    └─────────────────┬───────────────────┘
+                                      │
+                    ┌─────────────────▼───────────────────┐
+                    │   MovementRepository                │
+                    │  INSERT INTO movements              │
+                    └─────────────────┬───────────────────┘
+                                      │
+                    ┌─────────────────▼───────────────────┐
+                    │   PostgreSQL Triggers               │
+                    │  - validate_movement_payload()      │
+                    │  - apply_movement_balance()         │
+                    └─────────────────┬───────────────────┘
+                                      │
+                    ┌─────────────────▼───────────────────┐
+                    │         ACCOUNTS                    │
+                    │  current_balance actualizado        │
+                    └─────────────────────────────────────┘

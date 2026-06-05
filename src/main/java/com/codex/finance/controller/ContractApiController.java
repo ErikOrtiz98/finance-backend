@@ -380,6 +380,12 @@ public class ContractApiController {
 		return service.getMonthlyReports(jwt.getSubject(), year);
 	}
 
+	@GetMapping("/reports/compare")
+	public ContractDtos.MonthCompareResponse getMonthComparison(@AuthenticationPrincipal Jwt jwt,
+			@RequestParam String m1, @RequestParam String m2) {
+		return service.getMonthComparison(jwt.getSubject(), m1, m2);
+	}
+
 	@GetMapping("/health")
 	public Map<String, String> health() {
 		return Map.of("status", "ok");

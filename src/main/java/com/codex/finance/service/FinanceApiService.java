@@ -868,16 +868,24 @@ public class FinanceApiService {
 		LocalDate secondHalfStart = today.withDayOfMonth(16);
 		LocalDate secondHalfEnd = today.withDayOfMonth(today.lengthOfMonth());
 
-		LocalDate lastMonth = today.minusMonths(1);
-		LocalDate lastMonthStart = lastMonth.withDayOfMonth(1);
-		LocalDate lastMonthEnd = lastMonth.withDayOfMonth(lastMonth.lengthOfMonth());
-		BigDecimal monthlyIncome = BigDecimal.ZERO;
-		Object[] incomeRow = movementRepo.getSummaryByDateRange(uuid, lastMonthStart, lastMonthEnd);
-		if (incomeRow != null) {
-			Object[] unwrapped = mapper.unwrap(incomeRow);
-			monthlyIncome = mapper.toBigDecimal(unwrapped[0]);
+		LocalDate firstHalfEndActual = today.isBefore(firstHalfEnd.plusDays(1)) ? today : firstHalfEnd;
+		LocalDate secondHalfEndActual = today.isBefore(secondHalfEnd.plusDays(1)) ? today : secondHalfEnd;
+
+		BigDecimal firstIncome = BigDecimal.ZERO;
+		Object[] firstRow = movementRepo.getSummaryByDateRange(uuid, firstHalfStart, firstHalfEndActual);
+		if (firstRow != null) {
+			Object[] unwrapped = mapper.unwrap(firstRow);
+			firstIncome = mapper.toBigDecimal(unwrapped[0]);
 		}
-		BigDecimal biweeklyIncome = monthlyIncome.divide(BigDecimal.valueOf(2), 2, java.math.RoundingMode.HALF_UP);
+
+		BigDecimal secondIncome = BigDecimal.ZERO;
+		if (today.getDayOfMonth() >= 16) {
+			Object[] secondRow = movementRepo.getSummaryByDateRange(uuid, secondHalfStart, secondHalfEndActual);
+			if (secondRow != null) {
+				Object[] unwrapped = mapper.unwrap(secondRow);
+				secondIncome = mapper.toBigDecimal(unwrapped[0]);
+			}
+		}
 
 		List<ContractDtos.BiweeklyScheduleResponse> schedules = new ArrayList<>();
 
@@ -885,14 +893,14 @@ public class FinanceApiService {
 		BigDecimal firstTotal = firstPayments.stream().map(ContractDtos.BiweeklyPaymentItem::amount)
 				.reduce(BigDecimal.ZERO, BigDecimal::add);
 		schedules.add(new ContractDtos.BiweeklyScheduleResponse("Primera quincena", firstHalfStart, firstHalfEnd,
-				firstPayments, firstTotal, biweeklyIncome, biweeklyIncome.subtract(firstTotal)));
+				firstPayments, firstTotal, firstIncome, firstIncome.subtract(firstTotal)));
 
 		List<ContractDtos.BiweeklyPaymentItem> secondPayments = getPaymentsInRange(uuid, secondHalfStart,
 				secondHalfEnd);
 		BigDecimal secondTotal = secondPayments.stream().map(ContractDtos.BiweeklyPaymentItem::amount)
 				.reduce(BigDecimal.ZERO, BigDecimal::add);
 		schedules.add(new ContractDtos.BiweeklyScheduleResponse("Segunda quincena", secondHalfStart, secondHalfEnd,
-				secondPayments, secondTotal, biweeklyIncome, biweeklyIncome.subtract(secondTotal)));
+				secondPayments, secondTotal, secondIncome, secondIncome.subtract(secondTotal)));
 
 		return schedules;
 	}
@@ -979,6 +987,47 @@ public class FinanceApiService {
 					new ArrayList<>()));
 		}
 		return reports;
+	}
+
+	// ==================== COMPARE ====================
+	@Transactional(readOnly = true)
+	public ContractDtos.MonthCompareResponse getMonthComparison(String userId, String m1, String m2) {
+		UUID uuid = UUID.fromString(userId);
+		return new ContractDtos.MonthCompareResponse(buildMonthData(uuid, m1), buildMonthData(uuid, m2));
+	}
+
+	private ContractDtos.MonthData buildMonthData(UUID uuid, String yearMonth) {
+		String[] parts = yearMonth.split("-");
+		int year = Integer.parseInt(parts[0]);
+		int month = Integer.parseInt(parts[1]);
+		LocalDate start = LocalDate.of(year, month, 1);
+		LocalDate end = start.withDayOfMonth(start.lengthOfMonth());
+
+		Object[] summaryRow = movementRepo.getSummaryByDateRange(uuid, start, end);
+		BigDecimal income = BigDecimal.ZERO;
+		BigDecimal expenses = BigDecimal.ZERO;
+		if (summaryRow != null) {
+			Object[] unwrapped = mapper.unwrap(summaryRow);
+			income = mapper.toBigDecimal(unwrapped[0]);
+			expenses = mapper.toBigDecimal(unwrapped[1]);
+		}
+
+		List<Object[]> catRows = movementRepo.getCategoryStatsByDateRange(uuid, start, end);
+		BigDecimal totalCat = catRows.stream()
+				.map(r -> mapper.toBigDecimal(r[2]))
+				.reduce(BigDecimal.ZERO, BigDecimal::add);
+		List<ContractDtos.CategoryStatResponse> topExpenses = catRows.stream()
+				.map(r -> {
+					BigDecimal amount = mapper.toBigDecimal(r[2]);
+					BigDecimal pct = totalCat.signum() == 0 ? BigDecimal.ZERO
+							: amount.multiply(BigDecimal.valueOf(100)).divide(totalCat, 2, java.math.RoundingMode.HALF_UP);
+					return new ContractDtos.CategoryStatResponse(
+							mapper.toString(r[0]), mapper.toString(r[1]), amount, pct);
+				})
+				.collect(Collectors.toList());
+
+		BigDecimal savings = income.subtract(expenses);
+		return new ContractDtos.MonthData(yearMonth, income, expenses, savings, topExpenses);
 	}
 
 	// ==================== SYNC ====================

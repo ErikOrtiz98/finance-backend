@@ -322,6 +322,7 @@ const SECTION_TITLES = {
   categories: "Categorías",
   profile: "Mi perfil",
   biweekly: "Organización Quincenal",
+  compare: "Comparador de Meses",
   help: "Ayuda / Manual",
 };
 
@@ -367,6 +368,7 @@ async function loadSection(section) {
       case "categories": await loadCategories(); break;
       case "profile": await loadProfile(); break;
       case "biweekly": await loadBiweeklySchedule(); break;
+      case "compare": await loadCompare(); break;
       case "help": break;
     }
   } catch (e) {
@@ -813,6 +815,87 @@ function renderBiweeklySchedule() {
       </div>
     </div>
   `).join("");
+}
+
+// ─── COMPARADOR ────────────────────────────────────────────
+async function loadCompare() {
+  setLoading(true);
+  try {
+    const m1 = el("compare-m1");
+    const m2 = el("compare-m2");
+    if (!m1.value || !m2.value) {
+      const now = new Date();
+      const def1 = `${now.getFullYear()}-${String(now.getMonth() - 1 < 0 ? 12 : now.getMonth()).padStart(2, "0")}`;
+      const def2 = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
+      if (!m1.value) m1.value = def1;
+      if (!m2.value) m2.value = def2;
+    }
+    el("compare-btn").addEventListener("click", doCompare);
+    doCompare();
+  } catch (e) {
+    console.error("Error loading compare:", e);
+  } finally {
+    setLoading(false);
+  }
+}
+
+async function doCompare() {
+  const m1 = el("compare-m1").value;
+  const m2 = el("compare-m2").value;
+  if (!m1 || !m2) { showToast("Selecciona ambos meses", "error"); return; }
+  setLoading(true);
+  try {
+    const data = await api.get(`/reports/compare?m1=${m1}&m2=${m2}`);
+    renderCompare(data);
+  } catch (e) {
+    console.error("Error comparing:", e);
+    showToast("Error al comparar meses", "error");
+  } finally {
+    setLoading(false);
+  }
+}
+
+function renderCompare(data) {
+  const c = el("compare-results");
+  if (!c) return;
+  const cur = state.user?.currency || "MXN";
+
+  c.innerHTML = `
+    <div class="compare-grid">
+      ${buildCompareCard(data.month1, cur)}
+      ${buildCompareCard(data.month2, cur)}
+    </div>
+    <div class="compare-diffs">
+      <h4>Diferencias</h4>
+      <div class="diff-row"><span>Ingresos</span><strong class="${data.month2.totalIncome - data.month1.totalIncome >= 0 ? 'text-success' : 'text-danger'}">${fmt(data.month2.totalIncome - data.month1.totalIncome, cur)}</strong></div>
+      <div class="diff-row"><span>Gastos</span><strong class="${data.month2.totalExpenses - data.month1.totalExpenses <= 0 ? 'text-success' : 'text-danger'}">${fmt(data.month2.totalExpenses - data.month1.totalExpenses, cur)}</strong></div>
+      <div class="diff-row"><span>Ahorro</span><strong class="${data.month2.totalSavings - data.month1.totalSavings >= 0 ? 'text-success' : 'text-danger'}">${fmt(data.month2.totalSavings - data.month1.totalSavings, cur)}</strong></div>
+    </div>
+  `;
+}
+
+function buildCompareCard(month, cur) {
+  return `
+    <div class="compare-card">
+      <h4 class="compare-month-title">${month.yearMonth}</h4>
+      <div class="compare-stats">
+        <div class="stat-row"><span>💰 Ingresos</span><strong>${fmt(month.totalIncome, cur)}</strong></div>
+        <div class="stat-row"><span>💸 Gastos</span><strong>${fmt(month.totalExpenses, cur)}</strong></div>
+        <div class="stat-row"><span>🏦 Ahorro</span><strong class="${month.totalSavings >= 0 ? 'text-success' : 'text-danger'}">${fmt(month.totalSavings, cur)}</strong></div>
+      </div>
+      ${month.topExpenses && month.topExpenses.length > 0 ? `
+        <div class="compare-categories">
+          <h5>Gastos por categoría</h5>
+          ${month.topExpenses.map(cat => `
+            <div class="cat-row">
+              <div class="cat-meta"><span>${cat.categoryName}</span><span>${fmt(cat.amount, cur)} (${cat.percentage}%)</span></div>
+              <div class="bar-track"><div class="bar-fill" style="width:${cat.percentage}%"></div></div>
+            </div>
+          `).join("")}
+        </div>
+      ` : '<p class="text-muted">Sin gastos en este mes</p>'}
+    </div>
+  `;
 }
 
 // ─── TRANSACTIONS ───────────────────────────────────────────
@@ -1294,7 +1377,7 @@ function renderInstallments() {
                 ${account ? `<span class="badge badge-blue">${account.name}</span>` : ""}
               </div>
               <div class="data-row-meta">
-                Vence: ${relativeDate(inst.dueDate)} · Monto: ${fmt(inst.amount, cur)}
+                Vence: ${new Date(inst.dueDate).toLocaleDateString("es-MX", { day: "numeric", month: "short", year: "numeric" })} · Monto: ${fmt(inst.amount, cur)}
               </div>
             </div>
             <div class="data-row-amount expense">

@@ -247,7 +247,8 @@ class FinanceApiServiceAdvancedTest {
 
         List<ContractDtos.BiweeklyScheduleResponse> result = service.getBiweeklySchedule(userId);
         assertEquals(2, result.size());
-        assertEquals(0, BigDecimal.valueOf(30000).compareTo(result.get(0).availableIncome()), "Each half gets 30000");
+        assertEquals(0, BigDecimal.valueOf(60000).compareTo(result.get(0).availableIncome()), "First half gets 60000");
+        assertEquals(0, BigDecimal.ZERO.compareTo(result.get(1).availableIncome()), "Second half gets 0");
         assertEquals("Primera quincena", result.get(0).periodName());
         assertEquals("Segunda quincena", result.get(1).periodName());
     }
