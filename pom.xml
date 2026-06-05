@@ -17,7 +17,7 @@
     <description>Java backend aligned to the finance API contract</description>
 
     <properties>
-        <java.version>21</java.version>
+        <java.version>17</java.version>
     </properties>
 
     <dependencies>

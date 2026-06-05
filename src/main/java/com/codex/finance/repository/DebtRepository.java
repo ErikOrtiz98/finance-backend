@@ -94,13 +94,15 @@ public interface DebtRepository extends JpaRepository<Debt, UUID> {
     List<Object[]> getUpcomingDebts(@Param("userId") UUID userId);
 
     @Query(value = "SELECT d.id, d.user_id AS userId, d.name, "
-    	       + "d.remaining_balance AS remainingBalance, "   // índice 3
-    	       + "d.original_amount AS principalBalance, "      // índice 2
-    	       + "d.fixed_payment AS installment, "             // índice 4
+    	       + "d.remaining_balance AS remainingBalance, "
+    	       + "d.original_amount AS principalBalance, "
+    	       + "d.fixed_payment AS installment, "
     	       + "COALESCE(d.metadata->>'frequency', 'monthly') AS frequency, "
     	       + "COALESCE((d.metadata->>'nextDueDate')::date, NULL) AS nextDueDate, "
     	       + "COALESCE(d.metadata->>'notes', '') AS notes, d.created_at AS createdAt, "
-    	       + "d.updated_at AS updatedAt, d.deleted_at AS deletedAt "
+    	       + "d.updated_at AS updatedAt, d.deleted_at AS deletedAt, "
+    	       + "CASE WHEN d.deleted_at IS NULL THEN 'synced' ELSE 'deleted' END AS syncStatus, "
+    	       + "COALESCE(d.row_version, 1) AS version "
     	       + "FROM debts d WHERE d.user_id = :userId AND d.id = :id AND d.deleted_at IS NULL", nativeQuery = true)
     	Object[] getDebtById(@Param("userId") UUID userId, @Param("id") UUID id);
 

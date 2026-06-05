@@ -26,7 +26,7 @@ public interface BudgetRepository extends JpaRepository<Budget, UUID> {
 			+ "AND m.movement_date BETWEEN b.period_start AND b.period_end " + "AND m.deleted_at IS NULL "
 			+ "LEFT JOIN categories c ON c.id = b.category_id " + "WHERE b.user_id = :userId AND b.deleted_at IS NULL "
 			+ "AND b.period_start <= CURRENT_DATE AND b.period_end >= CURRENT_DATE "
-			+ "GROUP BY b.id, c.name", nativeQuery = true)
+			+ "GROUP BY b.id, c.name, b.category_id, b.budget_period, b.period_start, b.period_end, b.amount_limit, b.alert_threshold", nativeQuery = true)
 	List<Object[]> listActiveBudgets(@Param("userId") UUID userId);
 
 	@Query(value = "SELECT b.id, b.category_id, c.name as category_name, b.budget_period as period, "

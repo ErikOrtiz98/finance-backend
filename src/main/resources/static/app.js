@@ -292,7 +292,7 @@ function showToast(msg, type = "info") {
 
 function normalizeWithdrawal(tx) {
   const desc = (tx.description || tx.name || "").toLowerCase();
-  if (desc.startsWith("depósito de efectivo:")) {
+  if (desc.startsWith("depósito de efectivo:") || desc.startsWith("retiro de efectivo:") || desc.startsWith("compra a meses:")) {
     return { ...tx, _ignoreInKPIs: true };
   }
   return tx;
@@ -458,12 +458,10 @@ const totalExpenses = cleanTx
   .filter(tx => tx.type === "expense" && !tx._ignoreInKPIs)
   .reduce((sum, tx) => sum + tx.amount, 0);
   
-  // 3. SALDO REAL (débito + efectivo)
-  const debitAccounts = state.accounts.filter(a => a.type === "debit");
-  const cashAccounts = state.accounts.filter(a => a.type === "cash");
-  const totalDebitBalance = debitAccounts.reduce((sum, acc) => sum + (acc.balance || 0), 0);
-  const totalCashBalance = cashAccounts.reduce((sum, acc) => sum + (acc.balance || 0), 0);
-  const totalRealBalance = totalDebitBalance + totalCashBalance;
+  // 3. SALDO REAL (débito + efectivo + ahorro + inversión)
+  const balanceTypes = ["debit", "cash", "savings", "investment"];
+  const balanceAccounts = state.accounts.filter(a => balanceTypes.includes(a.type));
+  const totalRealBalance = balanceAccounts.reduce((sum, acc) => sum + (acc.balance || 0), 0);
   
   // 4. PAGOS REALIZADOS - TODAS las transacciones tipo "payment"
   const realDebtPayments = state.transactions
@@ -496,7 +494,7 @@ const totalExpenses = cleanTx
   if (kpiBalance) {
     kpiBalance.textContent = fmt(totalRealBalance, cur);
     const balanceNote = kpiBalance.parentElement?.querySelector(".kpi-note");
-    if (balanceNote) balanceNote.textContent = "Débito + Efectivo";
+    if (balanceNote) balanceNote.textContent = "Débito + Efectivo + Ahorro + Inversión";
   }
   
   if (kpiTotalDebt) {
@@ -1741,7 +1739,7 @@ function wireTxForm() {
             type: "expense",
             description: `Retiro de efectivo: ${description}`,
             amount: amount,
-            currency: state.user?.currency || "MXN",
+            currency: debitAccount?.currency || state.user?.currency || "MXN",
             transactionDate: transactionDate,
             notes: notes
           });
@@ -1755,7 +1753,7 @@ function wireTxForm() {
             type: "income",
             description: `Depósito de efectivo: ${description}`,
             amount: amount,
-            currency: state.user?.currency || "MXN",
+            currency: cashAccount?.currency || state.user?.currency || "MXN",
             transactionDate: transactionDate,
             notes: notes
           });
@@ -1764,6 +1762,7 @@ function wireTxForm() {
           
         } else {
           // Transacción normal
+          const txAccount = state.accounts.find(a => a.id === accountId);
           const body = {
             accountId: accountId,
             transferAccountId: type === "transfer" ? transferAccountId : null,
@@ -1772,7 +1771,7 @@ function wireTxForm() {
             type: type,
             description: description,
             amount: amount,
-            currency: state.user?.currency || "MXN",
+            currency: txAccount?.currency || state.user?.currency || "MXN",
             transactionDate: transactionDate,
             notes: notes
           };
@@ -2519,7 +2518,7 @@ function wireBudgetForm() {
           periodStart: el("budget-start")?.value,
           periodEnd: el("budget-end")?.value,
           amountLimit: Number(el("budget-limit")?.value || 0),
-          alertThreshold: alertValue / 100
+          alertThreshold: alertValue
         };
         if (!body.categoryId || !body.amountLimit) {
           showToast("Completa categoría y monto límite", "error");
@@ -2708,6 +2707,7 @@ function buildAddProgressModal(goal) {
     
     try {
       // 1. Registrar la transacción de gasto
+      const srcAccount = state.accounts.find(a => a.id === sourceAccountId);
       await api.post("/transactions", {
         accountId: sourceAccountId,
         transferAccountId: null,
@@ -2716,7 +2716,7 @@ function buildAddProgressModal(goal) {
         type: "expense",
         description: note,
         amount: amount,
-        currency: state.user?.currency || "MXN",
+        currency: srcAccount?.currency || state.user?.currency || "MXN",
         transactionDate: todayIso(),
         notes: `Aporte a meta: ${goal.name}`
       });
@@ -3362,7 +3362,7 @@ function buildEditBudgetModal(budget) {
       periodStart: el("m-budget-start")?.value,
       periodEnd: el("m-budget-end")?.value,
       amountLimit: Number(el("m-budget-limit")?.value || 0),
-      alertThreshold: alertValue / 100,
+      alertThreshold: alertValue,
     };
     if (!body.categoryId || !body.amountLimit || !body.periodStart || !body.periodEnd) {
       showToast("Completa categoría, monto y rango de fechas", "error");
@@ -3696,45 +3696,12 @@ document.addEventListener("click", async (e) => {
 	        return;
 	      }
 	      
-	      // 1. Registrar gasto en la cuenta de origen (resta)
-	      await api.post("/transactions", {
-	        accountId: sourceAccountId,
-	        transferAccountId: null,
-	        categoryId: null,
-	        debtId: installment.debtId,
-	        type: "payment",
-	        description: `Pago de partialidad #${installment.number} - ${installment.debtName || "Deuda"}`,
-	        amount: installment.amount,
-	        currency: state.user?.currency || "MXN",
-	        transactionDate: todayIso(),
+	      // Marcar partialidad como pagada (backend crea transacciones + actualiza saldos)
+	      await api.post(`/installments/${id}/pay`, {
+	        debitAccountId: sourceAccountId,
+	        currency: sourceAccount?.currency || state.user?.currency || "MXN",
 	        notes: notes
 	      });
-	      
-	      // 2. Si la partialidad está asociada a una tarjeta de crédito, reducir su saldo
-	      if (installment.accountId) {
-	        const creditAccount = state.accounts.find(a => a.id === installment.accountId);
-	        if (creditAccount && creditAccount.type === "credit") {
-	          await api.post("/transactions", {
-	            accountId: installment.accountId,
-	            transferAccountId: null,
-	            categoryId: null,
-	            debtId: null,
-	            type: "payment",
-	            description: `Pago recibido - Partialidad #${installment.number}`,
-	            amount: installment.amount,
-	            currency: state.user?.currency || "MXN",
-	            transactionDate: todayIso(),
-	            notes: notes
-	          });
-	        }
-	      }
-	      
-	      // 3. Marcar partialidad como pagada en el backend
-		  await api.post(`/installments/${id}/pay`, {
-		    debitAccountId: sourceAccountId,
-		    currency: state.user?.currency || "MXN",
-		    notes: notes
-		  });
 	      
 	      showToast(`Partialidad pagada desde ${sourceAccount.name}`, "success");
 	      closeModal();
@@ -3803,19 +3770,20 @@ document.addEventListener("click", async (e) => {
 	    }
 	    
 	    try {
-	      // Crear transacción de gasto
-	      await api.post("/transactions", {
-	        accountId: sourceAccountId,
-	        transferAccountId: null,
-	        categoryId: recurring.categoryId,
-	        debtId: null,
-	        type: "expense",
-	        description: recurring.name,
-	        amount: recurring.amount,
-	        currency: state.user?.currency || "MXN",
-	        transactionDate: todayIso(),
-	        notes: notes
-	      });
+      // Crear transacción de gasto
+      const payRecAccount = state.accounts.find(a => a.id === sourceAccountId);
+      await api.post("/transactions", {
+        accountId: sourceAccountId,
+        transferAccountId: null,
+        categoryId: recurring.categoryId,
+        debtId: null,
+        type: "expense",
+        description: recurring.name,
+        amount: recurring.amount,
+        currency: payRecAccount?.currency || state.user?.currency || "MXN",
+        transactionDate: todayIso(),
+        notes: notes
+      });
 	      
 	      // Actualizar siguiente fecha del pago recurrente
 	      let nextDate = new Date(recurring.nextDueDate);

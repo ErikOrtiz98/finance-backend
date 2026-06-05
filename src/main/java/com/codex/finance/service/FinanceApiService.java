@@ -73,7 +73,7 @@ public class FinanceApiService {
 	}
 
 	private void setAuthContext(String userId) {
-		jdbcTemplate.execute("SELECT set_config('request.jwt.claim.sub', '" + userId + "', true)");
+		jdbcTemplate.update("SELECT set_config('request.jwt.claim.sub', ?, true)", userId);
 	}
 
 	// ==================== AUTH ====================
@@ -227,7 +227,15 @@ public class FinanceApiService {
 	    int page = filters.offset() == null ? 0 : filters.offset();
 	    int offset = page * limit;
 	    
-	    return movementRepo.findAllMovements(uuid, currency, limit, offset).stream()
+	    UUID accountUuid = filters.accountId() != null ? UUID.fromString(filters.accountId()) : null;
+	    UUID categoryUuid = filters.categoryId() != null ? UUID.fromString(filters.categoryId()) : null;
+	    
+	    return movementRepo.findAllMovements(
+	            uuid, currency,
+	            filters.from(), filters.to(),
+	            accountUuid, categoryUuid, filters.type(),
+	            limit, offset
+	    ).stream()
 	            .map(mapper::mapToTransactionResponse)
 	            .collect(Collectors.toList());
 	}
@@ -339,8 +347,10 @@ public class FinanceApiService {
 	public ContractDtos.RecurringPaymentResponse createRecurringPayment(String userId,
 			ContractDtos.UpsertRecurringPaymentRequest request) {
 		UUID uuid = UUID.fromString(userId);
+		String paymentType = request.paymentType() != null ? request.paymentType() : "expense";
 		Object[] result = scheduledPaymentRepo.createRecurringPayment(uuid, request.name(), request.amount(),
-				request.currency(), request.frequency(), request.nextDueDate(), mapper.toUuid(request.categoryId()));
+				request.currency(), request.frequency(), request.nextDueDate(), mapper.toUuid(request.categoryId()),
+				paymentType);
 		return mapper.mapToRecurringResponse(result);
 	}
 
@@ -350,9 +360,10 @@ public class FinanceApiService {
 		UUID spUuid = UUID.fromString(id);
 		if (scheduledPaymentRepo.existsByUserAndId(spUuid, userUuid) == 0)
 			throw new ApiException(HttpStatus.NOT_FOUND, "recurring payment not found");
+		String paymentType = request.paymentType() != null ? request.paymentType() : "expense";
 		Object[] result = scheduledPaymentRepo.updateRecurringPayment(spUuid, userUuid, request.name(),
 				request.amount(), request.currency(), request.frequency(), request.nextDueDate(),
-				mapper.toUuid(request.categoryId()));
+				mapper.toUuid(request.categoryId()), paymentType);
 		return mapper.mapToRecurringResponse(result);
 	}
 
@@ -459,12 +470,8 @@ public class FinanceApiService {
 	            "WHERE id = ? AND user_id = ? AND deleted_at IS NULL";
 	    jdbcTemplate.update(sqlDebt, amount, debtId, uuid);
 	    
-	    // 5. Actualizar el saldo de la TARJETA DE CRÉDITO (restar el pago)
-	    if (accountId != null) {
-	        String sqlAccount = "UPDATE accounts SET current_balance = current_balance - ?, updated_at = NOW() " +
-	                "WHERE id = ? AND user_id = ? AND deleted_at IS NULL AND account_type = 'credit'";
-	        jdbcTemplate.update(sqlAccount, amount, accountId, uuid);
-	    }
+	    // NOTA: el saldo de la tarjeta de crédito se actualiza automáticamente
+	    // vía el trigger trg_movements_balance al insertar el movimiento 'payment'
 	    
 	    Object[] row = installmentRepo.getInstallmentById(uuid, installmentUuid);
 	    return mapper.mapToInstallmentResponse(row);
@@ -486,10 +493,11 @@ public class FinanceApiService {
 		UUID uuid = UUID.fromString(userId);
 		UUID accountUuid = request.accountId() != null ? UUID.fromString(request.accountId()) : null;
 		UUID debtUuid = request.debtId() != null ? UUID.fromString(request.debtId()) : null;
+		String currency = profileRepo.getUserCurrency(uuid);
 
 		// Validar que la cuenta existe y es de crédito
 		if (accountUuid != null) {
-			Object[] accountRow = accountRepo.getAccountById(accountUuid, uuid);
+			Object[] accountRow = accountRepo.getAccountById(accountUuid, uuid, currency);
 			if (accountRow == null) {
 				throw new ApiException(HttpStatus.NOT_FOUND, "account not found");
 			}
@@ -1059,9 +1067,10 @@ public class FinanceApiService {
 	public List<ContractDtos.InstallmentResponse> createCreditCardPurchase(String userId, ContractDtos.CreditCardPurchaseRequest request) {
 	    UUID uuid = UUID.fromString(userId);
 	    UUID accountUuid = UUID.fromString(request.accountId());
+	    String currency = profileRepo.getUserCurrency(uuid);
 	    
 	    // Validar que la cuenta existe y es de crédito
-	    Object[] accountRow = accountRepo.getAccountById(accountUuid, uuid);
+	    Object[] accountRow = accountRepo.getAccountById(accountUuid, uuid, currency);
 	    if (accountRow == null) {
 	        throw new ApiException(HttpStatus.NOT_FOUND, "account not found");
 	    }
@@ -1110,8 +1119,11 @@ public class FinanceApiService {
 	        dueDate = dueDate.plusMonths(1);
 	    }
 	    
-	    // NO actualizar el saldo de la tarjeta aquí
-	    // El saldo se actualizará SOLO cuando se pague cada partialidad
+	    // Registrar el cargo inicial en la tarjeta de crédito (aumenta saldo = nueva deuda)
+	    movementRepo.createTransaction(
+	        uuid, accountUuid, null, null, "income",
+	        totalAmount, "Compra a meses: " + request.name(), currency, request.firstDueDate(), "Compra a " + months + " meses"
+	    );
 	    
 	    System.out.println("Compra a " + months + " meses registrada.");
 	    System.out.println("Pago mensual: " + monthlyAmount);
@@ -1150,7 +1162,7 @@ public class FinanceApiService {
 		BigDecimal amount = mapper.toBigDecimal(unwrappedInstallment[3]);
 
 		// Validar que la cuenta de débito existe
-		Object[] debitAccountRow = accountRepo.getAccountById(debitAccountUuid, uuid);
+		Object[] debitAccountRow = accountRepo.getAccountById(debitAccountUuid, uuid, request.currency());
 		if (debitAccountRow == null) {
 			throw new ApiException(HttpStatus.NOT_FOUND, "debit account not found");
 		}

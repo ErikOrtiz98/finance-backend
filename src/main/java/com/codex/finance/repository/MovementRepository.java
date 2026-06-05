@@ -26,10 +26,20 @@ public interface MovementRepository extends JpaRepository<Movement, UUID> {
 		       "CASE WHEN m.deleted_at IS NULL THEN 'synced' ELSE 'deleted' END AS syncStatus, " +
 		       "COALESCE(m.row_version, 1) AS version " +
 		       "FROM movements m WHERE m.user_id = :userId AND m.deleted_at IS NULL " +
+		       "AND (:from IS NULL OR m.movement_date >= :from) " +
+		       "AND (:to IS NULL OR m.movement_date <= :to) " +
+		       "AND (:accountId IS NULL OR m.account_id = :accountId) " +
+		       "AND (:categoryId IS NULL OR m.category_id = :categoryId) " +
+		       "AND (:type IS NULL OR m.movement_type = CAST(:type AS public.movement_type)) " +
 		       "ORDER BY m.movement_date DESC, m.created_at DESC " +
 		       "LIMIT :limit OFFSET :offset", nativeQuery = true)
 		List<Object[]> findAllMovements(@Param("userId") UUID userId, 
 		                                @Param("currency") String currency,
+		                                @Param("from") LocalDate from,
+		                                @Param("to") LocalDate to,
+		                                @Param("accountId") UUID accountId,
+		                                @Param("categoryId") UUID categoryId,
+		                                @Param("type") String type,
 		                                @Param("limit") Integer limit,
 		                                @Param("offset") Integer offset);
 
@@ -129,6 +139,7 @@ public interface MovementRepository extends JpaRepository<Movement, UUID> {
 		       "COALESCE(SUM(CASE WHEN movement_type = 'income' THEN amount ELSE 0 END), 0) AS income, " +
 		       "COALESCE(SUM(CASE WHEN movement_type = 'expense' THEN amount ELSE 0 END), 0) AS expenses, " +
 		       "COALESCE(SUM(CASE WHEN movement_type = 'payment' AND transfer_account_id IS NULL THEN amount ELSE 0 END), 0) AS debtPayments, " +
+		       "COALESCE(SUM(CASE WHEN movement_type IN ('expense', 'payment') THEN amount ELSE 0 END), 0) AS fixedPayments " +
 		       "FROM movements WHERE user_id = :userId AND deleted_at IS NULL " +
 		       "AND movement_date >= :from AND movement_date <= :to", nativeQuery = true)
 	ContractDtos.SummaryRowRaw getSummaryByDateRange(@Param("userId") UUID userId, 
