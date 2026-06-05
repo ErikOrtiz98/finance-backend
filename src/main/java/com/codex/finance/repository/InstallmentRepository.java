@@ -27,7 +27,8 @@ public interface InstallmentRepository extends JpaRepository<Installment, UUID> 
 			+ "i.payment_movement_id, i.created_at, i.updated_at, i.deleted_at, "
 			+ "CASE WHEN i.deleted_at IS NULL THEN 'synced' ELSE 'deleted' END AS syncStatus, "
 			+ "COALESCE(i.row_version, 1) AS version " + "FROM installments i " + "WHERE i.user_id = :userId "
-			+ "AND i.debt_id = :debtId " + "AND i.deleted_at IS NULL " + "ORDER BY i.number ASC", nativeQuery = true)
+			+ "AND i.debt_id = :debtId " + "AND i.deleted_at IS NULL " + "AND i.paid = false "
+			+ "ORDER BY i.number ASC", nativeQuery = true)
 	List<Object[]> listInstallmentsByDebt(@Param("userId") UUID userId, @Param("debtId") UUID debtId);
 
 	@Query(value = "SELECT i.id, i.debt_id, i.number, i.amount, i.due_date, i.paid, i.paid_at, "

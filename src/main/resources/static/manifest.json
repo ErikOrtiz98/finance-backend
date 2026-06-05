@@ -1,0 +1,17 @@
+{
+  "name": "Finanzas Personales",
+  "short_name": "Finanzas",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#080c14",
+  "theme_color": "#080c14",
+  "description": "Control de finanzas personales con backend seguro",
+  "icons": [
+    {
+      "src": "./icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}

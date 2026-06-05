@@ -225,13 +225,13 @@ class FinanceApiServiceAdvancedTest {
     }
 
     @Test
-    void getDebtRatio_100percent_whenNoIncome() {
+    void getDebtRatio_zero_whenNoMovements() {
         when(profileRepo.getUserCurrency(any())).thenReturn("MXN");
         when(movementRepo.getSummaryByDateRange(any(), any(), any())).thenReturn(null);
 
         ContractDtos.DebtRatioResponse result = service.getDebtRatio(userId);
-        assertEquals(0, BigDecimal.valueOf(100).compareTo(result.debtToIncomeRatio()));
-        assertEquals("crítico", result.riskLevel());
+        assertEquals(0, BigDecimal.ZERO.compareTo(result.debtToIncomeRatio()));
+        assertEquals("bajo", result.riskLevel());
     }
 
     // ==================== BIWEEKLY SCHEDULE ====================

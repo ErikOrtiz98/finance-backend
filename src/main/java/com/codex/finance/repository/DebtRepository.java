@@ -26,8 +26,9 @@ public interface DebtRepository extends JpaRepository<Debt, UUID> {
            "d.updated_at AS updatedAt, d.deleted_at AS deletedAt, " +
            "CASE WHEN d.deleted_at IS NULL THEN 'synced' ELSE 'deleted' END AS syncStatus, " +
            "COALESCE(d.row_version, 1) AS version " +
-           "FROM debts d WHERE d.user_id = :userId AND d.deleted_at IS NULL " +
-           "ORDER BY d.created_at DESC", nativeQuery = true)
+"FROM debts d WHERE d.user_id = :userId AND d.deleted_at IS NULL " +
+            "AND d.remaining_balance > 0 " +
+            "ORDER BY d.created_at DESC", nativeQuery = true)
     List<Object[]> listDebts(@Param("userId") UUID userId);
 
     @Modifying

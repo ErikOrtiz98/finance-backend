@@ -34,9 +34,15 @@ import com.codex.finance.repository.ScheduledPaymentRepository;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
+import jakarta.persistence.EntityManager;
+import jakarta.persistence.PersistenceContext;
+
 @Service
 @Transactional
 public class FinanceApiService {
+
+	@PersistenceContext
+	private EntityManager entityManager;
 
 	private final ProfileRepository profileRepo;
 	private final CategoryRepository categoryRepo;
@@ -73,7 +79,13 @@ public class FinanceApiService {
 	}
 
 	private void setAuthContext(String userId) {
-		jdbcTemplate.update("SELECT set_config('request.jwt.claim.sub', ?, true)", userId);
+		if (entityManager != null) {
+			entityManager.createNativeQuery("SELECT set_config('request.jwt.claim.sub', :userId, true)")
+				.setParameter("userId", userId)
+				.executeUpdate();
+		} else {
+			jdbcTemplate.update("SELECT set_config('request.jwt.claim.sub', ?, true)", userId);
+		}
 	}
 
 	// ==================== AUTH ====================
@@ -811,9 +823,15 @@ public class FinanceApiService {
 			    totalDebtPayments = mapper.toBigDecimal(unwrapped[2]);
 			}
 
-			BigDecimal ratio = totalIncome.compareTo(BigDecimal.ZERO) > 0 ? totalDebtPayments
-					.multiply(BigDecimal.valueOf(100)).divide(totalIncome, 2, java.math.RoundingMode.HALF_UP)
-					: BigDecimal.valueOf(100);
+			BigDecimal ratio;
+			if (totalIncome.compareTo(BigDecimal.ZERO) == 0 && totalDebtPayments.compareTo(BigDecimal.ZERO) == 0) {
+			    ratio = BigDecimal.ZERO;
+			} else if (totalIncome.compareTo(BigDecimal.ZERO) > 0) {
+			    ratio = totalDebtPayments.multiply(BigDecimal.valueOf(100))
+			        .divide(totalIncome, 2, java.math.RoundingMode.HALF_UP);
+			} else {
+			    ratio = BigDecimal.valueOf(100);
+			}
 
 			String riskLevel;
 			String recommendation;

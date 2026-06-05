@@ -30,7 +30,7 @@ public interface ScheduledPaymentRepository extends JpaRepository<ScheduledPayme
 	@Query(value = "INSERT INTO scheduled_payments (user_id, name, amount, frequency, next_date, "
 			+ "category_id, payment_type, metadata, created_at, updated_at, row_version) "
 			+ "VALUES (:userId, :name, :amount, CAST(:frequency AS public.payment_frequency), "
-			+ "CAST(:nextDueDate AS date), :categoryId, CAST(:paymentType AS public.payment_type), "
+			+ ":nextDueDate, :categoryId, :paymentType, "
 			+ "jsonb_build_object('currency', :currency), NOW(), NOW(), 1) "
 			+ "RETURNING id, user_id AS userId, name, amount, "
 			+ "COALESCE(metadata->>'currency', :currency) AS currency, frequency, "
@@ -47,7 +47,7 @@ public interface ScheduledPaymentRepository extends JpaRepository<ScheduledPayme
 	@Query(value = "UPDATE scheduled_payments SET name = :name, amount = :amount, "
 			+ "frequency = CAST(:frequency AS public.payment_frequency), " + "next_date = CAST(:nextDueDate AS date), "
 			+ "category_id = :categoryId, "
-			+ "payment_type = CAST(:paymentType AS public.payment_type), "
+			+ "payment_type = :paymentType, "
 			+ "metadata = jsonb_build_object('currency', :currency), "
 			+ "updated_at = NOW(), row_version = COALESCE(row_version, 0) + 1 "
 			+ "WHERE id = :id AND user_id = :userId AND deleted_at IS NULL "
@@ -97,7 +97,7 @@ public interface ScheduledPaymentRepository extends JpaRepository<ScheduledPayme
 	@Query(value = "INSERT INTO scheduled_payments (id, user_id, name, amount, currency, frequency, "
 			+ "next_date, end_date, category_id, payment_type, created_at, updated_at, row_version) "
 			+ "VALUES (gen_random_uuid(), :userId, :name, :amount, :currency, CAST(:frequency AS public.payment_frequency), "
-			+ ":nextDueDate, :endDate, :categoryId, CAST(:paymentType AS public.payment_type), NOW(), NOW(), 1)", nativeQuery = true)
+			+ ":nextDueDate, :endDate, :categoryId, :paymentType, NOW(), NOW(), 1)", nativeQuery = true)
 	void createRecurringPaymentWithDetails(@Param("userId") UUID userId, @Param("name") String name,
 			@Param("amount") BigDecimal amount, @Param("currency") String currency,
 			@Param("frequency") String frequency, @Param("nextDueDate") LocalDate nextDueDate,
@@ -110,7 +110,7 @@ public interface ScheduledPaymentRepository extends JpaRepository<ScheduledPayme
 			+ "frequency = COALESCE(CAST(:frequency AS public.payment_frequency), frequency), "
 			+ "next_date = COALESCE(:nextDueDate, next_date), " + "end_date = COALESCE(:endDate, end_date), "
 			+ "category_id = COALESCE(:categoryId, category_id), "
-			+ "payment_type = COALESCE(CAST(:paymentType AS public.payment_type), payment_type), "
+			+ "payment_type = COALESCE(:paymentType, payment_type), "
 			+ "updated_at = NOW(), row_version = row_version + 1 "
 			+ "WHERE id = :id AND user_id = :userId AND deleted_at IS NULL", nativeQuery = true)
 	void updateRecurringPaymentWithDetails(@Param("userId") UUID userId, @Param("id") UUID id,
