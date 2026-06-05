@@ -82,7 +82,7 @@ public class FinanceApiService {
 		if (entityManager != null) {
 			entityManager.createNativeQuery("SELECT set_config('request.jwt.claim.sub', :userId, true)")
 				.setParameter("userId", userId)
-				.executeUpdate();
+				.getSingleResult();
 		} else {
 			jdbcTemplate.update("SELECT set_config('request.jwt.claim.sub', ?, true)", userId);
 		}
