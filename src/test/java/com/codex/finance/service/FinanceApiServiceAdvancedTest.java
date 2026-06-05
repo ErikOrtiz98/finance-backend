@@ -55,12 +55,12 @@ class FinanceApiServiceAdvancedTest {
     void summary_usesRealIncome_whenAvailable() {
         when(profileRepo.getUserCurrency(any())).thenReturn("MXN");
         when(movementRepo.getSummaryByDateRange(any(), any(), any())).thenReturn(
-            new ContractDtos.SummaryRowRaw(BigDecimal.valueOf(5000), BigDecimal.valueOf(2000), BigDecimal.valueOf(500), BigDecimal.valueOf(300))
+            new Object[]{ BigDecimal.valueOf(5000), BigDecimal.valueOf(2000), BigDecimal.valueOf(500), BigDecimal.valueOf(300) }
         );
         when(debtRepo.getTotalRemainingBalance(any())).thenReturn(BigDecimal.valueOf(10000));
         Object[] profileRow = { null, null, null, null, null, null, BigDecimal.valueOf(100000) };
         when(profileRepo.getProfile(any())).thenReturn(profileRow);
-        when(mapper.unwrap(any())).thenReturn(profileRow);
+        when(mapper.unwrap(any())).thenAnswer(i -> i.getArgument(0));
         when(mapper.toBigDecimal(any())).thenCallRealMethod();
 
         ContractDtos.SummaryResponse result = service.summary(userId, "monthly", null, null, null);
@@ -105,13 +105,13 @@ class FinanceApiServiceAdvancedTest {
     void summary_usesZero_whenNoIncome() {
         when(profileRepo.getUserCurrency(any())).thenReturn("MXN");
         when(movementRepo.getSummaryByDateRange(any(), any(), any())).thenReturn(
-            new ContractDtos.SummaryRowRaw(BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO)
+            new Object[]{ BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO }
         );
         when(debtRepo.getTotalRemainingBalance(any())).thenReturn(BigDecimal.ZERO);
         Object[] profileRow = new Object[10];
         profileRow[6] = BigDecimal.ZERO;
         when(profileRepo.getProfile(any())).thenReturn(profileRow);
-        when(mapper.unwrap(any())).thenReturn(profileRow);
+        when(mapper.unwrap(any())).thenAnswer(i -> i.getArgument(0));
         when(mapper.toBigDecimal(any())).thenCallRealMethod();
 
         ContractDtos.SummaryResponse result = service.summary(userId, "monthly", null, null, null);
@@ -124,10 +124,12 @@ class FinanceApiServiceAdvancedTest {
         LocalDate from = LocalDate.of(2026, 1, 1);
         LocalDate to = LocalDate.of(2026, 1, 31);
         when(movementRepo.getSummaryByDateRange(any(), eq(from), eq(to))).thenReturn(
-            new ContractDtos.SummaryRowRaw(BigDecimal.valueOf(3000), BigDecimal.valueOf(1500), BigDecimal.ZERO, BigDecimal.ZERO)
+            new Object[]{ BigDecimal.valueOf(3000), BigDecimal.valueOf(1500), BigDecimal.ZERO, BigDecimal.ZERO }
         );
         when(debtRepo.getTotalRemainingBalance(any())).thenReturn(BigDecimal.ZERO);
         when(profileRepo.getProfile(any())).thenReturn(null);
+        when(mapper.unwrap(any())).thenAnswer(i -> i.getArgument(0));
+        when(mapper.toBigDecimal(any())).thenCallRealMethod();
 
         ContractDtos.SummaryResponse result = service.summary(userId, "custom", from, to, null);
         assertEquals(0, BigDecimal.valueOf(3000).compareTo(result.income()));
@@ -194,8 +196,10 @@ class FinanceApiServiceAdvancedTest {
     void getDebtRatio_lowRisk_whenRatioBelow30() {
         when(profileRepo.getUserCurrency(any())).thenReturn("MXN");
         when(movementRepo.getSummaryByDateRange(any(), any(), any())).thenReturn(
-            new ContractDtos.SummaryRowRaw(BigDecimal.valueOf(10000), BigDecimal.ZERO, BigDecimal.valueOf(2000), BigDecimal.ZERO)
+            new Object[]{ BigDecimal.valueOf(10000), BigDecimal.ZERO, BigDecimal.valueOf(2000), BigDecimal.ZERO }
         );
+        when(mapper.unwrap(any())).thenAnswer(i -> i.getArgument(0));
+        when(mapper.toBigDecimal(any())).thenCallRealMethod();
         ContractDtos.DebtRatioResponse result = service.getDebtRatio(userId);
         assertEquals("bajo", result.riskLevel());
         assertEquals(0, BigDecimal.valueOf(20).compareTo(result.debtToIncomeRatio()));
@@ -205,8 +209,10 @@ class FinanceApiServiceAdvancedTest {
     void getDebtRatio_mediumRisk_whenRatioBetween30And50() {
         when(profileRepo.getUserCurrency(any())).thenReturn("MXN");
         when(movementRepo.getSummaryByDateRange(any(), any(), any())).thenReturn(
-            new ContractDtos.SummaryRowRaw(BigDecimal.valueOf(10000), BigDecimal.ZERO, BigDecimal.valueOf(4000), BigDecimal.ZERO)
+            new Object[]{ BigDecimal.valueOf(10000), BigDecimal.ZERO, BigDecimal.valueOf(4000), BigDecimal.ZERO }
         );
+        when(mapper.unwrap(any())).thenAnswer(i -> i.getArgument(0));
+        when(mapper.toBigDecimal(any())).thenCallRealMethod();
         ContractDtos.DebtRatioResponse result = service.getDebtRatio(userId);
         assertEquals("medio", result.riskLevel());
     }
@@ -215,8 +221,10 @@ class FinanceApiServiceAdvancedTest {
     void getDebtRatio_highRisk_whenRatioBetween50And70() {
         when(profileRepo.getUserCurrency(any())).thenReturn("MXN");
         when(movementRepo.getSummaryByDateRange(any(), any(), any())).thenReturn(
-            new ContractDtos.SummaryRowRaw(BigDecimal.valueOf(10000), BigDecimal.ZERO, BigDecimal.valueOf(6000), BigDecimal.ZERO)
+            new Object[]{ BigDecimal.valueOf(10000), BigDecimal.ZERO, BigDecimal.valueOf(6000), BigDecimal.ZERO }
         );
+        when(mapper.unwrap(any())).thenAnswer(i -> i.getArgument(0));
+        when(mapper.toBigDecimal(any())).thenCallRealMethod();
         ContractDtos.DebtRatioResponse result = service.getDebtRatio(userId);
         assertEquals("alto", result.riskLevel());
     }
@@ -225,8 +233,10 @@ class FinanceApiServiceAdvancedTest {
     void getDebtRatio_criticalRisk_whenRatioAbove70() {
         when(profileRepo.getUserCurrency(any())).thenReturn("MXN");
         when(movementRepo.getSummaryByDateRange(any(), any(), any())).thenReturn(
-            new ContractDtos.SummaryRowRaw(BigDecimal.valueOf(10000), BigDecimal.ZERO, BigDecimal.valueOf(8000), BigDecimal.ZERO)
+            new Object[]{ BigDecimal.valueOf(10000), BigDecimal.ZERO, BigDecimal.valueOf(8000), BigDecimal.ZERO }
         );
+        when(mapper.unwrap(any())).thenAnswer(i -> i.getArgument(0));
+        when(mapper.toBigDecimal(any())).thenCallRealMethod();
         ContractDtos.DebtRatioResponse result = service.getDebtRatio(userId);
         assertEquals("crítico", result.riskLevel());
     }

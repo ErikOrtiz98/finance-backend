@@ -642,12 +642,13 @@ public class FinanceApiService {
 	    BigDecimal fixedPayments = BigDecimal.ZERO;
 	    
 	    if (startDate != null && endDate != null) {
-	        ContractDtos.SummaryRowRaw  summaryRow = movementRepo.getSummaryByDateRange(uuid, startDate, endDate);
+	    Object[] summaryRow = movementRepo.getSummaryByDateRange(uuid, startDate, endDate);
 	        if (summaryRow != null) {
-	            realIncome = summaryRow.income();
-	            expenses = summaryRow.expenses();
-	            debtPayments = summaryRow.debtPayments();  // Pagos realizados
-	            fixedPayments = summaryRow.fixedPayments();
+	            Object[] unwrapped = mapper.unwrap(summaryRow);
+	            realIncome = mapper.toBigDecimal(unwrapped[0]);
+	            expenses = mapper.toBigDecimal(unwrapped[1]);
+	            debtPayments = mapper.toBigDecimal(unwrapped[2]);
+	            fixedPayments = mapper.toBigDecimal(unwrapped[3]);
 	        }
 	    }
 	    
@@ -822,11 +823,16 @@ public class FinanceApiService {
 			LocalDate monthStart = today.withDayOfMonth(1);
 			LocalDate monthEnd = today.withDayOfMonth(today.lengthOfMonth());
 
-			ContractDtos.SummaryRowRaw summaryRow = movementRepo.getSummaryByDateRange(uuid, monthStart, monthEnd);
+			Object[] summaryRow = movementRepo.getSummaryByDateRange(uuid, monthStart, monthEnd);
 
 
-			BigDecimal totalIncome = summaryRow != null ? summaryRow.income() : BigDecimal.ZERO;
-			BigDecimal totalDebtPayments = summaryRow != null ? summaryRow.debtPayments() : BigDecimal.ZERO;
+			BigDecimal totalIncome = BigDecimal.ZERO;
+			BigDecimal totalDebtPayments = BigDecimal.ZERO;
+			if (summaryRow != null) {
+			    Object[] unwrapped = mapper.unwrap(summaryRow);
+			    totalIncome = mapper.toBigDecimal(unwrapped[0]);
+			    totalDebtPayments = mapper.toBigDecimal(unwrapped[2]);
+			}
 
 			if (totalIncome.compareTo(BigDecimal.ZERO) == 0) {
 				Object[] profileRow = profileRepo.getProfile(uuid);

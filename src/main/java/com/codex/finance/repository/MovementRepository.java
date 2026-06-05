@@ -142,7 +142,7 @@ public interface MovementRepository extends JpaRepository<Movement, UUID> {
 		       "COALESCE(SUM(CASE WHEN movement_type IN ('expense', 'payment') THEN amount ELSE 0 END), 0) AS fixedPayments " +
 		       "FROM movements WHERE user_id = :userId AND deleted_at IS NULL " +
 		       "AND movement_date >= :from AND movement_date <= :to", nativeQuery = true)
-	ContractDtos.SummaryRowRaw getSummaryByDateRange(@Param("userId") UUID userId, 
+	Object[] getSummaryByDateRange(@Param("userId") UUID userId, 
 		                               @Param("from") LocalDate from, 
 		                               @Param("to") LocalDate to);
 
