@@ -93,10 +93,11 @@ public interface AccountRepository extends JpaRepository<Account, UUID> {
 
 	@Query(value = "SELECT a.id, a.user_id, a.account_type, a.name, a.bank_name, "
 			+ "a.current_balance, a.credit_limit, a.statement_close_day, a.payment_due_day, "
-			+ "a.is_active, COALESCE(a.metadata->>'currency', 'MXN') as currency, "
+			+ "a.is_active, COALESCE(a.metadata->>'currency', :currency) as currency, "
 			+ "a.created_at, a.updated_at, a.deleted_at, "
-			+ "CASE WHEN a.deleted_at IS NULL THEN 'synced' ELSE 'deleted' END AS syncStatus " + "FROM accounts a "
+			+ "CASE WHEN a.deleted_at IS NULL THEN 'synced' ELSE 'deleted' END AS syncStatus, "
+			+ "COALESCE(a.row_version, 1) AS version " + "FROM accounts a "
 			+ "WHERE a.user_id = :userId AND a.id = :id AND a.deleted_at IS NULL", nativeQuery = true)
-	Object[] getAccountById(@Param("id") UUID id, @Param("userId") UUID userId);
+	Object[] getAccountById(@Param("id") UUID id, @Param("userId") UUID userId, @Param("currency") String currency);
 
 }
