@@ -125,7 +125,9 @@ public class FinanceApiService {
 			settings = new HashMap<>();
 		}
 
-		settings.put("monthlyIncome", request.monthlyIncome() != null ? request.monthlyIncome() : 0);
+		if (request.monthlyIncome() != null) {
+			settings.put("monthlyIncome", request.monthlyIncome());
+		}
 		settings.put("payCycle", request.payCycle());
 		settings.put("mainAccountId", request.mainAccountId()); // NUEVO
 
@@ -652,38 +654,13 @@ public class FinanceApiService {
 	        }
 	    }
 	    
-	    // Obtener deuda total pendiente
 	    BigDecimal totalDebt = debtRepo.getTotalRemainingBalance(uuid);
 	    
-	    BigDecimal monthlyIncome = BigDecimal.ZERO;
-	    Object[] profileRow = profileRepo.getProfile(uuid);
-	    if (profileRow != null) {
-	        profileRow = mapper.unwrap(profileRow);
-	        if (profileRow.length > 6 && profileRow[6] != null) {
-	            monthlyIncome = mapper.toBigDecimal(profileRow[6]);
-	        }
-	    }
-	    
-		BigDecimal finalIncome;
-
-		boolean hasRealIncome = realIncome.compareTo(BigDecimal.ZERO) > 0;
-		boolean hasPlannedIncome = monthlyIncome.compareTo(BigDecimal.ZERO) > 0;
-
-		if (hasRealIncome) {
-			finalIncome = realIncome;
-		} else if (hasPlannedIncome) {
-			finalIncome = "biweekly".equals(range)
-				? monthlyIncome.divide(BigDecimal.valueOf(2), 2, RoundingMode.HALF_UP)
-				: monthlyIncome;
-		} else {
-			finalIncome = BigDecimal.ZERO;
-		}
-	    
-	    BigDecimal totalExpenses = expenses.add(fixedPayments).add(debtPayments);
-	    BigDecimal availableBalance = finalIncome.subtract(totalExpenses);
+	    BigDecimal totalExpenses = fixedPayments;
+	    BigDecimal availableBalance = realIncome.subtract(totalExpenses);
 	    
 	    return new ContractDtos.SummaryResponse(
-	        finalIncome,           // income
+	        realIncome,           // income
 	        expenses,              // expenses
 	        fixedPayments,         // fixedPayments
 	        debtPayments,          // debtPayments (pagos realizados en el periodo)
@@ -834,16 +811,6 @@ public class FinanceApiService {
 			    totalDebtPayments = mapper.toBigDecimal(unwrapped[2]);
 			}
 
-			if (totalIncome.compareTo(BigDecimal.ZERO) == 0) {
-				Object[] profileRow = profileRepo.getProfile(uuid);
-				if (profileRow != null) {
-					profileRow = mapper.unwrap(profileRow);
-					if (profileRow.length > 6 && profileRow[6] != null) {
-						totalIncome = mapper.toBigDecimal(profileRow[6]);
-					}
-				}
-			}
-
 			BigDecimal ratio = totalIncome.compareTo(BigDecimal.ZERO) > 0 ? totalDebtPayments
 					.multiply(BigDecimal.valueOf(100)).divide(totalIncome, 2, java.math.RoundingMode.HALF_UP)
 					: BigDecimal.valueOf(100);
@@ -883,13 +850,14 @@ public class FinanceApiService {
 		LocalDate secondHalfStart = today.withDayOfMonth(16);
 		LocalDate secondHalfEnd = today.withDayOfMonth(today.lengthOfMonth());
 
+		LocalDate lastMonth = today.minusMonths(1);
+		LocalDate lastMonthStart = lastMonth.withDayOfMonth(1);
+		LocalDate lastMonthEnd = lastMonth.withDayOfMonth(lastMonth.lengthOfMonth());
 		BigDecimal monthlyIncome = BigDecimal.ZERO;
-		Object[] profileRow = profileRepo.getProfile(uuid);
-		if (profileRow != null) {
-			profileRow = mapper.unwrap(profileRow);
-			if (profileRow.length > 6 && profileRow[6] != null) {
-				monthlyIncome = mapper.toBigDecimal(profileRow[6]);
-			}
+		Object[] incomeRow = movementRepo.getSummaryByDateRange(uuid, lastMonthStart, lastMonthEnd);
+		if (incomeRow != null) {
+			Object[] unwrapped = mapper.unwrap(incomeRow);
+			monthlyIncome = mapper.toBigDecimal(unwrapped[0]);
 		}
 		BigDecimal biweeklyIncome = monthlyIncome.divide(BigDecimal.valueOf(2), 2, java.math.RoundingMode.HALF_UP);
 

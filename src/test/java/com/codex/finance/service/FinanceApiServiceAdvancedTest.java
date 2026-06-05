@@ -58,8 +58,6 @@ class FinanceApiServiceAdvancedTest {
             new Object[]{ BigDecimal.valueOf(5000), BigDecimal.valueOf(2000), BigDecimal.valueOf(500), BigDecimal.valueOf(300) }
         );
         when(debtRepo.getTotalRemainingBalance(any())).thenReturn(BigDecimal.valueOf(10000));
-        Object[] profileRow = { null, null, null, null, null, null, BigDecimal.valueOf(100000) };
-        when(profileRepo.getProfile(any())).thenReturn(profileRow);
         when(mapper.unwrap(any())).thenAnswer(i -> i.getArgument(0));
         when(mapper.toBigDecimal(any())).thenCallRealMethod();
 
@@ -67,38 +65,28 @@ class FinanceApiServiceAdvancedTest {
         assertEquals(0, BigDecimal.valueOf(5000).compareTo(result.income()), "Should use real income");
         assertEquals(0, BigDecimal.valueOf(10000).compareTo(result.totalRemainingDebt()));
         assertEquals(0, BigDecimal.valueOf(2000).compareTo(result.expenses()));
-        assertEquals(0, BigDecimal.valueOf(2200).compareTo(result.availableBalance()));
+        assertEquals(0, BigDecimal.valueOf(4700).compareTo(result.availableBalance()));
     }
 
     @Test
-    void summary_usesPlannedIncome_whenNoRealIncome() {
+    void summary_returnsZeroIncome_whenNoMovements() {
         when(profileRepo.getUserCurrency(any())).thenReturn("MXN");
         when(movementRepo.getSummaryByDateRange(any(), any(), any())).thenReturn(null);
         when(debtRepo.getTotalRemainingBalance(any())).thenReturn(BigDecimal.ZERO);
-        Object[] profileRow = new Object[10];
-        profileRow[6] = BigDecimal.valueOf(60000);
-        when(profileRepo.getProfile(any())).thenReturn(profileRow);
-        when(mapper.unwrap(any())).thenReturn(profileRow);
-        when(mapper.toBigDecimal(any())).thenCallRealMethod();
 
         ContractDtos.SummaryResponse result = service.summary(userId, "monthly", null, null, null);
-        assertEquals(0, BigDecimal.valueOf(60000).compareTo(result.income()), "Should use planned income");
+        assertEquals(0, BigDecimal.ZERO.compareTo(result.income()), "Should be zero income when no movements");
         assertNotNull(result.currency());
     }
 
     @Test
-    void summary_biweekly_dividesIncomeByTwo() {
+    void summary_biweekly_returnsZero_whenNoMovements() {
         when(profileRepo.getUserCurrency(any())).thenReturn("MXN");
         when(movementRepo.getSummaryByDateRange(any(), any(), any())).thenReturn(null);
         when(debtRepo.getTotalRemainingBalance(any())).thenReturn(BigDecimal.ZERO);
-        Object[] profileRow = new Object[10];
-        profileRow[6] = BigDecimal.valueOf(60000);
-        when(profileRepo.getProfile(any())).thenReturn(profileRow);
-        when(mapper.unwrap(any())).thenReturn(profileRow);
-        when(mapper.toBigDecimal(any())).thenCallRealMethod();
 
         ContractDtos.SummaryResponse result = service.summary(userId, "biweekly", null, null, null);
-        assertEquals(0, BigDecimal.valueOf(30000).compareTo(result.income()), "Biweekly income should be half");
+        assertEquals(0, BigDecimal.ZERO.compareTo(result.income()), "Biweekly income should be zero when no movements");
     }
 
     @Test
@@ -108,9 +96,6 @@ class FinanceApiServiceAdvancedTest {
             new Object[]{ BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO }
         );
         when(debtRepo.getTotalRemainingBalance(any())).thenReturn(BigDecimal.ZERO);
-        Object[] profileRow = new Object[10];
-        profileRow[6] = BigDecimal.ZERO;
-        when(profileRepo.getProfile(any())).thenReturn(profileRow);
         when(mapper.unwrap(any())).thenAnswer(i -> i.getArgument(0));
         when(mapper.toBigDecimal(any())).thenCallRealMethod();
 
@@ -127,7 +112,6 @@ class FinanceApiServiceAdvancedTest {
             new Object[]{ BigDecimal.valueOf(3000), BigDecimal.valueOf(1500), BigDecimal.ZERO, BigDecimal.ZERO }
         );
         when(debtRepo.getTotalRemainingBalance(any())).thenReturn(BigDecimal.ZERO);
-        when(profileRepo.getProfile(any())).thenReturn(null);
         when(mapper.unwrap(any())).thenAnswer(i -> i.getArgument(0));
         when(mapper.toBigDecimal(any())).thenCallRealMethod();
 
@@ -141,7 +125,6 @@ class FinanceApiServiceAdvancedTest {
         when(profileRepo.getUserCurrency(any())).thenReturn("MXN");
         when(movementRepo.getSummaryByDateRange(any(), any(), any())).thenReturn(null);
         when(debtRepo.getTotalRemainingBalance(any())).thenReturn(BigDecimal.ZERO);
-        when(profileRepo.getProfile(any())).thenReturn(null);
 
         ContractDtos.SummaryResponse result = service.summary(userId, "monthly", null, null, null);
         assertEquals(0, BigDecimal.ZERO.compareTo(result.income()));
@@ -242,24 +225,9 @@ class FinanceApiServiceAdvancedTest {
     }
 
     @Test
-    void getDebtRatio_fallsBackToProfileIncome_whenNoMovementIncome() {
-        when(profileRepo.getUserCurrency(any())).thenReturn("MXN");
-        when(movementRepo.getSummaryByDateRange(any(), any(), any())).thenReturn(null);
-        Object[] profileRow = new Object[10];
-        profileRow[6] = BigDecimal.valueOf(50000);
-        when(profileRepo.getProfile(any())).thenReturn(profileRow);
-        when(mapper.unwrap(any())).thenReturn(profileRow);
-        when(mapper.toBigDecimal(any())).thenCallRealMethod();
-
-        ContractDtos.DebtRatioResponse result = service.getDebtRatio(userId);
-        assertEquals(0, BigDecimal.valueOf(50000).compareTo(result.totalIncome()));
-    }
-
-    @Test
     void getDebtRatio_100percent_whenNoIncome() {
         when(profileRepo.getUserCurrency(any())).thenReturn("MXN");
         when(movementRepo.getSummaryByDateRange(any(), any(), any())).thenReturn(null);
-        when(profileRepo.getProfile(any())).thenReturn(null);
 
         ContractDtos.DebtRatioResponse result = service.getDebtRatio(userId);
         assertEquals(0, BigDecimal.valueOf(100).compareTo(result.debtToIncomeRatio()));
@@ -270,10 +238,9 @@ class FinanceApiServiceAdvancedTest {
 
     @Test
     void getBiweeklySchedule_returnsTwoPeriods() {
-        Object[] profileRow = new Object[10];
-        profileRow[6] = BigDecimal.valueOf(60000);
-        when(profileRepo.getProfile(any())).thenReturn(profileRow);
-        when(mapper.unwrap(any())).thenReturn(profileRow);
+        Object[] incomeRow = new Object[]{ BigDecimal.valueOf(60000), BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO };
+        when(movementRepo.getSummaryByDateRange(any(), any(), any())).thenReturn(incomeRow);
+        when(mapper.unwrap(any())).thenAnswer(i -> i.getArgument(0));
         when(mapper.toBigDecimal(any())).thenCallRealMethod();
         when(scheduledPaymentRepo.getUpcomingRecurringPaymentsInRange(any(), any(), any())).thenReturn(new ArrayList<>());
         when(debtRepo.getUpcomingDebtsInRange(any(), any(), any())).thenReturn(new ArrayList<>());
@@ -286,8 +253,8 @@ class FinanceApiServiceAdvancedTest {
     }
 
     @Test
-    void getBiweeklySchedule_handlesNullProfile() {
-        when(profileRepo.getProfile(any())).thenReturn(null);
+    void getBiweeklySchedule_returnsZeroIncome_whenNoMovements() {
+        when(movementRepo.getSummaryByDateRange(any(), any(), any())).thenReturn(null);
         when(scheduledPaymentRepo.getUpcomingRecurringPaymentsInRange(any(), any(), any())).thenReturn(new ArrayList<>());
         when(debtRepo.getUpcomingDebtsInRange(any(), any(), any())).thenReturn(new ArrayList<>());
 
