@@ -1,5 +1,8 @@
 package com.codex.finance.client;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import com.codex.finance.config.AppProperties;
 import com.codex.finance.dto.ContractDtos.AuthResponse;
 import com.codex.finance.dto.ContractDtos.RefreshRequest;
@@ -17,6 +20,8 @@ import java.time.Instant;
 
 @Component
 public class SupabaseAuthClient {
+	private static final Logger log = LoggerFactory.getLogger(SupabaseAuthClient.class);
+
 	private final WebClient webClient;
 	private final AppProperties properties;
 
@@ -47,11 +52,11 @@ public class SupabaseAuthClient {
 					.header("apikey", properties.anonKey()).header("Authorization", "Bearer " + properties.anonKey())
 					.contentType(MediaType.APPLICATION_JSON)
 					.bodyValue(java.util.Map.of("email", request.email(), "password", request.password(), "data",
-							java.util.Map.of("display_name", request.displayName())))
+							java.util.Map.of("full_name", request.displayName())))
 					.retrieve().bodyToMono(JsonNode.class).block();
 			return toAuthResponse(payload);
 		} catch (org.springframework.web.reactive.function.client.WebClientResponseException e) {
-			System.err.println("DETALLE DEL ERROR SIGNUP: " + e.getResponseBodyAsString());
+			log.error("DETALLE DEL ERROR SIGNUP: {}", e.getResponseBodyAsString());
 			throw e;
 		}
 	}
@@ -82,7 +87,7 @@ public class SupabaseAuthClient {
 			return toAuthResponse(payload);
 		} catch (org.springframework.web.reactive.function.client.WebClientResponseException e) {
 			// AQUÍ VEREMOS EL ERROR REAL
-			System.err.println("Error de Supabase: " + e.getResponseBodyAsString());
+			log.error("Error de Supabase: {}", e.getResponseBodyAsString());
 			throw e;
 		}
 	}
@@ -115,7 +120,7 @@ public class SupabaseAuthClient {
 		} catch (org.springframework.web.reactive.function.client.WebClientResponseException.Forbidden e) {
 			// SI FALLA POR 403 (Forbidden), significa que el token expiró.
 			// 1. Ejecutamos el refresh
-			System.out.println("Token expirado, intentando refrescar...");
+			log.info("Token expirado, intentando refrescar...");
 			SessionResponse newSession = refresh(new RefreshRequest(refreshToken));
 
 			// 2. Intentamos de nuevo con el nuevo token
@@ -131,7 +136,7 @@ public class SupabaseAuthClient {
 		JsonNode user = payload.path("user");
 		return new AuthResponse(
 				new UserDto(user.path("id").asText("unknown"), user.path("email").asText(null),
-						user.path("user_metadata").path("display_name").asText(null)),
+						user.path("user_metadata").path("full_name").asText(null)),
 				new SessionDto(payload.path("access_token").asText(null), payload.path("refresh_token").asText(null),
 						Instant.ofEpochSecond(
 								payload.path("expires_at").asLong(Instant.now().plusSeconds(3600).getEpochSecond()))));
@@ -144,7 +149,7 @@ public class SupabaseAuthClient {
 		JsonNode user = payload.path("user");
 		return new SessionResponse(
 				new UserDto(user.path("id").asText("unknown"), user.path("email").asText(null),
-						user.path("user_metadata").path("display_name").asText(null)),
+						user.path("user_metadata").path("full_name").asText(null)),
 				new SessionDto(payload.path("access_token").asText(null), payload.path("refresh_token").asText(null),
 						Instant.ofEpochSecond(
 								payload.path("expires_at").asLong(Instant.now().plusSeconds(3600).getEpochSecond()))));

@@ -3654,8 +3654,12 @@ async function loadAppAfterLogin() {
       throw new Error("No hay token guardado");
     }
     
-    const user = await api.get("/me");
+    const [user, accounts] = await Promise.all([
+      api.get("/me"),
+      api.get("/accounts")
+    ]);
     state.user = user;
+    state.accounts = accounts || [];
     
     showApp();
     
@@ -3663,10 +3667,6 @@ async function loadAppAfterLogin() {
     if (avatar) {
       avatar.textContent = (user.displayName || user.email || "U")[0].toUpperCase();
     }
-    
-    // Cargar cuentas
-    const accounts = await api.get("/accounts");
-    state.accounts = accounts || [];
     
     // Verificar si existe cuenta de efectivo
     const hasCashAccount = state.accounts.some(a => a.type === "cash");

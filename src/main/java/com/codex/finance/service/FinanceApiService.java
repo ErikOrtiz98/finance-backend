@@ -11,8 +11,11 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import java.util.concurrent.CompletableFuture;
 import java.util.stream.Collectors;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
@@ -40,6 +43,8 @@ import jakarta.persistence.PersistenceContext;
 @Service
 @Transactional
 public class FinanceApiService {
+
+	private static final Logger log = LoggerFactory.getLogger(FinanceApiService.class);
 
 	@PersistenceContext
 	private EntityManager entityManager;
@@ -90,7 +95,38 @@ public class FinanceApiService {
 
 	// ==================== AUTH ====================
 	public ContractDtos.AuthResponse signUp(ContractDtos.SignUpRequest request) {
-		return authClient.signUp(request);
+		ContractDtos.AuthResponse response = authClient.signUp(request);
+		if (response != null && response.user() != null && response.user().id() != null) {
+			createDefaultCategories(response.user().id());
+		}
+		return response;
+	}
+
+	private void createDefaultCategories(String userId) {
+		UUID uuid = UUID.fromString(userId);
+		String[][] defaults = {
+			{ "Comida", "#f97316", "🍔", "expense" },
+			{ "Transporte", "#3b82f6", "🚗", "expense" },
+			{ "Vivienda", "#8b5cf6", "🏠", "expense" },
+			{ "Servicios", "#06b6d4", "💡", "expense" },
+			{ "Entretenimiento", "#ec4899", "🎬", "expense" },
+			{ "Salud", "#22c55e", "💊", "expense" },
+			{ "Educación", "#a855f7", "📚", "expense" },
+			{ "Ropa", "#eab308", "👕", "expense" },
+			{ "Supermercado", "#14b8a6", "🛒", "expense" },
+			{ "Suscripciones", "#64748b", "📡", "expense" },
+			{ "Salario", "#22c55e", "💰", "income" },
+			{ "Freelance", "#06b6d4", "💻", "income" },
+			{ "Inversiones", "#8b5cf6", "📈", "income" },
+			{ "Otros ingresos", "#f97316", "💵", "income" }
+		};
+		for (String[] cat : defaults) {
+			try {
+				categoryRepo.createCategory(uuid, cat[0], cat[1], cat[2], cat[3]);
+			} catch (Exception e) {
+				log.warn("Error creating default category {}: {}", cat[0], e.getMessage());
+			}
+		}
 	}
 
 	public ContractDtos.AuthResponse signIn(ContractDtos.SignInRequest request) {
@@ -155,7 +191,17 @@ public class FinanceApiService {
 
 		Object[] row = profileRepo.upsertProfile(uuid, request.displayName(), request.currency(), newSettingsJson,
 				uuid);
+		evictCurrencyCache(uuid);
 		return mapper.mapToMeResponse(row);
+	}
+
+	@org.springframework.cache.annotation.Cacheable("currencies")
+	public String getCachedCurrency(UUID userId) {
+		return profileRepo.getUserCurrency(userId);
+	}
+
+	@org.springframework.cache.annotation.CacheEvict(value = "currencies", key = "#userId")
+	public void evictCurrencyCache(UUID userId) {
 	}
 
 	// ==================== CATEGORIES ====================
@@ -196,7 +242,7 @@ public class FinanceApiService {
 	@Transactional(readOnly = true)
 	public List<ContractDtos.AccountResponse> listAccounts(String userId) {
 		UUID uuid = UUID.fromString(userId);
-		String currency = profileRepo.getUserCurrency(uuid);
+		String currency = getCachedCurrency(uuid);
 		return accountRepo.listAccounts(uuid, currency).stream().map(mapper::mapToAccountResponse)
 				.collect(Collectors.toList());
 	}
@@ -235,7 +281,7 @@ public class FinanceApiService {
 	public List<ContractDtos.TransactionResponse> listTransactions(String userId,
 	        ContractDtos.TransactionFilters filters) {
 	    UUID uuid = UUID.fromString(userId);
-	    String currency = profileRepo.getUserCurrency(uuid);
+	    String currency = getCachedCurrency(uuid);
 	    
 	    int limit = filters.limit() == null ? 50 : filters.limit();
 	    int page = filters.offset() == null ? 0 : filters.offset();
@@ -259,11 +305,10 @@ public class FinanceApiService {
 		setAuthContext(userId);
 
 		// LOG PARA VER QUÉ ESTÁ LLEGANDO
-		System.out.println("=== CREATE TRANSACTION DEBUG ===");
-		System.out.println("Tipo recibido: '" + request.type() + "'");
-		System.out.println("Longitud del tipo: " + (request.type() == null ? "null" : request.type().length()));
-		System.out.println("Caracteres: "
-				+ java.util.Arrays.toString(request.type() == null ? new char[0] : request.type().toCharArray()));
+		log.debug("=== CREATE TRANSACTION DEBUG ===");
+		log.debug("Tipo recibido: '{}'", request.type());
+		log.debug("Longitud del tipo: {}", request.type() == null ? "null" : request.type().length());
+		log.debug("Caracteres: {}", java.util.Arrays.toString(request.type() == null ? new char[0] : request.type().toCharArray()));
 
 		UUID uuid = UUID.fromString(userId);
 		UUID accountUuid = mapper.toUuid(request.accountId());
@@ -274,13 +319,13 @@ public class FinanceApiService {
 			movementType = movementType.toLowerCase().trim();
 			// Mapear 'withdrawal' a 'expense'
 			if ("withdrawal".equals(movementType)) {
-				System.out.println("⚠️ Se recibió 'withdrawal', convirtiendo a 'expense'");
+				log.debug("Se recibió 'withdrawal', convirtiendo a 'expense'");
 				movementType = "expense";
 			}
 			// Validar que sea un valor permitido
 			List<String> validTypes = List.of("income", "expense", "transfer", "payment", "adjustment");
 			if (!validTypes.contains(movementType)) {
-				System.out.println("❌ Tipo inválido: " + movementType + ", usando 'expense' por defecto");
+				log.warn("Tipo inválido: {}, usando 'expense' por defecto", movementType);
 				movementType = "expense";
 			}
 		} else {
@@ -353,7 +398,7 @@ public class FinanceApiService {
 	@Transactional(readOnly = true)
 	public List<ContractDtos.RecurringPaymentResponse> listRecurringPayments(String userId) {
 		UUID uuid = UUID.fromString(userId);
-		String currency = profileRepo.getUserCurrency(uuid);
+		String currency = getCachedCurrency(uuid);
 		return scheduledPaymentRepo.listRecurringPayments(uuid, currency).stream().map(mapper::mapToRecurringResponse)
 				.collect(Collectors.toList());
 	}
@@ -431,13 +476,13 @@ public class FinanceApiService {
 	    UUID installmentUuid = UUID.fromString(id);
 	    UUID debitAccountUuid = UUID.fromString(request.debitAccountId()); // Cuenta de origen (débito/efectivo)
 	    
-	    System.out.println("=== MARK INSTALLMENT AS PAID DEBUG ===");
-	    System.out.println("debitAccountId recibido: " + request.debitAccountId());
-	    System.out.println("currency: " + request.currency());
-	    System.out.println("notes: " + request.notes());
-	    System.out.println("id: " + installmentUuid);
-	    System.out.println("userid: " + uuid);
-	    System.out.println("debitAccountId: " + debitAccountUuid);
+	    log.debug("=== MARK INSTALLMENT AS PAID DEBUG ===");
+	    log.debug("debitAccountId recibido: {}", request.debitAccountId());
+	    log.debug("currency: {}", request.currency());
+	    log.debug("notes: {}", request.notes());
+	    log.debug("id: {}", installmentUuid);
+	    log.debug("userid: {}", uuid);
+	    log.debug("debitAccountId: {}", debitAccountUuid);
 	    
 	    
 	    // Obtener la installment
@@ -455,7 +500,7 @@ public class FinanceApiService {
 	        String accountIdStr = mapper.toString(unwrappedInstallment[8]);
 	        if (accountIdStr != null && !accountIdStr.isEmpty()) {
 	            accountId = UUID.fromString(accountIdStr);
-	            System.out.println("Account ID (tarjeta) encontrado: " + accountId);
+	            log.debug("Account ID (tarjeta) encontrado: {}", accountId);
 	        }
 	    }
 	    
@@ -507,7 +552,7 @@ public class FinanceApiService {
 		UUID uuid = UUID.fromString(userId);
 		UUID accountUuid = request.accountId() != null ? UUID.fromString(request.accountId()) : null;
 		UUID debtUuid = request.debtId() != null ? UUID.fromString(request.debtId()) : null;
-		String currency = profileRepo.getUserCurrency(uuid);
+		String currency = getCachedCurrency(uuid);
 
 		// Validar que la cuenta existe y es de crédito
 		if (accountUuid != null) {
@@ -644,7 +689,7 @@ public class FinanceApiService {
 	@Transactional(readOnly = true)
 	public ContractDtos.SummaryResponse summary(String userId, String range, LocalDate from, LocalDate to, String accountId) {
 	    UUID uuid = UUID.fromString(userId);
-	    String currency = profileRepo.getUserCurrency(uuid);
+	    String currency = getCachedCurrency(uuid);
 	    
 	    LocalDate[] window = resolveWindow(range, from, to);
 	    LocalDate startDate = window[0];
@@ -710,104 +755,114 @@ public class FinanceApiService {
 
 	@Transactional(readOnly = true)
 	public ContractDtos.UpcomingResponse upcoming(String userId) {
-	    UUID uuid = UUID.fromString(userId);
-	    List<ContractDtos.UpcomingItemResponse> items = new ArrayList<>();
-	    
-	    LocalDate today = LocalDate.now();
-	    LocalDate monthEnd = today.withDayOfMonth(today.lengthOfMonth());
-	    
-	    System.out.println("=== UPCOMING DEBUG ===");
-	    System.out.println("Today: " + today);
-	    System.out.println("Month end: " + monthEnd);
-	    
-	    // 1. Pagos recurrentes
-	    try {
-	        List<Object[]> recurringRows = scheduledPaymentRepo.getUpcomingRecurringPaymentsInRange(uuid, today, monthEnd);
-	        System.out.println("Recurring rows: " + (recurringRows == null ? "null" : recurringRows.size()));
-	        if (recurringRows != null) {
-	            for (Object[] row : recurringRows) {
-	                Object[] unwrapped = mapper.unwrap(row);
-	                LocalDate dueDate = mapper.toLocalDate(unwrapped[3]);
-	                if (dueDate != null) {
-	                    items.add(new ContractDtos.UpcomingItemResponse(
-	                        "recurring",
-	                        mapper.toString(unwrapped[0]),
-	                        mapper.toString(unwrapped[1]),
-	                        dueDate,
-	                        mapper.toBigDecimal(unwrapped[2])
-	                    ));
-	                }
-	            }
-	        }
-	    } catch (Exception e) {
-	        System.err.println("Error loading recurring payments: " + e.getMessage());
-	    }
-	    
-	    // 2. Deudas
-	    try {
-	        List<Object[]> debtRows = debtRepo.getUpcomingDebtsInRange(uuid, today, monthEnd);
-	        System.out.println("Debt rows: " + (debtRows == null ? "null" : debtRows.size()));
-	        if (debtRows != null) {
-	            for (Object[] row : debtRows) {
-	                Object[] unwrapped = mapper.unwrap(row);
-	                LocalDate dueDate = mapper.toLocalDate(unwrapped[3]);
-	                BigDecimal amount = mapper.toBigDecimal(unwrapped[4]);
-	                if (dueDate != null && amount != null && amount.compareTo(BigDecimal.ZERO) > 0) {
-	                    items.add(new ContractDtos.UpcomingItemResponse(
-	                        "debt",
-	                        mapper.toString(unwrapped[0]),
-	                        mapper.toString(unwrapped[1]),
-	                        dueDate,
-	                        amount
-	                    ));
-	                }
-	            }
-	        }
-	    } catch (Exception e) {
-	        System.err.println("Error loading debts: " + e.getMessage());
-	    }
-	    
-	    // 3. Partialidades
-	    try {
-	        List<Object[]> installmentRows = installmentRepo.getUpcomingInstallments(uuid, today, monthEnd);
-	        System.out.println("Installment rows: " + (installmentRows == null ? "null" : installmentRows.size()));
-	        if (installmentRows != null) {
-	            for (Object[] row : installmentRows) {
-	                Object[] unwrapped = mapper.unwrap(row);
-	                LocalDate dueDate = mapper.toLocalDate(unwrapped[2]);
-	                BigDecimal amount = mapper.toBigDecimal(unwrapped[3]);
-	                if (dueDate != null && amount != null && amount.compareTo(BigDecimal.ZERO) > 0) {
-	                    items.add(new ContractDtos.UpcomingItemResponse(
-	                        "installment",
-	                        mapper.toString(unwrapped[0]),
-	                        mapper.toString(unwrapped[1]),
-	                        dueDate,
-	                        amount
-	                    ));
-	                }
-	            }
-	        }
-	    } catch (Exception e) {
-	        System.err.println("Error loading installments: " + e.getMessage());
-	    }
-	    
-	    // Ordenar por fecha
-	    items.sort(Comparator.comparing(ContractDtos.UpcomingItemResponse::dueDate, Comparator.nullsLast(Comparator.naturalOrder())));
-	    
-	    System.out.println("Total items: " + items.size());
-	    
-	    return new ContractDtos.UpcomingResponse(items);
+		UUID uuid = UUID.fromString(userId);
+		LocalDate today = LocalDate.now();
+		LocalDate monthEnd = today.withDayOfMonth(today.lengthOfMonth());
+
+		CompletableFuture<List<ContractDtos.UpcomingItemResponse>> recurring = CompletableFuture
+				.supplyAsync(() -> loadRecurringUpcoming(uuid, today, monthEnd));
+		CompletableFuture<List<ContractDtos.UpcomingItemResponse>> debts = CompletableFuture
+				.supplyAsync(() -> loadDebtUpcoming(uuid, today, monthEnd));
+		CompletableFuture<List<ContractDtos.UpcomingItemResponse>> installments = CompletableFuture
+				.supplyAsync(() -> loadInstallmentUpcoming(uuid, today, monthEnd));
+
+		List<ContractDtos.UpcomingItemResponse> items = CompletableFuture
+				.allOf(recurring, debts, installments).thenApply(v -> {
+					List<ContractDtos.UpcomingItemResponse> combined = new ArrayList<>();
+					combined.addAll(recurring.join());
+					combined.addAll(debts.join());
+					combined.addAll(installments.join());
+					combined.sort(Comparator.comparing(ContractDtos.UpcomingItemResponse::dueDate,
+							Comparator.nullsLast(Comparator.naturalOrder())));
+					return combined;
+				}).exceptionally(e -> {
+					log.error("Error loading upcoming items: {}", e.getMessage());
+					return List.of();
+				}).join();
+
+		log.debug("Total items: {}", items.size());
+		return new ContractDtos.UpcomingResponse(items);
+	}
+
+	private List<ContractDtos.UpcomingItemResponse> loadRecurringUpcoming(UUID uuid, LocalDate today,
+			LocalDate monthEnd) {
+		try {
+			List<Object[]> rows = scheduledPaymentRepo.getUpcomingRecurringPaymentsInRange(uuid, today, monthEnd);
+			log.debug("Recurring rows: {}", rows == null ? "null" : rows.size());
+			if (rows == null)
+				return List.of();
+			List<ContractDtos.UpcomingItemResponse> result = new ArrayList<>();
+			for (Object[] row : rows) {
+				Object[] unwrapped = mapper.unwrap(row);
+				LocalDate dueDate = mapper.toLocalDate(unwrapped[3]);
+				if (dueDate != null) {
+					result.add(new ContractDtos.UpcomingItemResponse("recurring", mapper.toString(unwrapped[0]),
+							mapper.toString(unwrapped[1]), dueDate, mapper.toBigDecimal(unwrapped[2])));
+				}
+			}
+			return result;
+		} catch (Exception e) {
+			log.error("Error loading recurring payments: {}", e.getMessage());
+			return List.of();
+		}
+	}
+
+	private List<ContractDtos.UpcomingItemResponse> loadDebtUpcoming(UUID uuid, LocalDate today, LocalDate monthEnd) {
+		try {
+			List<Object[]> rows = debtRepo.getUpcomingDebtsInRange(uuid, today, monthEnd);
+			log.debug("Debt rows: {}", rows == null ? "null" : rows.size());
+			if (rows == null)
+				return List.of();
+			List<ContractDtos.UpcomingItemResponse> result = new ArrayList<>();
+			for (Object[] row : rows) {
+				Object[] unwrapped = mapper.unwrap(row);
+				LocalDate dueDate = mapper.toLocalDate(unwrapped[3]);
+				BigDecimal amount = mapper.toBigDecimal(unwrapped[4]);
+				if (dueDate != null && amount != null && amount.compareTo(BigDecimal.ZERO) > 0) {
+					result.add(new ContractDtos.UpcomingItemResponse("debt", mapper.toString(unwrapped[0]),
+							mapper.toString(unwrapped[1]), dueDate, amount));
+				}
+			}
+			return result;
+		} catch (Exception e) {
+			log.error("Error loading debts: {}", e.getMessage());
+			return List.of();
+		}
+	}
+
+	private List<ContractDtos.UpcomingItemResponse> loadInstallmentUpcoming(UUID uuid, LocalDate today,
+			LocalDate monthEnd) {
+		try {
+			List<Object[]> rows = installmentRepo.getUpcomingInstallments(uuid, today, monthEnd);
+			log.debug("Installment rows: {}", rows == null ? "null" : rows.size());
+			if (rows == null)
+				return List.of();
+			List<ContractDtos.UpcomingItemResponse> result = new ArrayList<>();
+			for (Object[] row : rows) {
+				Object[] unwrapped = mapper.unwrap(row);
+				LocalDate dueDate = mapper.toLocalDate(unwrapped[2]);
+				BigDecimal amount = mapper.toBigDecimal(unwrapped[3]);
+				if (dueDate != null && amount != null && amount.compareTo(BigDecimal.ZERO) > 0) {
+					result.add(new ContractDtos.UpcomingItemResponse("installment", mapper.toString(unwrapped[0]),
+							mapper.toString(unwrapped[1]), dueDate, amount));
+				}
+			}
+			return result;
+		} catch (Exception e) {
+			log.error("Error loading installments: {}", e.getMessage());
+			return List.of();
+		}
 	}
 
 	// ==================== NUEVO: SOBREENDEUDAMIENTO ====================
 	@Transactional(readOnly = true)
 	public ContractDtos.DebtRatioResponse getDebtRatio(String userId) {
-		System.out.println("=== DEBT RATIO DEBUG ===");
-		System.out.println("UserId: " + userId);
+		log.debug("=== DEBT RATIO DEBUG ===");
+		log.debug("UserId: {}", userId);
 
 		try {
 			UUID uuid = UUID.fromString(userId);
-			String currency = profileRepo.getUserCurrency(uuid);
+			String currency = getCachedCurrency(uuid);
 			LocalDate today = LocalDate.now();
 			LocalDate monthStart = today.withDayOfMonth(1);
 			LocalDate monthEnd = today.withDayOfMonth(today.lengthOfMonth());
@@ -852,7 +907,7 @@ public class FinanceApiService {
 			return new ContractDtos.DebtRatioResponse(totalIncome, totalDebtPayments, ratio, riskLevel, recommendation,
 					currency);
 		} catch (Exception e) {
-			System.err.println("Error en getDebtRatio: " + e.getMessage());
+			log.error("Error en getDebtRatio: {}", e.getMessage());
 			e.printStackTrace();
 			throw e;
 		}
@@ -924,7 +979,7 @@ public class FinanceApiService {
 				}
 			}
 		} catch (Exception e) {
-			System.err.println("Error loading recurring payments: " + e.getMessage());
+			log.error("Error loading recurring payments: {}", e.getMessage());
 		}
 
 		// Deudas - CORREGIDO: usar el monto correcto (min entre fixed_payment y
@@ -945,12 +1000,11 @@ public class FinanceApiService {
 							"debt", remainingBalance // remainingBalance
 					));
 
-					System.out.println("Deuda: " + mapper.toString(unwrapped[1]) + " - Monto a pagar: " + amount
-							+ " - Saldo restante: " + remainingBalance);
+					log.debug("Deuda: {} - Monto a pagar: {} - Saldo restante: {}", mapper.toString(unwrapped[1]), amount, remainingBalance);
 				}
 			}
 		} catch (Exception e) {
-			System.err.println("Error loading debts: " + e.getMessage());
+			log.error("Error loading debts: {}", e.getMessage());
 			e.printStackTrace();
 		}
 
@@ -1082,7 +1136,7 @@ public class FinanceApiService {
 			return new LocalDate[] { from, to };
 		LocalDate today = LocalDate.now();
 
-		System.out.println("resolveWindow - range recibido: '" + range + "'");
+		log.debug("resolveWindow - range recibido: '{}'", range);
 
 		String normalizedRange = range == null ? "monthly" : range.toLowerCase().trim();
 
@@ -1098,7 +1152,7 @@ public class FinanceApiService {
 		case "custom":
 			return new LocalDate[] { today.minusDays(30), today };
 		default:
-			System.out.println("⚠️ Valor de range no reconocido: '" + normalizedRange + "', usando monthly");
+			log.warn("Valor de range no reconocido: '{}', usando monthly", normalizedRange);
 			return new LocalDate[] { today.withDayOfMonth(1), today.withDayOfMonth(today.lengthOfMonth()) };
 		}
 	}
@@ -1108,7 +1162,7 @@ public class FinanceApiService {
 	public List<ContractDtos.InstallmentResponse> createCreditCardPurchase(String userId, ContractDtos.CreditCardPurchaseRequest request) {
 	    UUID uuid = UUID.fromString(userId);
 	    UUID accountUuid = UUID.fromString(request.accountId());
-	    String currency = profileRepo.getUserCurrency(uuid);
+	    String currency = getCachedCurrency(uuid);
 	    
 	    // Validar que la cuenta existe y es de crédito
 	    Object[] accountRow = accountRepo.getAccountById(accountUuid, uuid, currency);
@@ -1166,9 +1220,9 @@ public class FinanceApiService {
 	        totalAmount, "Compra a meses: " + request.name(), currency, request.firstDueDate(), "Compra a " + months + " meses"
 	    );
 	    
-	    System.out.println("Compra a " + months + " meses registrada.");
-	    System.out.println("Pago mensual: " + monthlyAmount);
-	    System.out.println("Total compra: " + totalAmount);
+	    log.debug("Compra a {} meses registrada.", months);
+	    log.debug("Pago mensual: {}", monthlyAmount);
+	    log.debug("Total compra: {}", totalAmount);
 	    
 	    List<Object[]> createdInstallments = installmentRepo.listInstallmentsByAccount(uuid, accountUuid);
 	    List<ContractDtos.InstallmentResponse> installments = new ArrayList<>();

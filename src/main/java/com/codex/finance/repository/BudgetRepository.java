@@ -21,10 +21,9 @@ public interface BudgetRepository extends JpaRepository<Budget, UUID> {
 			+ "COALESCE(SUM(m.amount), 0) as spent_amount, "
 			+ "ROUND((COALESCE(SUM(m.amount), 0) / NULLIF(b.amount_limit, 0)) * 100, 2) as usage_percent, "
 			+ "CASE WHEN COALESCE(SUM(m.amount), 0) / NULLIF(b.amount_limit, 0) >= b.alert_threshold THEN true ELSE false END as is_alert "
-			+ "FROM budgets b " + "LEFT JOIN movements m ON m.category_id = b.category_id "
+			+ "FROM budgets b " + "LEFT JOIN movements m ON m.category_id = b.category_id AND m.user_id = b.user_id "
 			+ "AND m.movement_type IN ('expense', 'payment') "
-			+ "AND m.movement_date BETWEEN b.period_start AND b.period_end " + "AND m.deleted_at IS NULL "
-			+ "LEFT JOIN categories c ON c.id = b.category_id " + "WHERE b.user_id = :userId AND b.deleted_at IS NULL "
+			+ "AND m.movement_date BETWEEN b.period_start AND b.period_end " + "AND m.deleted_at IS NULL " + "LEFT JOIN categories c ON c.id = b.category_id " + "WHERE b.user_id = :userId AND b.deleted_at IS NULL "
 			+ "AND b.period_start <= CURRENT_DATE AND b.period_end >= CURRENT_DATE "
 			+ "GROUP BY b.id, c.name, b.category_id, b.budget_period, b.period_start, b.period_end, b.amount_limit, b.alert_threshold", nativeQuery = true)
 	List<Object[]> listActiveBudgets(@Param("userId") UUID userId);
@@ -41,7 +40,7 @@ public interface BudgetRepository extends JpaRepository<Budget, UUID> {
 		       "ROUND((COALESCE(SUM(m.amount), 0) / NULLIF(b.amount_limit, 0)) * 100, 2) as usage_percent, " +
 		       "CASE WHEN COALESCE(SUM(m.amount), 0) / NULLIF(b.amount_limit, 0) >= b.alert_threshold THEN true ELSE false END as is_alert " +
 		       "FROM budgets b " +
-		       "LEFT JOIN movements m ON m.category_id = b.category_id " +
+		       "LEFT JOIN movements m ON m.category_id = b.category_id AND m.user_id = b.user_id " +
 		       "AND m.movement_type IN ('expense', 'payment') " +
 		       "AND m.movement_date BETWEEN b.period_start AND b.period_end " +
 		       "AND m.deleted_at IS NULL " +

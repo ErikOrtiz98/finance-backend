@@ -1,5 +1,8 @@
 package com.codex.finance.mapper;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import com.codex.finance.dto.ContractDtos;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -17,6 +20,8 @@ import java.util.stream.Collectors;
 
 @Component
 public class FinanceMapper {
+
+	private static final Logger log = LoggerFactory.getLogger(FinanceMapper.class);
 
 	private final ObjectMapper objectMapper;
 
@@ -183,7 +188,7 @@ public class FinanceMapper {
 	    
 	    // Verificar que el array tiene suficientes elementos
 	    if (row.length < 11) {
-	        System.err.println("Error: row length is " + row.length + ", expected at least 11");
+	        log.error("Error: row length is {}, expected at least 11", row.length);
 	        // Devolver un objeto con valores por defecto
 	        return new ContractDtos.BudgetResponse(null, null, null, null, null, null, 
 	                BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO, false);
