@@ -899,44 +899,83 @@ function buildCompareCard(month, cur) {
 }
 
 // ─── TRANSACTIONS ───────────────────────────────────────────
+function buildTxFilterParams() {
+  const params = new URLSearchParams();
+  const limit = pagination.transactions.pageSize;
+  const page = pagination.transactions.currentPage;
+  params.set("limit", limit);
+  params.set("page", page);
+
+  const typeFilter = el("filter-type")?.value;
+  if (typeFilter) params.set("type", typeFilter);
+
+  const accountFilter = el("filter-account")?.value;
+  if (accountFilter) params.set("accountId", accountFilter);
+
+  return params.toString();
+}
+
 async function loadTransactions(page = null, reset = true) {
   setLoading(true);
   try {
-    // Si se especifica página, usarla; si no, usar la actual
     const targetPage = page !== null ? page : pagination.transactions.currentPage;
-    
-    const limit = pagination.transactions.pageSize;
+    pagination.transactions.currentPage = targetPage;
+
+    if (reset || targetPage === 0) {
+      pagination.transactions.currentPage = 0;
+    }
+
     const [transactions, categories, accounts] = await Promise.all([
-      api.get(`/transactions?limit=${limit}&page=${targetPage}`),
+      api.get(`/transactions?${buildTxFilterParams()}`),
       api.get("/categories"),
       api.get("/accounts"),
     ]);
-    
+
     if (reset || targetPage === 0) {
       state.transactions = transactions || [];
     } else {
-      // Para carga infinita (si quisieras scroll infinito)
       state.transactions = [...state.transactions, ...(transactions || [])];
     }
-    
+
     state.categories = categories || [];
     state.accounts = accounts || [];
-    
-    // Actualizar estado de paginación
-    pagination.transactions.currentPage = targetPage;
-    pagination.transactions.hasMore = transactions && transactions.length === limit;
-    
+
+    pagination.transactions.hasMore = transactions && transactions.length === pagination.transactions.pageSize;
+
     renderTransactions();
-    renderPaginationControls();  // ← NUEVO: mostrar controles
-    
+    renderPaginationControls();
     populateCategorySelect("tx-category", state.categories);
     populateAccountSelect("tx-account", state.accounts);
+    populateFilterAccountSelect(state.accounts);
+    wireFilterEvents();
   } catch (error) {
     console.error("Error loading transactions:", error);
     showToast("Error al cargar transacciones", "error");
   } finally {
     setLoading(false);
   }
+}
+
+function populateFilterAccountSelect(accounts) {
+  const sel = el("filter-account");
+  if (!sel) return;
+  const current = sel.value;
+  sel.innerHTML = '<option value="">Todas las cuentas</option>' +
+    accounts.map(a => `<option value="${a.id}">${a.name}</option>`).join("");
+  sel.value = current;
+}
+
+function wireFilterEvents() {
+  ["filter-type", "filter-account"].forEach(id => {
+    const el_ = el(id);
+    if (el_ && !el_.dataset.wired) {
+      el_.addEventListener("change", () => {
+        pagination.transactions.currentPage = 0;
+        loadTransactions(0, true);
+      });
+      el_.dataset.wired = "true";
+    }
+  });
 }
 function renderPaginationControls() {
   const container = el("transactions-list");

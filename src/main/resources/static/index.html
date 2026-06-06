@@ -275,6 +275,20 @@
             <h3 class="card-title">Transacciones</h3>
             <button class="btn-primary btn-sm" id="btn-add-transaction">+ Nueva</button>
           </div>
+          <div class="tx-filters">
+            <select id="filter-type" class="field-input">
+              <option value="">Todos los tipos</option>
+              <option value="income">Ingresos</option>
+              <option value="expense">Gastos</option>
+              <option value="payment">Pagos</option>
+              <option value="transfer">Transferencias</option>
+              <option value="withdrawal">Retiros</option>
+              <option value="adjustment">Ajustes</option>
+            </select>
+            <select id="filter-account" class="field-input">
+              <option value="">Todas las cuentas</option>
+            </select>
+          </div>
           <div id="transaction-form-wrap" class="inline-form hidden">
             <div class="form-grid">
               <div class="field-group">
