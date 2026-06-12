@@ -1,57 +1,43 @@
-<<<<<<< HEAD
-# Finance contract backend
+Personal Finance Manager
 
-Spring Boot backend aligned to the API contract from the pasted file.
+Sistema de gestión financiera personal desarrollado en Java.
 
-## Routes covered
+El objetivo del proyecto es centralizar el control de ingresos, egresos y movimientos financieros mediante una aplicación enfocada en administración personal y organización de datos financieros.
 
-- `POST /auth/sign-up`
-- `POST /auth/sign-in`
-- `POST /auth/refresh`
-- `POST /auth/sign-out`
-- `GET /auth/session`
-- `GET /me`
-- `PATCH /me`
-- `GET /categories`
-- `POST /categories`
-- `PATCH /categories/{id}`
-- `DELETE /categories/{id}`
-- `GET /accounts`
-- `POST /accounts`
-- `PATCH /accounts/{id}`
-- `DELETE /accounts/{id}`
-- `GET /transactions`
-- `POST /transactions`
-- `PATCH /transactions/{id}`
-- `DELETE /transactions/{id}`
-- `GET /debts`
-- `POST /debts`
-- `PATCH /debts/{id}`
-- `DELETE /debts/{id}`
-- `GET /recurring-payments`
-- `POST /recurring-payments`
-- `PATCH /recurring-payments/{id}`
-- `DELETE /recurring-payments/{id}`
-- `GET /sync/pull`
-- `POST /sync/push`
-- `POST /sync/resolve-conflict`
-- `POST /migration/import-local`
-- `GET /stats/summary`
-- `GET /stats/categories`
-- `GET /stats/upcoming`
-- `GET /backup/export`
-- `POST /backup/import`
+Características
 
-## Storage mapping
+- Registro de ingresos y gastos
+- Administración de categorías
+- Control de movimientos financieros
+- Persistencia de información
+- Gestión centralizada de datos
+- Interfaz web integrada
 
-- `transactions` -> `movements`
-- `recurring-payments` -> `scheduled_payments`
+Tecnologías utilizadas
 
-## Notes
+- Java
+- Spring Boot
+- SQL
+- HTML / CSS / JavaScript
 
-- JWT auth is expected from Supabase.
-- `syncStatus` and `version` are included in API responses.
-- This backend assumes the Supabase schema generated earlier in `supabase_finanzas_personales.sql`.
-=======
-# finance-backend
->>>>>>> e3ca2c82662a2381277afc79d3d9666a3a71a391
+Arquitectura
+
+Aplicación monolítica orientada a mantener una estructura simple y centralizada para la gestión financiera personal.
+
+Objetivo del proyecto
+
+Este proyecto fue desarrollado como práctica personal para mejorar habilidades en:
+
+- Desarrollo backend
+- Modelado de entidades
+- Persistencia de datos
+- Diseño de lógica de negocio
+- Organización de aplicaciones empresariales
+
+Pendientes y mejoras futuras
+
+- Mejorar interfaz de usuario
+- Implementar autenticación
+- Generar reportes financieros
+- Optimización de consultas
+- Despliegue nuevamente en la nube
